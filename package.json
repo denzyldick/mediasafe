@@ -1,0 +1,28 @@
+{
+  "name": "mediasafe",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "vue": "^3.3.4",
+    "@tauri-apps/api": "^2.0.0-beta.0",
+    "@tauri-apps/plugin-shell": "^2.0.0-beta.0",
+    "vue-masonry": "^0.16.0",
+    "vue2-leaflet": "^2.7.1",
+    "vuetify": "^3.1.13"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.2.3",
+    "vite": "^5.0.0",
+    "@tauri-apps/cli": "^2.0.0-beta.0",
+    "internal-ip": "^7.0.0",
+    "@mdi/font": "^7.2.96",
+    "leaflet": "^1.9.4"
+  }
+}
