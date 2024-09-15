@@ -3,7 +3,7 @@ use std::{
     fs::{self, File},
 };
 
-use rusqlite::{CachedStatement, Connection};
+use rusqlite::Connection;
 use serde::Serialize;
 
 pub struct Database {

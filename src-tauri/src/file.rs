@@ -11,6 +11,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::Read;
 use std::string::String;
+
 pub fn scan_folder(directory: String, path: &str) {
     let database = database::Database::new(path);
     println!("Scanning all files in: {}", directory);
@@ -23,7 +24,6 @@ pub fn scan_folder(directory: String, path: &str) {
             Some(f) => String::from(f.to_str().unwrap()),
             None => String::from(""),
         };
-        println!("File found {}", file_name);
         if (file_name != "." || !file_name.is_empty()) && metadata.is_file() {
             if let Some(extension) = path.extension() {
                 if extension == "png" || extension == "jpg" {
@@ -83,4 +83,15 @@ pub fn get_thumbnail(path: String) -> String {
     let mut buffer = Vec::new();
     file.read_to_end(&mut buffer).unwrap();
     buffer.to_base64(MIME)
+}
+
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn scan_folder() {
+        crate::file::scan_folder(String::from("/home/denzyl"), "/home/denzyl/");
+    }
 }

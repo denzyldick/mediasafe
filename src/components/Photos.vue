@@ -1,8 +1,16 @@
 <template>
-  <div style="margin-left:20px; margin-top:10px;">
-    {{ resourcePath }}
+  <div style="margin-left: 20px; margin-top: 10px">
     <v-row>
-      <v-col cols=12 md=10 lg=10>
+      <v-col md="10" lg="10">
+        <v-autocomplete
+          v-model="search"
+          v-model:search="query"
+          :items="objects"
+        ></v-autocomplete>
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-col cols="12" md="10" lg="10">
         <v-row>
           <v-col>
             <div class="grid">
@@ -14,22 +22,27 @@
     </v-row>
     <v-row>
       <v-col class="d-flex justify-center align-center">
-        <v-progress-circular indeterminate v-if="loading === true"></v-progress-circular>
-        <v-btn @click="list_files" flat v-if="loading === false">Load
-          more</v-btn>
+        <v-progress-circular
+          indeterminate
+          v-if="loading === true"
+        ></v-progress-circular>
+        <v-btn @click="list_files" flat v-if="loading === false"
+          >Load more</v-btn
+        >
       </v-col>
     </v-row>
   </div>
 </template>
 <script>
 import { invoke } from "@tauri-apps/api/core";
-import { appDataDir, dataDir } from '@tauri-apps/api/path';
-import Image from './Image.vue';
+import { appDataDir, dataDir } from "@tauri-apps/api/path";
+import Image from "./Image.vue";
+import { pictureDir } from "@tauri-apps/api/path";
 export default {
   name: "Photos",
   components: { Image },
   data: () => ({
-    resourcePath: null,
+    resourcePath: "/home/denzyl",
     search: null,
     query: null,
     loading: false,
@@ -38,27 +51,32 @@ export default {
       limit: 30,
     },
     objects: [],
-    images: [
-    ],
+    images: [],
   }),
+  mounted() {
+    this.scan_folder();
+  },
   async created() {
-    this.resourcePath = await appDataDir();
-//    this.list_files();
-    // this.scan_folder();
+    //this.list_files();
+    await this.scan_folder();
 
     window.onscroll = function () {
-      if ((window.innerHeight + Math.ceil(window.pageYOffset)) >= document.body.offsetHeight) {
-        // this.list_files();
+      if (
+        window.innerHeight + Math.ceil(window.pageYOffset) >=
+        document.body.offsetHeight
+      ) {
+        this.list_files();
       }
     }.bind(this);
-  }
-  ,
+  },
   methods: {
     scan_folder: async function () {
-      let data = await dataDir();
-      invoke("all_files", { directory: data, path: this.resourcePath }).then(function (response) {
-        return JSON.parse(response);
-      })
+      let data = pictureDirPath;
+      invoke("scan_files", { directory: data, path: this.resourcePath }).then(
+        function (response) {
+          return JSON.parse(response);
+        },
+      );
     },
     list_files: function () {
       this.loading = true;
@@ -70,33 +88,42 @@ export default {
         this.paging.offset = 0;
       }
       console.log("Listing files");
-      invoke("list_files", { path: this.resourcePath, offset: this.paging.offset, limit: this.paging.limit, query: this.search ?? "" }).then(function (response) {
-        let new_images = JSON.parse(response);
-        if (s.length > 0) {
-          this.images = [];
-        }
-        this.images = this.images.concat(new_images);
-        this.loading = false;
-      }.bind(this));
+      invoke("list_files", {
+        path: this.resourcePath,
+        offset: this.paging.offset,
+        limit: this.paging.limit,
+        query: this.search ?? "",
+      }).then(
+        function (response) {
+          let new_images = JSON.parse(response);
+          if (s.length > 0) {
+            this.images = [];
+          }
+          this.images = this.images.concat(new_images);
+          this.loading = false;
+        }.bind(this),
+      );
       console.log("Done");
     },
     list_objects: function (val) {
       if (val.length > 0) {
-        invoke("list_objects", { query: val }).then(function (response) {
-          this.objects = JSON.parse(response);
-        }.bind(this));
+        invoke("list_objects", { query: val }).then(
+          function (response) {
+            this.objects = JSON.parse(response);
+          }.bind(this),
+        );
       }
     },
     search_by_object: function (tag) {
       let result = invoke("search_by_object").then((result) => {
         console.log(result);
-      })
+      });
     },
     get_thumbnail: async function (key, path) {
       invoke("get_thumbnail", { path: path }).then((result) => {
-        this.images[key].encoded = 'data:image/jpeg;base64,' + result;
+        this.images[key].encoded = "data:image/jpeg;base64," + result;
       });
-    }
+    },
   },
   watch: {
     query(val) {
@@ -105,9 +132,9 @@ export default {
     search(val) {
       console.log("Searching ");
       this.list_files();
-    }
-  }
-}
+    },
+  },
+};
 </script>
 <style>
 /* input:before { */

@@ -1,26 +1,25 @@
-<script >
+<script>
 import { invoke } from "@tauri-apps/api/core";
 import DeviceList from "./components/DeviceList.vue";
-import Map from './components/Map.vue';
-import Photos from './components/Photos.vue';
+import Map from "./components/Map.vue";
+import Photos from "./components/Photos.vue";
 export default {
   components: { DeviceList, Map, Photos },
   data: () => ({
+    scanning: false,
     search: null,
-    current_page: 'home',
-    sdp: 'helloworld',
-    drawer: true,
+    current_page: "photos",
     group: null,
     items: [
       {
-        title: 'Devices',
-        value: 'devices',
-        icon: 'mdi-laptop'
+        title: "Devices",
+        value: "devices",
+        icon: "mdi-laptop",
       },
       {
-        title: 'Folders',
-        value: 'bar',
-        icon: 'mdi-folder'
+        title: "Folders",
+        value: "bar",
+        icon: "mdi-folder",
       },
     ],
   }),
@@ -32,37 +31,47 @@ export default {
         return response;
       });
     },
+    scan: function () {
+      this.scanning = !this.scanning;
+    },
   },
   watch: {
     group() {
-      this.drawer = false
+      this.drawer = false;
     },
   },
-}
+};
 </script>
 
 <template>
   <v-app>
     <v-layout>
-
       <v-main>
-        <v-app-bar elevation="1" v-if=false>
-          <v-spacer></v-spacer>
-          <template v-slot:prepend>
-            <v-autocomplete style="width: 400px;" flat v-model="search" v-model:search="query"
-              :items="objects"></v-autocomplete>
-          </template>
-          <v-spacer></v-spacer>
+        <v-app-bar elevation="1" v-if="current_page === 'home'">
+          <v-row>
+            <v-col>
+              <v-btn color="green" v-if="scanning">
+                <v-icon>mdi-reload mdi-spin</v-icon> &nbsp;...scanning</v-btn
+              >
+              <v-btn
+                flat
+                color="grey"
+                v-if="scanning === false"
+                @click="scan()"
+              >
+                <v-icon>mdi-ok</v-icon> last scan 10s ago
+              </v-btn>
+            </v-col>
+          </v-row>
         </v-app-bar>
+
         <Photos v-if="current_page === 'home'" />
         <Map v-if="current_page === 'location'" />
         <DeviceList v-if="current_page === 'devices'" />
       </v-main>
     </v-layout>
-
     <v-bottom-navigation mode="shift">
-
-      <v-btn value="myphotos" @click="current_page = 'home';" flat>
+      <v-btn value="myphotos" @click="current_page = 'home'" flat>
         <v-icon>mdi-folder</v-icon>
         <span>My photos</span>
       </v-btn>
@@ -81,7 +90,6 @@ export default {
         <v-icon>mdi-heart</v-icon>
         <span>Favorites</span>
       </v-btn>
-
     </v-bottom-navigation>
   </v-app>
 </template>
