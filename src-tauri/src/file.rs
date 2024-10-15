@@ -1,5 +1,10 @@
 use crate::database;
 use exif::Reader;
+use fast_image_resize::images::Image;
+use fast_image_resize::ResizeOptions;
+use fast_image_resize::Resizer;
+use image_compressor::compressor::Compressor;
+use image_compressor::Factor;
 use jwalk::WalkDir;
 use rand::{distributions::Alphanumeric, Rng};
 use rustc_serialize::base64::{ToBase64, MIME};
@@ -55,7 +60,7 @@ pub fn scan_folder(directory: String, path: &str) {
 
                             let photo = database::Photo {
                                 id, // This must be the hash of the file instead of the
-                                encoded: "".to_string(),
+                                encoded: get_thumbnail(path.display().to_string()),
                                 location: path.display().to_string(),
                                 objects: HashMap::new(),
                                 properties: propeties,
@@ -72,12 +77,6 @@ pub fn scan_folder(directory: String, path: &str) {
 }
 
 pub fn get_thumbnail(path: String) -> String {
-    // let img = image::open(path).unwrap();
-    // Convert the scaled image to a vector
-    // let mut buffer = Cursor::new(Vec::new());
-    // img.write_to(&mut buffer, ImageFormat::Png).unwrap();
-    // buffer.into_inner().to_base64(MIME)
-
     let mut file = File::open(path.clone()).unwrap();
 
     let mut buffer = Vec::new();
@@ -86,9 +85,6 @@ pub fn get_thumbnail(path: String) -> String {
 }
 
 mod tests {
-    use std::path::Path;
-
-    use super::*;
 
     #[test]
     fn scan_folder() {

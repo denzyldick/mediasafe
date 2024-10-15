@@ -55,14 +55,20 @@ impl Database {
     }
 
     pub fn store_photo(&self, photo: Photo) {
-        self.connection.execute(
+        let result = self.connection.execute(
             "INSERT INTO photo(id, location, encoded)
-        VALUES(?1, ?2, ?3)
+        VALUES(?1, ?2, ?3 )
 ",
             (&photo.id, &photo.location, &photo.encoded),
         );
 
-        println!("Photo has been saved");
+        if let Ok(result) = result {
+            println!("Photo has been saved");
+        }
+
+        if let Err(error) = result {
+            println!("{}", error);
+        }
         for (object, probablity) in photo.objects {
             self.connection
                 .execute(
@@ -103,10 +109,16 @@ impl Database {
         println!("{objects:#?}");
         objects
     }
+    pub fn get_photo(self, id: &str) {
+        let sql = "select id,encoded from photo where photo.id = ?1";
+        let mut stmt = self.connection.prepare(sql).unwrap();
+
+        stmt.query_map((id), |row| Ok(row.get(2))).unwrap();
+    }
     pub fn list_photos(self, query: &str, offset: usize, limit: usize) -> Vec<Photo> {
         let mut photos = Vec::new();
         if !query.is_empty() {
-            let   sql = "select * from photo JOIN object  ON photo.id = object.photo_id WHERE class LIKE ?3 ORDER by object.probability DESC LIMIT ?1, ?2;";
+            let   sql = "select * from photo LEFT JOIN object  ON photo.id = object.photo_id WHERE class LIKE ?3 ORDER by object.probability DESC LIMIT ?1, ?2;";
             let param = (offset.to_string(), limit.to_string(), format!("%{query}"));
             let mut stmt = self.connection.prepare(sql).unwrap();
             let person_iter = stmt
@@ -124,7 +136,7 @@ impl Database {
                 photos.push(p.unwrap());
             }
         } else {
-            let sql = "SELECT id, location, encoded FROM photo JOIN properties ON  photo.id = properties.photo_id WHERE properties.key = 'DateTimeOriginal' ORDER BY properties.value DESC LIMIT ?1, ?2";
+            let sql = "SELECT id, location, encoded FROM photo LIMIT ?1, ?2";
             let param = (offset.to_string(), limit.to_string());
 
             let mut stmt = self.connection.prepare(sql).unwrap();

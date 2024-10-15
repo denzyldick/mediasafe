@@ -52,7 +52,10 @@ struct Image {
 }
 
 #[tauri::command]
-fn list_files(path: &str, query: &str, limit: usize, offset: usize) -> String {
+fn list_files(path: &str, query: &str, limit: usize, offset: usize, scan: bool) -> String {
+    if scan {
+        scan_files(path.to_string(), path);
+    }
     let database = database::Database::new(path);
     let photos = database.list_photos(query, offset, limit);
     serde_json::to_string(&photos).unwrap()

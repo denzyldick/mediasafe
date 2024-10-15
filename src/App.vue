@@ -21,6 +21,11 @@ export default {
         value: "bar",
         icon: "mdi-folder",
       },
+      {
+        title: "Settings",
+        value: "settings",
+        icon: "mdi-wrench",
+      },
     ],
   }),
   methods: {

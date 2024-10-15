@@ -14,10 +14,9 @@ export default {
     invoke("get_thumbnail", { path: this.path.location }).then((base64) => {
       console.log("Done loading image from: ", this.path.location);
       this.path.encoded = base64;
-    })
-  }
-}
-
+    });
+  },
+};
 </script>
 <style>
 img {

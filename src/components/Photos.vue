@@ -35,14 +35,12 @@
 </template>
 <script>
 import { invoke } from "@tauri-apps/api/core";
-import { appDataDir, dataDir } from "@tauri-apps/api/path";
 import Image from "./Image.vue";
-import { pictureDir } from "@tauri-apps/api/path";
 export default {
   name: "Photos",
   components: { Image },
   data: () => ({
-    resourcePath: "/home/denzyl",
+    resourcePath: "/home/denzyl/Pictures",
     search: null,
     query: null,
     loading: false,
@@ -52,14 +50,15 @@ export default {
     },
     objects: [],
     images: [],
+    scan: true,
   }),
   mounted() {
-    this.scan_folder();
+    //this.scan_folder();
   },
-  async created() {
-    //this.list_files();
-    await this.scan_folder();
+  created() {
+    this.scan_folder();
 
+    //this.list_files();
     window.onscroll = function () {
       if (
         window.innerHeight + Math.ceil(window.pageYOffset) >=
@@ -74,11 +73,13 @@ export default {
       let data = pictureDirPath;
       invoke("scan_files", { directory: data, path: this.resourcePath }).then(
         function (response) {
+          console.log(response);
           return JSON.parse(response);
         },
       );
     },
     list_files: function () {
+      this.scan_folder();
       this.loading = true;
       if (this.images.length > 0) {
         this.paging.offset = this.paging.offset + this.paging.limit;
@@ -93,9 +94,11 @@ export default {
         offset: this.paging.offset,
         limit: this.paging.limit,
         query: this.search ?? "",
+        scan: this.scan,
       }).then(
         function (response) {
           let new_images = JSON.parse(response);
+          console.log(response);
           if (s.length > 0) {
             this.images = [];
           }
