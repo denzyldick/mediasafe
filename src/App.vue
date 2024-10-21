@@ -3,8 +3,9 @@ import { invoke } from "@tauri-apps/api/core";
 import DeviceList from "./components/DeviceList.vue";
 import Map from "./components/Map.vue";
 import Photos from "./components/Photos.vue";
+import Setting from "./components/Setting.vue";
 export default {
-  components: { DeviceList, Map, Photos },
+  components: { DeviceList, Map, Photos, Setting },
   data: () => ({
     scanning: false,
     search: null,
@@ -73,6 +74,7 @@ export default {
         <Photos v-if="current_page === 'home'" />
         <Map v-if="current_page === 'location'" />
         <DeviceList v-if="current_page === 'devices'" />
+        <Setting v-if="current_page === 'settings'" />
       </v-main>
     </v-layout>
     <v-bottom-navigation mode="shift">
@@ -94,6 +96,10 @@ export default {
       <v-btn value="starred" @click="current_page = 'starred'" flat>
         <v-icon>mdi-heart</v-icon>
         <span>Favorites</span>
+      </v-btn>
+      <v-btn value="settings" @click="current_page = 'settings'" flat>
+        <v-icon>mdi-wrench</v-icon>
+        <span>Setting</span>
       </v-btn>
     </v-bottom-navigation>
   </v-app>

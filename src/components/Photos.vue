@@ -14,7 +14,11 @@
         <v-row>
           <v-col>
             <div class="grid">
-              <Image v-for="image in images" :path="image" />
+              <Image
+                v-for="image in images"
+                v-bind:key="image.id"
+                :path="image"
+              />
             </div>
           </v-col>
         </v-row>
@@ -53,12 +57,10 @@ export default {
     scan: true,
   }),
   mounted() {
-    //this.scan_folder();
+    this.scan_folder();
   },
   created() {
-    this.scan_folder();
-
-    //this.list_files();
+    this.list_files();
     window.onscroll = function () {
       if (
         window.innerHeight + Math.ceil(window.pageYOffset) >=
@@ -78,8 +80,7 @@ export default {
         },
       );
     },
-    list_files: function () {
-      this.scan_folder();
+    list_files: async function () {
       this.loading = true;
       if (this.images.length > 0) {
         this.paging.offset = this.paging.offset + this.paging.limit;
@@ -106,7 +107,6 @@ export default {
           this.loading = false;
         }.bind(this),
       );
-      console.log("Done");
     },
     list_objects: function (val) {
       if (val.length > 0) {

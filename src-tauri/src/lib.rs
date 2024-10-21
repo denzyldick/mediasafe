@@ -52,19 +52,25 @@ struct Image {
 }
 
 #[tauri::command]
-fn list_files(path: &str, query: &str, limit: usize, offset: usize, scan: bool) -> String {
+async fn list_files(
+    path: String,
+    query: String,
+    limit: usize,
+    offset: usize,
+    scan: bool,
+) -> String {
     if scan {
-        scan_files(path.to_string(), path);
+        scan_files(path.to_string(), path.clone());
     }
-    let database = database::Database::new(path);
-    let photos = database.list_photos(query, offset, limit);
+    let database = database::Database::new(&path);
+    let photos = database.list_photos(&query, offset, limit);
     serde_json::to_string(&photos).unwrap()
 }
 
 #[tauri::command]
-fn scan_files(directory: String, path: &str) {
+fn scan_files(directory: String, path: String) {
     println!("Scanning folder {}", directory);
-    file::scan_folder(directory, path);
+    file::scan_folder(directory, &path);
 }
 
 #[tauri::command]

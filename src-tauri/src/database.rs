@@ -110,10 +110,15 @@ impl Database {
         objects
     }
     pub fn get_photo(self, id: &str) {
-        let sql = "select id,encoded from photo where photo.id = ?1";
+        let sql = "select id,encoded from photo where photo.id = :id";
         let mut stmt = self.connection.prepare(sql).unwrap();
 
-        stmt.query_map((id), |row| Ok(row.get(2))).unwrap();
+        stmt.query_map(&[(":id", &"one")], |row| {
+            let var_name = Ok(String::from("Hfoaufaea"));
+
+            return var_name;
+        })
+        .unwrap();
     }
     pub fn list_photos(self, query: &str, offset: usize, limit: usize) -> Vec<Photo> {
         let mut photos = Vec::new();
