@@ -3,8 +3,8 @@
   "version": "0.0.1",
   "identifier": "io.denzyl.mediasafe",
   "build": {
-    "beforeDevCommand": "yarn dev",
-    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npx vite --host",
+    "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "yarn build",
     "frontendDist": "../dist"
   },

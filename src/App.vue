@@ -83,7 +83,7 @@ export default {
         <span>My photos</span>
       </v-btn>
 
-      <v-btn value="locations" @click="current_page = 'locations'" flat>
+      <v-btn value="location" @click="current_page = 'location'" flat>
         <v-icon>mdi-map</v-icon>
         <span>My locations</span>
       </v-btn>
@@ -97,6 +97,7 @@ export default {
         <v-icon>mdi-heart</v-icon>
         <span>Favorites</span>
       </v-btn>
+
       <v-btn value="settings" @click="current_page = 'settings'" flat>
         <v-icon>mdi-wrench</v-icon>
         <span>Setting</span>

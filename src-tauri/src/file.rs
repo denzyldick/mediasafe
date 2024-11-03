@@ -48,6 +48,7 @@ pub fn scan_folder(directory: String, path: &str) {
                                 Ok(exif) => {
                                     let mut props = HashMap::new();
                                     for f in exif.fields() {
+                                        println!("{}", f.tag.to_string());
                                         props.insert(
                                             f.tag.to_string(),
                                             f.display_value().to_string(),
