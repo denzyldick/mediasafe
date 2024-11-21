@@ -5,6 +5,7 @@ use serde::Serialize;
 
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
+use crate::database::{self, Database};
 use crate::transport::generate_offer;
 
 fn handle_read(mut stream: &TcpStream) -> Option<Device> {
@@ -16,10 +17,11 @@ fn handle_read(mut stream: &TcpStream) -> Option<Device> {
 
     if line.starts_with("GET /new-device HTTP/1.1") {
         println!("New device");
-        let ip = "193.939.393.1";
+        let ip = stream.peer_addr().unwrap().ip();
         let device = Device {
             ip: ip.to_string(),
-            name: "Pop-OS".to_string(),
+            name: "Arch".to_string(),
+            offer: String::from(""),
         };
         Some(device)
     } else {
@@ -33,8 +35,9 @@ pub struct Devices {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Device {
-    ip: String,
-    name: String,
+    pub ip: String,
+    pub name: String,
+    pub offer: String,
 }
 
 #[derive(Serialize)]
@@ -52,10 +55,14 @@ async fn handle_write(mut stream: TcpStream, device: Device) {
         json
     );
 
-    unsafe {
-        DEVICES.push(device);
-    }
+    let device = Device {
+        ip: stream.peer_addr().unwrap().ip().to_string(),
+        name: String::from("Jhonny"),
+        offer: json,
+    };
 
+    let database = Database::new("/home/denzyl/");
+    database.add_device(&device);
     match stream.write(response.as_bytes()) {
         Ok(_) => println!("Response sent"),
         Err(e) => println!("Failed sending response: {}", e),

@@ -1,0 +1,784 @@
+#!/usr/bin/env bash
+#
+# getnf: A better way to install Nerd Fonts
+#
+# Author: @ronniedroid
+# Maintainer: @trimclain
+# License: GPL-3.0
+
+# shellcheck disable=SC2155,SC2164
+# Disabled:
+# "Declare and assign separately to avoid masking return values":
+#  https://www.shellcheck.net/wiki/SC2155
+# "Use 'pushd ... || exit' or 'pushd ... || exit' in case pushd fails":
+#  https://www.shellcheck.net/wiki/SC2164
+
+readonly VERSION="v0.2.0"
+
+readonly NERDFONTSAPI='https://api.github.com/repos/ryanoasis/nerd-fonts'
+readonly NERDFONTSREPO='https://github.com/ryanoasis/nerd-fonts'
+
+ON_MAC='false'
+if [[ $(uname) == "Darwin" ]]; then
+    ON_MAC='true'
+fi
+readonly ON_MAC
+
+DOWN_DIR="$HOME/Downloads/getnf"
+if command -v xdg-user-dir > /dev/null; then
+    DOWN_DIR="$(xdg-user-dir DOWNLOAD)/getnf"
+fi
+readonly DOWN_DIR
+
+readonly GETNF_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/getnf"
+readonly FONT_RELEASES_DIR="$GETNF_DIR/releases"
+readonly RELEASE_FILE="$GETNF_DIR/release.txt"
+readonly ALL_FONTS_FILE="$GETNF_DIR/all_fonts.txt"
+
+NEW_RELEASE_AVAILABLE='false'
+OPERATE_GLOBALLY='false'
+KEEP_FONT_ARCHIVES='false'
+INCLUDE_INSTALLED_FONTS='false'
+UPDATE_INSTALLED_FONTS='false'
+DISPLAY_INSTALLED_FONTS='false'
+DISPLAY_ALL_FONTS='false'
+INSTALL_WITH_FZF='false'
+
+if command -v tput > /dev/null; then
+    # tput is part of the ncurses package
+    # Colors: https://www.ditig.com/publications/256-colors-cheat-sheet
+    readonly OLIVE=$(tput setaf 3)
+    readonly RED=$(tput setaf 9)
+    readonly GREEN=$(tput setaf 2)
+    readonly RESET=$(tput sgr0)
+fi
+
+display_help() {
+    cat << EOF
+Usage:
+  getnf [options]
+
+OPTIONS:
+  -h          display this help message
+  -k          keep the downloaded font archives
+  -a          show already installed Nerd Fonts in the menu
+  -g          install/uninstall/list/update Nerd Fonts for all users
+  -l          show the list of installed Nerd Fonts
+  -L          show the list of all Nerd Fonts
+  -f          select and install Nerd Fonts using fzf
+  -i <font>   directly install the specified Nerd Fonts
+  -u <font>   uninstall the specified Nerd Fonts
+  -U          update all installed Nerd Fonts
+  -V          display current getnf version
+
+To install fonts using the menu:
+- Choose one or more fonts (by index/number) to install
+- Hit Return/Enter to install the selected fonts
+- Type 'q' to quit
+
+To install fonts directly:
+- Get the exact name of a font from the menu
+- Use 'getnf -i "<font-name>"' to install a font
+- Use 'getnf -i "<name1>,<name2>"' to install multiple fonts
+
+To uninstall fonts use the same syntax as for direct install.
+
+To install, uninstall, list, update fonts for all users use -gi, -gu, -gl, -gU.
+EOF
+}
+
+info() {
+    printf "%s\n" "$1"
+}
+
+title() {
+    printf "\n${OLIVE}%b${RESET}\n" "$1"
+}
+
+confirm() {
+    printf "${GREEN}%b${RESET}\n" "$1"
+}
+
+alert() {
+    printf "${RED}%b${RESET}\n" "$1"
+}
+
+error() {
+    alert "$1" >&2
+    exit 1
+}
+
+ensure_installed() {
+    if ! command -v "$1" > /dev/null; then
+        error "Dependency $1 is not installed on your system."
+    fi
+}
+
+get_font_dir() {
+    if [[ "$ON_MAC" == "true" ]] && [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+        FONT_DIR="/Library/Fonts"
+    elif [[ "$ON_MAC" == "true" ]]; then
+        FONT_DIR="$HOME/Library/Fonts"
+    elif [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+        FONT_DIR="/usr/local/share/fonts"
+    else
+        FONT_DIR="$HOME/.local/share/fonts"
+    fi
+    readonly FONT_DIR
+}
+
+create_dirs() {
+    get_font_dir
+    if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+        sudo mkdir -p "$FONT_DIR"
+    else
+        mkdir -p "$FONT_DIR"
+    fi
+    mkdir -p "$DOWN_DIR"
+    mkdir -p "$FONT_RELEASES_DIR"
+}
+
+verify_internet_access() {
+    if ! curl --silent --head --fail "https://google.com" > /dev/null; then
+        error "Internet connection is required for getnf to work."
+    fi
+}
+
+check_dependencies() {
+    ensure_installed curl
+    verify_internet_access
+    create_dirs
+}
+
+erase_line() {
+    # Move up a line and erase
+    printf "\033[1A\033[2K"
+}
+
+erase_char() {
+    # Move left one char and erase
+    printf "\033[1D\033[K"
+}
+
+###############################################################################
+# Animation Functions
+# Credit: https://github.com/Silejonu/bash_loading_animations
+#
+# Usage:
+# Run `stop_loading_animation` if the script is interrupted:
+#trap stop_loading_animation SIGINT
+# Show a loading animation for the command "foo"
+#start_loading_animation
+#foo
+#stop_loading_animation
+# Don't forget to redirect the output from "foo"
+
+readonly ANIMATION=('-' "\\" '|' '/')
+readonly FRAME_INTERVAL=0.25
+
+play_loading_animation_loop() {
+    while true; do
+        for frame in "${ANIMATION[@]}"; do
+            printf "\033[1D\033[K"
+            printf "%s" "${frame}"
+            sleep "$FRAME_INTERVAL"
+        done
+    done
+}
+
+start_loading_animation() {
+    if command -v tput > /dev/null; then
+        tput civis # Hide the terminal cursor
+    fi
+    play_loading_animation_loop &
+    LOADING_ANIMATION_PID="${!}"
+}
+
+stop_loading_animation() {
+    erase_char
+    kill "${LOADING_ANIMATION_PID}" &> /dev/null
+    if command -v tput > /dev/null; then
+        tput cnorm # Restore the terminal cursor
+    fi
+}
+###############################################################################
+
+#######################################
+# Create the global RELEASE with the latest release version and
+# save it in the RELEASE_FILE. If there's a new release available,
+# set NEW_RELEASE_AVAILABLE to true.
+# Globals:
+#   NERDFONTSAPI
+#   RELEASE_FILE
+#   NEW_RELEASE_AVAILABLE
+# Arguments:
+#   None
+#######################################
+get_latest_release_version() {
+    readonly RELEASE=$(curl --silent "$NERDFONTSAPI/releases/latest" |
+        awk -v RS=',' -F'"' '/tag_name/ {print $4}')
+    if [[ -f "$RELEASE_FILE" ]]; then
+        local current_release=$(cat "$RELEASE_FILE")
+        if [[ "$current_release" != "$RELEASE" ]]; then
+            NEW_RELEASE_AVAILABLE='true'
+        fi
+    fi
+    echo "$RELEASE" > "$RELEASE_FILE"
+}
+
+#######################################
+# Get the name of the file which saves the release version of the given font
+# Globals:
+#   OPERATE_GLOBALLY
+#   FONT_RELEASES_DIR
+# Arguments:
+#   Font name
+# Outputs:
+#   Writes the name of the file to stdout
+#######################################
+get_font_release_file() {
+    if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+        echo "$FONT_RELEASES_DIR/${1}_release.global.txt"
+    else
+        echo "$FONT_RELEASES_DIR/${1}_release.txt"
+    fi
+}
+
+#######################################
+# Check if the font version is saved and is the latest
+# Globals:
+#   RELEASE
+# Arguments:
+#   Font name
+# Returns:
+#   0 if font is of the latest version, 1 otherwise
+#######################################
+is_latest_version() {
+    local font_release_file="$(get_font_release_file "$1")"
+    if [[ -f "$font_release_file" ]]; then
+        local font_release_version=$(cat "$font_release_file")
+        if [[ "$font_release_version" == "$RELEASE" ]]; then
+            return 0
+        fi
+    fi
+    return 1
+}
+
+#######################################
+# Create a local file with all fonts from the Nerd Fonts repo.
+# We can do this since the list only changes with a new release.
+# Globals:
+#   NERDFONTSAPI
+# Arguments:
+#   None
+#######################################
+create_all_fonts_file() {
+    local font_list
+    font_list=$(curl -s "$NERDFONTSAPI/contents/patched-fonts?ref=master" |
+        awk -v RS=',' -F'"' '/name/ {print $4}')
+    echo "$font_list" > "$ALL_FONTS_FILE"
+}
+
+#######################################
+# Create the global array ALL_FONTS with all fonts from the Nerd Fonts repo
+# Globals:
+#   ALL_FONTS_FILE
+#   NEW_RELEASE_AVAILABLE
+# Arguments:
+#   None
+#######################################
+get_all_fonts() {
+    if [[ ! -f "$ALL_FONTS_FILE" || "$NEW_RELEASE_AVAILABLE" == "true" ]]; then
+        create_all_fonts_file
+    fi
+    ALL_FONTS=()
+    #mapfile -t ALL_FONTS < "$ALL_FONTS_FILE" # not available on mac
+    while IFS= read -r line; do
+        ALL_FONTS+=("$line")
+    done < "$ALL_FONTS_FILE"
+}
+
+#######################################
+# Create the global array INSTALLED_FONTS
+# Globals:
+#   FONT_DIR
+#   ALL_FONTS
+# Arguments:
+#   None
+#######################################
+get_installed_fonts() {
+    # list all fonts in FONT_DIR
+    local installed_user_fonts=("$FONT_DIR"/*)
+    # leave only the basenames
+    installed_user_fonts=("${installed_user_fonts[@]##*/}")
+    # filter Nerd Fonts
+    INSTALLED_FONTS=()
+    for font in "${ALL_FONTS[@]}"; do
+        if [[ " ${installed_user_fonts[*]} " == *" $font "* ]]; then
+            INSTALLED_FONTS+=("$font")
+        fi
+    done
+}
+
+#######################################
+# Create the global array FONT_OPTIONS by removing installed fonts
+# from the list of all fonts if they are from current release
+# or if the user does not want to force the update
+# Globals:
+#   INCLUDE_INSTALLED_FONTS
+#   ALL_FONTS
+#   INSTALLED_FONTS
+# Arguments:
+#   None
+#######################################
+filter_installed_fonts() {
+    if [[ "$INCLUDE_INSTALLED_FONTS" == "false" ]]; then
+        FONT_OPTIONS=()
+        for font in "${ALL_FONTS[@]}"; do
+            # add the font even if it's installed but the font_release_file
+            # doesn't exists or the version is not the latest
+            if [[ " ${INSTALLED_FONTS[*]} " != *" $font "* ]] ||
+                ! is_latest_version "$font"; then
+                FONT_OPTIONS+=("$font")
+            fi
+        done
+    else
+        FONT_OPTIONS=("${ALL_FONTS[@]}")
+    fi
+}
+
+#######################################
+# Download the font archive
+# Globals:
+#   NERDFONTSREPO
+#   RELEASE
+# Arguments:
+#   Font name
+#######################################
+download_font() {
+    local opts=("--location" "--remote-header-name" "--remote-name")
+    if [[ $ON_MAC == "false" ]]; then
+        opts+=("--silent")
+        echo -n "Downloading $1...  "
+        trap stop_loading_animation SIGINT
+        start_loading_animation
+        curl "${opts[@]}" "$NERDFONTSREPO/releases/download/$RELEASE/$1.tar.xz"
+        stop_loading_animation
+        confirm "Done"
+    else
+        # TODO: figure out how to disable messages about bg process termination
+        opts+=("--progress-bar")
+        info "Downloading $1... "
+        curl "${opts[@]}" "$NERDFONTSREPO/releases/download/$RELEASE/$1.tar.xz"
+        erase_line
+        erase_line
+        echo "Downloading $1... ${GREEN}Done${RESET}"
+    fi
+}
+
+#######################################
+# Extract the font archive to the user fonts directory
+# Globals:
+#   OPERATE_GLOBALLY
+#   FONT_DIR
+# Arguments:
+#   Font name
+#######################################
+extract_font() {
+    echo -n "Installing $1... "
+    if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+        sudo mkdir -p "$FONT_DIR/$1"
+        sudo tar -xf "$1.tar.xz" -C "$FONT_DIR/$1"
+    else
+        mkdir -p "$FONT_DIR/$1"
+        tar -xf "$1.tar.xz" -C "$FONT_DIR/$1"
+    fi
+    confirm "Done"
+}
+
+#######################################
+# Save the release version of the given font
+# Globals:
+#   RELEASE
+# Arguments:
+#   Font name
+#######################################
+save_font_release() {
+    echo "$RELEASE" > "$(get_font_release_file "$1")"
+}
+
+#######################################
+# Remove the downloaded font archives
+# Globals:
+#   DOWN_DIR
+#   SELECTED_FONTS
+# Arguments:
+#   None
+#######################################
+remove_font_archives() {
+    echo -n "Removing downloaded font archives... "
+    for font in "${SELECTED_FONTS[@]}"; do
+        rm -f "$DOWN_DIR/$font.tar.xz"
+    done
+    confirm "Done"
+}
+
+#######################################
+# Install the selected font
+# Globals:
+#   DOWN_DIR
+#   INSTALLED_FONTS_FILE
+# Arguments:
+#   Font name
+#######################################
+install_font() {
+    pushd "$DOWN_DIR" > /dev/null
+    # Remove the archive if it exists due to curl not having overwrite option
+    rm -f "$DOWN_DIR/$1.tar.xz"
+    download_font "$1" &&
+        extract_font "$1" &&
+        save_font_release "$1"
+    popd > /dev/null
+}
+
+#######################################
+# Parse the string of font names and add them
+# to SELECTED_FONTS if all of them are valid
+# Globals:
+#   ALL_FONTS
+#   SELECTED_FONTS
+# Arguments:
+#   String of font names
+#######################################
+direct_install() {
+    for font_name in $(echo "$1" | tr ',' ' '); do
+        if [[ " ${ALL_FONTS[*]} " == *" $font_name "* ]]; then
+            SELECTED_FONTS+=("$font_name")
+        else
+            error "Invalid font name: $font_name. Try again."
+        fi
+    done
+}
+
+#######################################
+# Parse the string of font names and uninstall them if they are installed
+# Globals:
+#   FONT_DIR
+#   OPERATE_GLOBALLY
+# Arguments:
+#   String of font names
+#######################################
+uninstall_fonts() {
+    get_font_dir
+    local -a fonts_to_uninstall
+    for font_name in $(echo "$1" | tr ',' ' '); do
+        if [[ -d "$FONT_DIR/$font_name" ]]; then
+            fonts_to_uninstall+=("$font_name")
+        else
+            error "Font $font_name is not installed."
+        fi
+    done
+    if [[ ${#fonts_to_uninstall[@]} -ne 0 ]]; then
+        for font in "${fonts_to_uninstall[@]}"; do
+            echo -n "Uninstalling $font... "
+            if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+                sudo rm -rf "${FONT_DIR:?}/$font"
+            else
+                rm -rf "${FONT_DIR:?}/$font"
+            fi
+            rm -f "$(get_font_release_file "$font")"
+            confirm "Done"
+        done
+    fi
+}
+
+#######################################
+# Remove font archives unless specified otherwise
+# Globals:
+#   KEEP_FONT_ARCHIVES
+# Arguments:
+#   None
+#######################################
+post_install() {
+    if [[ "$KEEP_FONT_ARCHIVES" == "false" ]]; then
+        remove_font_archives
+    else
+        info "The downloaded font archives can be found in $DOWN_DIR"
+    fi
+    confirm "Enjoy your new fonts!"
+}
+
+#######################################
+# Add all installed Nerd Fonts that are not the latest version
+# to the SELECTED_FONTS array
+# Globals:
+#   INSTALLED_FONTS
+#   SELECTED_FONTS
+#   OPERATE_GLOBALLY
+# Arguments:
+#   None
+#######################################
+update_installed_fonts() {
+    get_installed_fonts
+    if [[ ${#INSTALLED_FONTS[@]} -ne 0 ]]; then
+        for font in "${INSTALLED_FONTS[@]}"; do
+            if ! is_latest_version "$font"; then
+                SELECTED_FONTS+=("$font")
+            fi
+        done
+        if [[ ${#SELECTED_FONTS[@]} -eq 0 ]]; then
+            if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+                confirm "All globally installed Nerd Fonts are up to date."
+            else
+                confirm "All installed Nerd Fonts are up to date."
+            fi
+            exit 0
+        fi
+        if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+            info "Updating globally installed Nerd Fonts: ${SELECTED_FONTS[*]}"
+        else
+            info "Updating installed Nerd Fonts: ${SELECTED_FONTS[*]}"
+        fi
+    else
+        if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+            error "No globally installed Nerd Fonts found."
+        else
+            error "No installed Nerd Fonts found."
+        fi
+    fi
+}
+
+#######################################
+# Display installed fonts
+# Globals:
+#   INSTALLED_FONTS
+#   OPERATE_GLOBALLY
+# Arguments:
+#   None
+# Returns:
+#   1 if no installed Nerd Fonts found, 0 otherwise
+#######################################
+display_installed_fonts() {
+    if [[ ${#INSTALLED_FONTS[@]} -eq 0 ]]; then
+        return 1
+    fi
+    if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+        title "Installed Nerd Fonts (globally):"
+    else
+        title "Installed Nerd Fonts:"
+    fi
+    for font in "${INSTALLED_FONTS[@]}"; do
+        local font_release_file="$(get_font_release_file "$font")"
+        if [[ -f "$font_release_file" ]]; then
+            local font_release_version=$(cat "$font_release_file")
+            printf "%s - %s\n" "$font" "$font_release_version"
+        else
+            printf "%s - unknown version\n" "$font"
+        fi
+    done
+}
+
+#######################################
+# Display getnf release version
+# Globals:
+#   VERSION
+# Arguments:
+#   None
+#######################################
+display_getnf_version() {
+    echo "getnf $VERSION"
+}
+
+#######################################
+# Display the list of all fonts
+# Globals:
+#   RELEASE
+#   ALL_FONTS_FILE
+# Arguments:
+#   None
+#######################################
+display_all_fonts() {
+    title "Nerd Fonts ${RELEASE}:"
+    cat "$ALL_FONTS_FILE"
+}
+
+#######################################
+# Display the font menu
+# Globals:
+#   RELEASE
+#   FONT_OPTIONS
+# Arguments:
+#   None
+#######################################
+display_font_menu() {
+    local term_width=$(stty size | cut -d ' ' -f 2)
+    title "Nerd Fonts ${RELEASE}:"
+    (
+        for i in "${!FONT_OPTIONS[@]}"; do
+            printf "%d) %s\n" "$((i + 1))" "${FONT_OPTIONS[$i]}"
+        done
+        printf "q) Quit\n"
+    ) | pr -3 -t -w "$term_width"
+}
+
+#######################################
+# Parse input range of format *-* (e.g. 1-3) and
+# add the selected fonts to SELECTED_FONTS array
+# Globals:
+#   FONT_OPTIONS
+#   SELECTED_FONTS
+# Arguments:
+#   None
+# Returns:
+#   1 if input format is invalid or if the option is out of range
+#######################################
+parse_range() {
+    if ! [[ $1 =~ ^[0-9]+-[0-9]+$ ]]; then
+        alert "Invalid input format: $1. Expected format: X-Y."
+        return 1
+    fi
+    local -a range
+    IFS='-' read -ra range <<< "$1"
+    local range_start=${range[0]}
+    local range_end=${range[1]}
+    for ((i = range_start; i <= range_end; i++)); do
+        local index=$((i - 1))
+        if ((index >= 0 && index < ${#FONT_OPTIONS[@]})); then
+            SELECTED_FONTS[index]=${FONT_OPTIONS[index]}
+        else
+            alert "Invalid option: $i. Try again."
+            return 1
+        fi
+    done
+}
+
+#######################################
+# Get and parse user input and add the selected fonts to SELECTED_FONTS array
+# Globals:
+#   FONT_OPTIONS
+#   SELECTED_FONTS
+# Arguments:
+#   None
+#######################################
+handle_user_input() {
+    while true; do
+        local choices
+        read -rp "Enter font number(s) (e.g. 1,2,3 or 1-3 or 1,3-5): " choices
+        for choice in $(echo "$choices" | tr ',' ' '); do
+            if [[ $choice == "q" ]]; then
+                confirm "Goodbye!"
+                exit 0
+            # Choice is a range (e.g. 1-3)
+            elif [[ $choice == *-* ]]; then
+                parse_range "$choice" || continue 2
+            elif ((choice >= 1 && choice <= ${#FONT_OPTIONS[@]})); then
+                local index=$((choice - 1))
+                SELECTED_FONTS[index]=${FONT_OPTIONS[index]}
+            else
+                alert "Invalid option: $choice. Try again."
+                continue 2
+            fi
+        done
+        title "Selected Nerd Fonts: ${SELECTED_FONTS[*]}"
+        break
+    done
+}
+
+#######################################
+# Run the nerd font installation menu
+# Arguments:
+#   None
+#######################################
+menu_install() {
+    get_installed_fonts
+    filter_installed_fonts
+
+    display_installed_fonts
+    display_font_menu
+    handle_user_input
+}
+
+#######################################
+# Select fonts using fzf and add them to the SELECTED_FONTS array
+# Globals:
+#   FONT_OPTIONS
+#   SELECTED_FONTS
+# Arguments:
+#   None
+#######################################
+
+fzf_install() {
+    ensure_installed fzf
+
+    get_installed_fonts
+    filter_installed_fonts
+
+    local selected_fonts=$(printf "%s\n" "${FONT_OPTIONS[@]}" | fzf --multi)
+    for font_name in $selected_fonts; do
+        SELECTED_FONTS+=("$font_name")
+    done
+}
+
+main() {
+    while getopts ":hkaglLfi:u:UV" option; do
+        case "${option}" in
+            h) display_help && exit 0 ;;
+            k) readonly KEEP_FONT_ARCHIVES='true' ;;
+            a) readonly INCLUDE_INSTALLED_FONTS='true' ;;
+            g) readonly OPERATE_GLOBALLY='true' ;;
+            l) readonly DISPLAY_INSTALLED_FONTS='true' ;;
+            L) readonly DISPLAY_ALL_FONTS='true' ;;
+            f) readonly INSTALL_WITH_FZF='true' ;;
+            i) readonly FONTNAMES="$OPTARG" ;;
+            u) uninstall_fonts "$OPTARG" && exit 0 ;;
+            U) readonly UPDATE_INSTALLED_FONTS='true' ;;
+            V) display_getnf_version && exit 0 ;;
+            :) error "Option '-$OPTARG' requires at least one font name." ;;
+            *) display_help && exit 0 ;;
+        esac
+    done
+    shift $((OPTIND - 1))
+
+    check_dependencies
+    get_latest_release_version
+    get_all_fonts
+
+    if [[ "$DISPLAY_INSTALLED_FONTS" == "true" ]]; then
+        get_installed_fonts
+        if ! display_installed_fonts; then
+            if [[ "$OPERATE_GLOBALLY" == "true" ]]; then
+                info "No globally installed Nerd Fonts found."
+            else
+                info "No installed Nerd Fonts found."
+            fi
+        fi
+        exit 0
+    fi
+
+    if [[ "$DISPLAY_ALL_FONTS" == "true" ]]; then
+        display_all_fonts
+        exit 0
+    fi
+
+    SELECTED_FONTS=()
+    if [[ "$UPDATE_INSTALLED_FONTS" == "true" ]]; then
+        update_installed_fonts
+    elif [[ "$INSTALL_WITH_FZF" == "true" ]]; then
+        fzf_install
+    elif [[ -n "$FONTNAMES" ]]; then
+        direct_install "$FONTNAMES"
+    else
+        menu_install
+    fi
+
+    if ((${#SELECTED_FONTS[@]} > 0)); then
+        for i in "${SELECTED_FONTS[@]}"; do
+            install_font "$i"
+        done
+        post_install
+    else
+        error "No fonts were selected, exiting."
+    fi
+}
+
+main "$@"

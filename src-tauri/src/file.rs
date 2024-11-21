@@ -54,6 +54,7 @@ pub fn scan_folder(directory: String, path: &str) {
                                             f.display_value().to_string(),
                                         );
                                     }
+                                    dbg!(&props);
                                     props
                                 }
                                 Err(_err) => HashMap::new(),

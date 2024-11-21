@@ -54,11 +54,8 @@ export default {
     },
     objects: [],
     images: [],
-    scan: true,
+    scan: false,
   }),
-  mounted() {
-    this.scan_folder();
-  },
   created() {
     this.list_files();
     window.onscroll = function () {
@@ -71,15 +68,6 @@ export default {
     }.bind(this);
   },
   methods: {
-    scan_folder: async function () {
-      let data = pictureDirPath;
-      invoke("scan_files", { directory: data, path: this.resourcePath }).then(
-        function (response) {
-          console.log(response);
-          return JSON.parse(response);
-        },
-      );
-    },
     list_files: async function () {
       this.loading = true;
       if (this.images.length > 0) {

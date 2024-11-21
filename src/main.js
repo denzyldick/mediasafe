@@ -10,4 +10,4 @@ const vuetify = createVuetify({
   components,
   directives,
 });
-createApp(App).use(vuetify).mount("#app");
+let app = createApp(App).use(vuetify).mount("#app");

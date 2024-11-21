@@ -7,6 +7,7 @@ import Setting from "./components/Setting.vue";
 export default {
   components: { DeviceList, Map, Photos, Setting },
   data: () => ({
+    clean_install: true,
     scanning: false,
     search: null,
     current_page: "photos",
@@ -33,12 +34,18 @@ export default {
     generate_offer: function () {
       console.log("Generating offer.");
       this.sdp = invoke("generate_offer").then(function (response) {
-        console.log(response);
         return response;
       });
     },
-    scan: function () {
+    scan: async function () {
       this.scanning = !this.scanning;
+      let data = pictureDirPath;
+      let response = await invoke("scan_files", {
+        directory: data,
+        path: this.resourcePath,
+      });
+      this.scanning = true;
+      return JSON.parse(response);
     },
   },
   watch: {
@@ -53,11 +60,17 @@ export default {
   <v-app>
     <v-layout>
       <v-main>
+        <vue-qrcode
+          value="Hello, World!"
+          :options="{ width: 200 }"
+        ></vue-qrcode>
+        <Greet v-if="clean_install"></Greet>
         <v-app-bar elevation="1" v-if="current_page === 'home'">
           <v-row>
-            <v-col>
+            <v-col md="3" sm="3" lg="3">
               <v-btn color="green" v-if="scanning">
-                <v-icon>mdi-reload mdi-spin</v-icon> &nbsp;...scanning</v-btn
+                <v-icon>mdi-reload mdi-spin</v-icon>
+                &nbsp;...scanning</v-btn
               >
               <v-btn
                 flat
@@ -66,6 +79,11 @@ export default {
                 @click="scan()"
               >
                 <v-icon>mdi-ok</v-icon> last scan 10s ago
+              </v-btn>
+            </v-col>
+            <v-col md="1" sm="1" lg="1">
+              <v-btn color="gray">
+                <v-icon>mdi-ok</v-icon>
               </v-btn>
             </v-col>
           </v-row>

@@ -1,23 +1,32 @@
-<script setup>
-import { ref } from "vue";
-import { invoke } from "@tauri-apps/api/core";
-
-const greetMsg = ref("");
-const name = ref("");
-
-async function greet() {
-  // Learn more about Tauri commands at https://tauri.app/v1/guides/features/command
-  greetMsg.value = await invoke("greet", { name: name.value });
-  let offer = await invoke("generate_offer");
-  console.log(offer)
-}
+<script>
+export default {
+  name: "Greet",
+  data() {
+    return {
+      active: true,
+    };
+  },
+};
 </script>
 
 <template>
-  <div class="card">
-    <input id="greet-input" v-model="name" placeholder="Enter a name..." />
-    <button type="button" @click="greet()">Greet</button>
-  </div>
+  <v-dialog max-width="500">
+    <template>
+      <v-card title="Hello, there!">
+        <v-card-text>
+          Thank you, for using Medisafe.<br />In this steps we will configure
+          MediaSafe. <br />
 
-  <p>{{ greetMsg }}</p>
+          In the end you will have a multiple devices with access to your
+          photos. Without third-party in between.
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer></v-spacer>
+
+          <v-btn text="Next" @click="isActive.value = false"></v-btn>
+        </v-card-actions>
+      </v-card>
+    </template>
+  </v-dialog>
 </template>

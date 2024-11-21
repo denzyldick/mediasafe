@@ -37,6 +37,7 @@ warp = "0.3"
 image_compressor = "1.5.2"
 fast_image_resize = "4.2.1"
 tauri-plugin-os = "2"
+get_if_addrs = "0.5.3"
 
 [features]
 # this feature is used for production builds or when `devPath` points to the filesystem

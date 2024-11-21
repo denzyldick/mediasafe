@@ -13,8 +13,14 @@
         </v-toolbar>
       </v-col>
     </v-row>
-    <v-row style="margin-top: 10px">
-      <v-col>
+
+    <v-row>
+      <v-col offset="1" md="4">
+        <Device></Device>
+      </v-col>
+    </v-row>
+    <v-row>
+      <v-col offset="1" md="10">
         <v-list>
           <v-list-item
             v-for="file in devices"
@@ -57,9 +63,11 @@
 <script>
 import { invoke } from "@tauri-apps/api/core";
 import Connect from "./Connect.vue";
+import Device from "./Device.vue";
 export default {
   name: "DeviceList",
   components: {
+    Device,
     Connect,
   },
   data: function () {
@@ -103,7 +111,19 @@ export default {
         console.log(response);
       });
     },
-    listen_for_incomming_connect() {
+    get_device_by_name: function (name) {
+      console.log("Getting device ", name);
+      invoke("get_device_by_name", {
+        name: name,
+      }).then((response) => {
+        console.log(response);
+      });
+    },
+    list_devices: async function () {
+      console.log("List devices");
+      this.devices = JSON.parse(await invoke("list_devices"));
+    },
+    async listen_for_incomming_connect() {
       console.log("Listening for incomming connection");
       invoke("listen_for_incomming_connect").then((response) => {
         console.log(response);

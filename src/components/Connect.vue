@@ -10,6 +10,11 @@
         <v-card-title class="text-h5"> Connect a new device.</v-card-title>
         <v-card-text>
           Install and open this app on your other device.
+
+          <vue-qrcode
+            value="Hello, World!"
+            :options="{ width: 200 }"
+          ></vue-qrcode>
           <v-progress-linear
             indeterminate
             :height="12"
@@ -39,6 +44,11 @@
             Cancel
           </v-btn>
         </v-card-actions>
+
+        <vue-qrcode
+          value="Hello, World!"
+          :options="{ width: 200 }"
+        ></vue-qrcode>
       </v-card>
     </v-dialog>
   </v-row>
@@ -55,12 +65,7 @@ export default {
         ip: null,
       },
       interval: null,
-      devices: [
-        {
-          ip: "127.0.0.1",
-          name: "this device",
-        },
-      ],
+      devices: [],
       dialog: false,
     };
   },
@@ -72,6 +77,12 @@ export default {
     },
   },
   methods: {
+    generateQR: function () {
+      let port = "9489";
+      let ip = "192.168.68.101";
+      let message = "http://" + ip + ":" + port;
+      return message;
+    },
     listen: function () {
       let interval = setInterval(
         function () {
