@@ -1,6 +1,5 @@
 use std::{
     collections::HashMap,
-    error::Error,
     fs::{self, File},
 };
 
@@ -18,11 +17,8 @@ impl Database {
         let path = format!("{}/database.sql", cache_path);
         println!("Database.sql location: {}", path);
         let file = fs::metadata(&path);
-        match file {
-            Err(kind) => {
-                File::create(&path);
-            }
-            _ => {}
+        if let Err(kind) = file {
+            File::create(&path);
         }
         let conn = Connection::open(format!("{}/database.sql", cache_path)).unwrap();
         conn.execute(
@@ -144,7 +140,7 @@ CREATE TABLE IF NOT EXISTS device(
         stmt.query_map(&[(":id", &"one")], |row| {
             let var_name = Ok(String::from("Hfoaufaea"));
 
-            return var_name;
+            var_name
         })
         .unwrap();
     }
@@ -274,7 +270,7 @@ impl Photo {
 }
 
 mod tests {
-    use super::*;
+    
 
     #[test]
     fn add_device() {

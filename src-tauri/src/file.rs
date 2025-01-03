@@ -1,10 +1,5 @@
 use crate::database;
 use exif::Reader;
-use fast_image_resize::images::Image;
-use fast_image_resize::ResizeOptions;
-use fast_image_resize::Resizer;
-use image_compressor::compressor::Compressor;
-use image_compressor::Factor;
 use jwalk::WalkDir;
 use rand::{distributions::Alphanumeric, Rng};
 use rustc_serialize::base64::{ToBase64, MIME};
@@ -48,7 +43,7 @@ pub fn scan_folder(directory: String, path: &str) {
                                 Ok(exif) => {
                                     let mut props = HashMap::new();
                                     for f in exif.fields() {
-                                        println!("{}", f.tag.to_string());
+                                        println!("{}", f.tag);
                                         props.insert(
                                             f.tag.to_string(),
                                             f.display_value().to_string(),

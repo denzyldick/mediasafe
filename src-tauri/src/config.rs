@@ -1,4 +1,3 @@
-use crate::database;
 use std::fs;
 use yaml_rust::YamlLoader;
 
@@ -48,7 +47,7 @@ impl Config {
             database: database.to_string(),
             port: port.to_string(),
             ip: ip.to_string(),
-            gpu: gpu,
+            gpu,
             folders: folder_vec,
         }
     }
