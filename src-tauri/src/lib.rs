@@ -29,6 +29,7 @@ mod device;
 mod file;
 mod server;
 mod transport;
+mod config;
 #[tauri::command]
 async fn listen_for_incomming_connect() {
     println!("Starting server");

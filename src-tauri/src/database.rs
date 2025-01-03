@@ -33,7 +33,7 @@ impl Database {
             created DATE_TIME
         )
 ",
-            (), // empty list of parameters.
+            (),
         )
         .unwrap();
         conn.execute(
@@ -191,7 +191,6 @@ CREATE TABLE IF NOT EXISTS device(
         &println!("Photos found, {}, {} {}", photos.len(), offset, limit);
         photos
     }
-
     pub fn get_device_by_name(&self, name: String) -> Option<Device> {
         let sql = "SELECT name, offer, ip FROM device WHERE name = ?1";
 
@@ -240,6 +239,40 @@ pub struct Photo {
     pub objects: HashMap<String, f64>,
     pub properties: HashMap<String, String>,
 }
+use image::io::Reader as ImageReader;
+use image::{DynamicImage, GenericImageView};
+use tch::{nn, vision::imagenet, Device as DeviceTch, Tensor};
+
+impl Photo {
+    /*  pub(crate) fn clasify_image(&self) {
+            // Step 1: Load the model
+           /* let device = Device::cuda_if_available(); // Use GPU if available
+            let model = imagenet::resnet18(&nn::VarStore::new(device))?;
+
+            // Step 2: Load and preprocess the image
+            let img = ImageReader::open("path/to/image.jpg")?.decode()?.to_rgb8();
+            let (width, height) = img.dimensions();
+            let resized = image::imageops::resize(&img, 224, 224, image::imageops::FilterType::Nearest);
+
+            let img_tensor = Tensor::of_slice(&resized.to_vec())
+                .view((1, 224, 224, 3))
+                .permute(&[0, 3, 1, 2])
+                .to_device(device)
+                .to_kind(tch::Kind::Float) / 255.0;
+
+            // Step 3: Perform classification
+            let output = model.forward_t(&img_tensor, false);
+            let class_id = output.argmax(1, false).int64_value(&[0]);
+            let classes = imagenet::load_classes()?;
+
+            // Step 4: Print the result
+            println!("Predicted class: {}", classes.get(class_id as usize).unwrap_or(&"unknown".to_string()));
+
+    */
+            Ok(())    }
+        */
+}
+
 mod tests {
     use super::*;
 
@@ -257,5 +290,16 @@ mod tests {
         let d = database.get_device_by_name(device.name.clone()).unwrap();
 
         assert_eq!(device.name, d.name)
+    }
+
+    #[test]
+    fn clasify_image() {
+        let photo = Photo {
+            id: String::from("1"),
+            location: String::from(""),
+            encoded: String::from(""),
+            objects: HashMap::new(),
+            properties: HashMap::new(),
+        };
     }
 }
