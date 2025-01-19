@@ -5,12 +5,13 @@ use jwalk::WalkDir;
 use rand::{distributions::Alphanumeric, Rng};
 use rustc_serialize::base64;
 use rustc_serialize::base64::{ToBase64, MIME};
+use thumbnailer::ThumbnailSize;
 
 use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 
-use std::io::BufReader;
+use std::io::{BufReader, Cursor};
 use std::io::Read;
 use std::string::String;
 
@@ -78,41 +79,32 @@ pub fn scan_folder(directory: String, path: &str) {
 }
 
 use image::{imageops::FilterType, io::Reader as ImageReader, DynamicImage, ImageOutputFormat};
+use thumbnailer::create_thumbnails;
+use thumbnailer::ThumbnailSize;
 
-use std::io::Cursor;
+
 fn generate_thumbnail_base64(
     input_path: &str,
     max_dimension: u32,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    // Step 1: Open the input image
-    let img = ImageReader::open(input_path)?.decode()?;
+    let file = File::open("tests/assets/test.png").unwrap();
+    let reader = BufReader::new(file);
+    let mut  thumbnails = create_thumbnails(reader, mime::IMAGE_PNG, [ThumbnailSize::Small, ThumbnailSize::Medium]).unwrap();
+     
+    let thumbnail = thumbnails.pop().unwrap();
+    let mut buf = Cursor::new(Vec::new());
 
-    // Step 2: Calculate new dimensions while maintaining aspect ratio
-    let (width, height) = img.dimensions();
-    let (new_width, new_height) = if width > height {
-        (max_dimension, (max_dimension * height) / width)
-    } else {
-        ((max_dimension * width) / height, max_dimension)
-    };
-
-    // Step 3: Resize the image
-    let thumbnail = img.resize_exact(new_width, new_height, FilterType::Lanczos3);
-    let mut buff = Cursor::new(vec![0; 15]);
-    // Step 4: Encode the thumbnail to an in-memory buffer
-    thumbnail.write_to(&mut buff, ImageOutputFormat::Jpeg(75))?;
-
-    // Step 5: Convert the buffer to a Base64 string
-    let base64_thumbnail = String::from_utf8(buff.into_inner());
-    match base64_thumbnail {
-        Ok(base64_thumbnail) => {
-            Ok(base64_thumbnail)
-        }
-        Err(err) => Err(Box::new(err)),
-    }
+    let s = String::from_utf8_lossy(&mut buf.into_inner().expected("Found invalid UTF-8.);
+    println!("{}", s);
+    Ok(s)
 }
 // This will generate a thumbnail for the image
 pub fn get_thumbnail(path: String) -> String {
-    generate_thumbnail_base64(&path, 100).unwrap()
+   let base64 = generate_thumbnail_base64(&path, 100);
+    match base64 {
+        Ok(base64) => base64,
+        Err(_err) => String::from("someting went wrong"),
+    }
 }
 
 mod tests {

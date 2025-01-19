@@ -50,7 +50,7 @@ export default {
     loading: false,
     paging: {
       offset: 0,
-      limit: 1,
+      limit: 4,
     },
     objects: [],
     images: [],
@@ -112,9 +112,13 @@ export default {
       });
     },
     get_thumbnail: async function (key, path) {
+      if(window.localStorage.get(path)){
+        this.images[key].encoded = window.localStorage.get(path);
+      }else{
       invoke("get_thumbnail", { path: path }).then((result) => {
         this.images[key].encoded = "data:image/jpeg;base64," + result;
       });
+      }
     },
   },
   watch: {
