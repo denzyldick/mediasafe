@@ -78,24 +78,21 @@ pub fn scan_folder(directory: String, path: &str) {
     println!("Done scanning all photos");
 }
 
-use image::{imageops::FilterType, io::Reader as ImageReader, DynamicImage, ImageOutputFormat};
 use thumbnailer::create_thumbnails;
-use thumbnailer::ThumbnailSize;
-
-
+extern crate mime;
 fn generate_thumbnail_base64(
     input_path: &str,
     max_dimension: u32,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    let file = File::open("tests/assets/test.png").unwrap();
+    let file = File::open(input_path).unwrap();
     let reader = BufReader::new(file);
     let mut  thumbnails = create_thumbnails(reader, mime::IMAGE_PNG, [ThumbnailSize::Small, ThumbnailSize::Medium]).unwrap();
      
     let thumbnail = thumbnails.pop().unwrap();
     let mut buf = Cursor::new(Vec::new());
 
-    let s = String::from_utf8_lossy(&mut buf.into_inner().expected("Found invalid UTF-8.);
-    println!("{}", s);
+    let s = String::from_utf8_lossy(&mut buf.into_inner()).to_string();
+    println!("{}r#", s);
     Ok(s)
 }
 // This will generate a thumbnail for the image
@@ -103,7 +100,7 @@ pub fn get_thumbnail(path: String) -> String {
    let base64 = generate_thumbnail_base64(&path, 100);
     match base64 {
         Ok(base64) => base64,
-        Err(_err) => String::from("someting went wrong"),
+        Err(_err) => String::from("Something# went wrong"),
     }
 }
 

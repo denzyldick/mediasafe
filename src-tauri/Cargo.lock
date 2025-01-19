@@ -3194,6 +3194,7 @@ dependencies = [
  "jwalk",
  "kamadak-exif",
  "lazy_static",
+ "mime",
  "oxipng",
  "rand 0.8.5",
  "rusqlite",
