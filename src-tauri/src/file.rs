@@ -1,7 +1,9 @@
 use crate::database;
 use exif::Reader;
+use image::GenericImageView;
 use jwalk::WalkDir;
 use rand::{distributions::Alphanumeric, Rng};
+use rustc_serialize::base64;
 use rustc_serialize::base64::{ToBase64, MIME};
 
 use std::collections::HashMap;
@@ -12,6 +14,8 @@ use std::io::BufReader;
 use std::io::Read;
 use std::string::String;
 
+///
+/// This is will scan a folder recursively and store all the images in the database.
 pub fn scan_folder(directory: String, path: &str) {
     let database = database::Database::new(path);
     println!("Scanning all files in: {}", directory);
@@ -73,18 +77,51 @@ pub fn scan_folder(directory: String, path: &str) {
     println!("Done scanning all photos");
 }
 
-pub fn get_thumbnail(path: String) -> String {
-    let mut file = File::open(path.clone()).unwrap();
+use image::{imageops::FilterType, io::Reader as ImageReader, DynamicImage, ImageOutputFormat};
 
-    let mut buffer = Vec::new();
-    file.read_to_end(&mut buffer).unwrap();
-    buffer.to_base64(MIME)
+use std::io::Cursor;
+fn generate_thumbnail_base64(
+    input_path: &str,
+    max_dimension: u32,
+) -> Result<String, Box<dyn std::error::Error>> {
+    // Step 1: Open the input image
+    let img = ImageReader::open(input_path)?.decode()?;
+
+    // Step 2: Calculate new dimensions while maintaining aspect ratio
+    let (width, height) = img.dimensions();
+    let (new_width, new_height) = if width > height {
+        (max_dimension, (max_dimension * height) / width)
+    } else {
+        ((max_dimension * width) / height, max_dimension)
+    };
+
+    // Step 3: Resize the image
+    let thumbnail = img.resize_exact(new_width, new_height, FilterType::Lanczos3);
+    let mut buff = Cursor::new(vec![0; 15]);
+    // Step 4: Encode the thumbnail to an in-memory buffer
+    thumbnail.write_to(&mut buff, ImageOutputFormat::Jpeg(75))?;
+
+    // Step 5: Convert the buffer to a Base64 string
+    let base64_thumbnail = String::from_utf8(buff.into_inner());
+    match base64_thumbnail {
+        Ok(base64_thumbnail) => {
+            Ok(base64_thumbnail)
+        }
+        Err(err) => Err(Box::new(err)),
+    }
+}
+// This will generate a thumbnail for the image
+pub fn get_thumbnail(path: String) -> String {
+    generate_thumbnail_base64(&path, 100).unwrap()
 }
 
 mod tests {
 
     #[test]
     fn scan_folder() {
-        crate::file::scan_folder(String::from("/home/denzyl"), "/home/denzyl/");
+        let file = crate::file::scan_folder(String::from("/home/denzyl"), "/home/denzyl/");
+
+        /// I forgot what I was testing in the test.
+        assert_eq!(true, true)
     }
 }

@@ -27,8 +27,8 @@ impl Database {
             location  STRING,
             encoded STRING,
             created DATE_TIME
-        )
-",
+             );
+        ",
             (),
         )
         .unwrap();
@@ -49,18 +49,26 @@ impl Database {
                 value STRING
             );",
             (),
+        )
+        .unwrap();
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS device(
+                ip STRING,
+                name STRING,
+                offer STRING
+                );",
+            (),
         );
 
         conn.execute(
-            "
-CREATE TABLE IF NOT EXISTS device(
-        ip STRING,
-        name STRING,
-        offer STRING
-)
-",
+            "CREATE TABLE IF NOT EXISTS config(
+                key STRING,
+                value STRING
+                );",
             (),
-        );
+        )
+        .unwrap();
         Self { connection: conn }
     }
 
@@ -80,9 +88,7 @@ CREATE TABLE IF NOT EXISTS device(
     }
     pub fn store_photo(&self, photo: Photo) {
         let result = self.connection.execute(
-            "INSERT INTO photo(id, location, encoded)
-        VALUES(?1, ?2, ?3 )
-",
+            "INSERT INTO photo(id, location, encoded) VALUES(?1, ?2, ?3 )",
             (&photo.id, &photo.location, &photo.encoded),
         );
 
@@ -134,7 +140,7 @@ CREATE TABLE IF NOT EXISTS device(
         objects
     }
     pub fn get_photo(self, id: &str) {
-        let sql = "select id,encoded from photo where photo.id = :id";
+        let sql = "SELECT id,encoded FROM photo WHERE photo.id = :id";
         let mut stmt = self.connection.prepare(sql).unwrap();
 
         stmt.query_map(&[(":id", &"one")], |row| {
@@ -184,7 +190,7 @@ CREATE TABLE IF NOT EXISTS device(
                 photos.push(p.unwrap());
             }
         }
-        &println!("Photos found, {}, {} {}", photos.len(), offset, limit);
+        println!("Photos found, {}, {} {}", photos.len(), offset, limit);
         photos
     }
     pub fn get_device_by_name(&self, name: String) -> Option<Device> {
@@ -235,9 +241,9 @@ pub struct Photo {
     pub objects: HashMap<String, f64>,
     pub properties: HashMap<String, String>,
 }
-use image::io::Reader as ImageReader;
-use image::{DynamicImage, GenericImageView};
-use tch::{nn, vision::imagenet, Device as DeviceTch, Tensor};
+//use image::io::Reader as ImageReader;
+//use image::{DynamicImage, GenericImageView};
+//use tch::{nn, vision::imagenet, Device as DeviceTch, Tensor};
 
 impl Photo {
     /*  pub(crate) fn clasify_image(&self) {
@@ -270,7 +276,9 @@ impl Photo {
 }
 
 mod tests {
-    
+    use crate::database::{Database, Photo};
+    use crate::server::Device;
+    use std::collections::HashMap;
 
     #[test]
     fn add_device() {

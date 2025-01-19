@@ -50,7 +50,7 @@ export default {
     loading: false,
     paging: {
       offset: 0,
-      limit: 30,
+      limit: 1,
     },
     objects: [],
     images: [],
@@ -60,6 +60,7 @@ export default {
     this.list_files();
     window.onscroll = function () {
       if (
+        this.loading === false &&
         window.innerHeight + Math.ceil(window.pageYOffset) >=
         document.body.offsetHeight
       ) {

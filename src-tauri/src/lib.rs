@@ -89,10 +89,12 @@ async fn list_files(
     scan: bool,
 ) -> String {
     if scan {
+        println!("Scanning for photos.");
         scan_files(path.to_string(), path.clone());
     }
     let database = database::Database::new(&path);
     let photos = database.list_photos(&query, offset, limit);
+    println!("{} photos retrieved", photos.len());
     serde_json::to_string(&photos).unwrap()
 }
 
