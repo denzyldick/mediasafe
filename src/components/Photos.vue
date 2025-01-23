@@ -1,6 +1,6 @@
 <template>
   <div style="margin-left: 20px; margin-top: 10px">
-    {{resourcePath}}
+    {{ resourcePath }}
     <v-row>
       <v-col md="10" lg="10">
         <v-autocomplete
@@ -41,12 +41,13 @@
 <script>
 import { invoke } from "@tauri-apps/api/core";
 import Image from "./Image.vue";
+import * as path from "@tauri-apps/api/path";
+
 export default {
   name: "Photos",
   components: { Image },
   data: () => ({
-//    resourcePath: "/home/denzyl/Pictures",
-    resourcePath:"/storage/emulated/0/DCIM",
+    resourcePath:null,
     search: null,
     query: null,
     loading: false,
@@ -58,14 +59,14 @@ export default {
     images: [],
     scan: false,
   }),
-  created() {
-    this.resourcePath = "/storage/emulated/0/DCIM"; 
+  async created() {
+    this.resourcePath = await path.homeDir();
     this.list_files();
     window.onscroll = function () {
       if (
         this.loading === false &&
         window.innerHeight + Math.ceil(window.pageYOffset) >=
-        document.body.offsetHeight
+          document.body.offsetHeight
       ) {
         this.list_files();
       }
@@ -115,12 +116,12 @@ export default {
       });
     },
     get_thumbnail: async function (key, path) {
-      if(window.localStorage.get(path)){
+      if (window.localStorage.get(path)) {
         this.images[key].encoded = window.localStorage.get(path);
-      }else{
-      invoke("get_thumbnail", { path: path }).then((result) => {
-        this.images[key].encoded = "data:image/jpeg;base64," + result;
-      });
+      } else {
+        invoke("get_thumbnail", { path: path }).then((result) => {
+          this.images[key].encoded = "data:image/jpeg;base64," + result;
+        });
       }
     },
   },

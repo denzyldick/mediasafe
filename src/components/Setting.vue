@@ -1,12 +1,15 @@
 <template>
   <v-row>
-    <v-col offset-md="2" style="margin-top: 40px;padding-left: 20px;" md="8">
+    <v-col offset-md="2" style="margin-top: 40px; padding-left: 20px" md="8">
       <div class="text-h5">Configuration</div>
-      <div class="text-grey font-weight-thin">The configuration is being stored in {{path}}. <br/>
+      <div class="text-grey font-weight-thin">
+        The configuration is being stored in {{ dataDir }}. <br />
 
-        This is a <a href="https://www.sqlite.org" class="text-grey">SQLite</a> file that you can export.
+        This is a
+        <a href="https://www.sqlite.org" class="text-grey">SQLite</a> file that
+        you can export.
       </div>
-      <br/>
+      <br />
       <v-sheet class="mx-auto">
         <v-form ref="form">
           <v-row>
@@ -74,11 +77,10 @@
   </v-row>
 </template>
 <script>
-
-import { configDir } from '@tauri-apps/api/path';
+import * as path from "@tauri-apps/api/path";
 export default {
   data: () => ({
-    path: null,
+    dataDir: null,
     name: "",
     nameRules: [
       (v) => !!v || "Path is required",
@@ -102,8 +104,9 @@ export default {
       this.$refs.form.resetValidation();
     },
   },
-  mounted(){
-    this.path = configDir();
-  }
+  async mounted() {
+    console.log("HELLOWORLD");
+    this.dataDir = await this.path.homeDir();
+  },
 };
 </script>

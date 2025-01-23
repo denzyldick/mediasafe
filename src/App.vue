@@ -5,7 +5,7 @@ import Map from "./components/Map.vue";
 import Photos from "./components/Photos.vue";
 import Setting from "./components/Setting.vue";
 import Greet from "./components/Greet.vue";
-
+import * as path from "@tauri-apps/api/path";
 export default {
   components: { DeviceList, Map, Photos, Setting, Greet },
   data: () => ({
@@ -41,7 +41,7 @@ export default {
     },
     scan: async function () {
       this.scanning = !this.scanning;
-      let data = pictureDirPath;
+      let data =  await this.path.homeDir();
       let response = await invoke("scan_files", {
         directory: data,
         path: this.resourcePath,
