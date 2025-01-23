@@ -4,8 +4,10 @@ import DeviceList from "./components/DeviceList.vue";
 import Map from "./components/Map.vue";
 import Photos from "./components/Photos.vue";
 import Setting from "./components/Setting.vue";
+import Greet from "./components/Greet.vue";
+
 export default {
-  components: { DeviceList, Map, Photos, Setting },
+  components: { DeviceList, Map, Photos, Setting, Greet },
   data: () => ({
     clean_install: true,
     scanning: false,
@@ -60,12 +62,10 @@ export default {
   <v-app>
     <v-layout>
       <v-main>
-        <vue-qrcode
-          value="Hello, World!"
-          :options="{ width: 200 }"
-        ></vue-qrcode>
-        <Greet v-if="clean_install"></Greet>
-        <v-app-bar elevation="1" v-if="current_page === 'home'">
+        <v-app-bar
+          elevation="1"
+          v-if="current_page === 'home' && clean_install === false"
+        >
           <v-row>
             <v-col md="3" sm="3" lg="3">
               <v-btn color="green" v-if="scanning">
@@ -88,6 +88,17 @@ export default {
             </v-col>
           </v-row>
         </v-app-bar>
+        <Greet
+          v-if="clean_install"
+          @new_device="
+            clean_install = false;
+            current_page = 'settings';
+          "
+          @join_group="
+            clean_install = false;
+            current_page = 'devices';
+          "
+        ></Greet>
 
         <Photos v-if="current_page === 'home'" />
         <Map v-if="current_page === 'location'" />
@@ -95,30 +106,25 @@ export default {
         <Setting v-if="current_page === 'settings'" />
       </v-main>
     </v-layout>
-    <v-bottom-navigation mode="shift">
+    <v-bottom-navigation mode="shift" v-if="clean_install === false">
       <v-btn value="myphotos" @click="current_page = 'home'" flat>
         <v-icon>mdi-folder</v-icon>
-        <span>My photos</span>
       </v-btn>
 
       <v-btn value="location" @click="current_page = 'location'" flat>
         <v-icon>mdi-map</v-icon>
-        <span>My locations</span>
       </v-btn>
 
       <v-btn value="devices" @click="current_page = 'devices'" flat>
         <v-icon>mdi-laptop</v-icon>
-        <span>Devices</span>
       </v-btn>
 
       <v-btn value="starred" @click="current_page = 'starred'" flat>
         <v-icon>mdi-heart</v-icon>
-        <span>Favorites</span>
       </v-btn>
 
       <v-btn value="settings" @click="current_page = 'settings'" flat>
         <v-icon>mdi-wrench</v-icon>
-        <span>Setting</span>
       </v-btn>
     </v-bottom-navigation>
   </v-app>

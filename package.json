@@ -1,7 +1,7 @@
 {
   "name": "mediasafe",
   "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,23 +10,19 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@chenfengyuan/vue-qrcode": "2",
-    "@tauri-apps/api": "^2.0.0-beta.0",
-    "@tauri-apps/plugin-os": "~2",
-    "@tauri-apps/plugin-shell": "^2.0.0-beta.0",
+    "@mdi/font": "^7.4.47",
+    "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-opener": "^2",
     "@vue-leaflet/vue-leaflet": "^0.10.1",
-    "qrcode": "1",
+    "leaflet": "^1.9.4",
     "qrcode.vue": "^3.6.0",
-    "vue": "3",
-    "vue-masonry": "^0.16.0",
-    "vuetify": "^3.1.13"
+    "vue": "^3.5.13",
+    "vue-leaflet": "^0.1.0",
+    "vuetify": "^3.7.7"
   },
   "devDependencies": {
-    "@mdi/font": "^7.2.96",
-    "@tauri-apps/cli": "^2.1.0",
-    "@vitejs/plugin-vue": "^4.2.3",
-    "internal-ip": "^7.0.0",
-    "leaflet": "^1.9.4",
-    "vite": "^5.0.0"
+    "@tauri-apps/cli": "^2",
+    "@vitejs/plugin-vue": "^5.2.1",
+    "vite": "^6.0.3"
   }
 }

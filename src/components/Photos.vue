@@ -1,5 +1,6 @@
 <template>
   <div style="margin-left: 20px; margin-top: 10px">
+    {{resourcePath}}
     <v-row>
       <v-col md="10" lg="10">
         <v-autocomplete
@@ -44,7 +45,8 @@ export default {
   name: "Photos",
   components: { Image },
   data: () => ({
-    resourcePath: "/home/denzyl/Pictures",
+//    resourcePath: "/home/denzyl/Pictures",
+    resourcePath:"/storage/emulated/0/DCIM",
     search: null,
     query: null,
     loading: false,
@@ -57,6 +59,7 @@ export default {
     scan: false,
   }),
   created() {
+    this.resourcePath = "/storage/emulated/0/DCIM"; 
     this.list_files();
     window.onscroll = function () {
       if (

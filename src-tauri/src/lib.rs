@@ -2,8 +2,8 @@
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_os::init())
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
             list_files,
             scan_files,
@@ -24,12 +24,12 @@ async fn join_network(ip: String) -> String {
     server::request_offer(ip.to_string()).await
 }
 
+mod config;
 mod database;
 mod device;
 mod file;
 mod server;
 mod transport;
-mod config;
 #[tauri::command]
 async fn listen_for_incomming_connect() {
     println!("Starting server");

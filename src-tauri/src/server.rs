@@ -5,7 +5,7 @@ use serde::Serialize;
 
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
-use crate::database::{Database};
+use crate::database::Database;
 use crate::transport::generate_offer;
 
 fn handle_read(mut stream: &TcpStream) -> Option<Device> {

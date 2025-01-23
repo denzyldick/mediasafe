@@ -11,8 +11,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::fs::File;
 
-use std::io::{BufReader, Cursor};
 use std::io::Read;
+use std::io::{BufReader, Cursor};
 use std::string::String;
 
 ///
@@ -86,8 +86,13 @@ fn generate_thumbnail_base64(
 ) -> Result<String, Box<dyn std::error::Error>> {
     let file = File::open(input_path).unwrap();
     let reader = BufReader::new(file);
-    let mut  thumbnails = create_thumbnails(reader, mime::IMAGE_PNG, [ThumbnailSize::Small, ThumbnailSize::Medium]).unwrap();
-     
+    let mut thumbnails = create_thumbnails(
+        reader,
+        mime::IMAGE_PNG,
+        [ThumbnailSize::Small, ThumbnailSize::Medium],
+    )
+    .unwrap();
+
     let thumbnail = thumbnails.pop().unwrap();
     let mut buf = Cursor::new(Vec::new());
 
@@ -97,7 +102,7 @@ fn generate_thumbnail_base64(
 }
 // This will generate a thumbnail for the image
 pub fn get_thumbnail(path: String) -> String {
-   let base64 = generate_thumbnail_base64(&path, 100);
+    let base64 = generate_thumbnail_base64(&path, 100);
     match base64 {
         Ok(base64) => base64,
         Err(_err) => String::from("Something# went wrong"),
