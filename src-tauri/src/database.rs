@@ -193,7 +193,7 @@ impl Database {
         println!("Photos found, {}, {} {}", photos.len(), offset, limit);
         photos
     }
-    pub fn get_device_by_name(&self, name: String) -> Option<Device> {
+    pub fn get_device_by_name(&self, name: &str) -> Option<Device> {
         let sql = "SELECT name, offer, ip FROM device WHERE name = ?1";
 
         let params = &[(&name)];
@@ -291,7 +291,7 @@ mod tests {
         let database = Database::new("./tests");
         database.add_device(&device);
 
-        let d = database.get_device_by_name(device.name.clone()).unwrap();
+        let d = database.get_device_by_name(&device.name).unwrap();
 
         assert_eq!(device.name, d.name)
     }

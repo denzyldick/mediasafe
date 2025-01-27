@@ -111,6 +111,6 @@ fn get_thumbnail(path: String) -> String {
 }
 
 #[tauri::command]
-fn get_device_by_name(name: String) -> String {
+fn get_device_by_name(name: &str) -> String {
     device::get_device_by_name(name)
 }

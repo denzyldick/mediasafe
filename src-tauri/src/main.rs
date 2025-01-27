@@ -6,7 +6,6 @@ fn main() {
 
     let mut builder = tauri::Builder::default();
 
-    #[cfg(debug_assertions)]
     builder = builder.plugin(devtools); // then register it with Tauri
 
     builder.run(tauri::generate_context!())
