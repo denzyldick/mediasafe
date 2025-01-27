@@ -63,7 +63,8 @@ fn is_local_network_ip(ip: Ipv4Addr) -> bool {
 
 #[tauri::command()]
 fn list_devices() -> String {
-    device::list_devices()
+    let devices = device::list_devices();
+    serde_json::to_string(&devices).unwrap()
 }
 #[tauri::command]
 fn list_objects(query: &str, path: &str) -> String {
@@ -112,5 +113,6 @@ fn get_thumbnail(path: String) -> String {
 
 #[tauri::command]
 fn get_device_by_name(name: &str) -> String {
-    device::get_device_by_name(name)
+    let device = device::get_device_by_name(name);
+    serde_json::to_string(&device).unwrap()
 }
