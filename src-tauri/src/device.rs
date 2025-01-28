@@ -44,12 +44,11 @@ mod tests {
             offer: "Offer".to_string(),
         };
 
-        let second_deveice = Device{
-            name:"second_device".to_string(),
-            ip:"".to_string(),
-            offer:"Offer".to_string(),
+        let second_deveice = Device {
+            name: "second_device".to_string(),
+            ip: "".to_string(),
+            offer: "Offer".to_string(),
         };
-
 
         database::Database::new(".tests/database.sql").add_device(&first_device);
         database::Database::new(".tests/database.sql").add_device(&second_deveice);
@@ -60,6 +59,5 @@ mod tests {
             assert_eq!(device.name, "first_device");
             assert_eq!(device.name, "second_device");
         }
-
     }
 }

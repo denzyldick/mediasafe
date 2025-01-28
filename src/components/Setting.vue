@@ -13,62 +13,37 @@
       <v-sheet class="mx-auto">
         <v-form ref="form">
           <v-row>
-            <v-col>
-              <v-file-input
-                v-model="name"
-                :counter="10"
-                :rules="nameRules"
-                required
-                label="Which folder to backup?"
-                placeholder="Make sure your photos are in this folder."
-                prepend-icon="mdi-camera"
-                webkitdirectory
-              ></v-file-input>
+            <v-col class="font-weight-thin">
+              MediaSafe won't randomly scan folders for pictures. It only scans
+              the folders you tell it to.
             </v-col>
           </v-row>
           <v-row>
             <v-col>
-              <v-select
-                v-model="select"
-                :items="items"
-                :rules="[(v) => !!v || 'Item is required']"
-                label="Which hardware to use?"
-                required
-              ></v-select>
+              <v-btn @click="select_directory" class="info"
+                >Select folder(s)</v-btn
+              >
             </v-col>
           </v-row>
-
-          <v-row>
+          <v-row v-if="directories.length > 0">
+            <v-col> You have selected the following directories: </v-col>
             <v-col>
-              <v-checkbox
-                v-model="checkbox"
-                :rules="[(v) => !!v || 'You must agree to continue!']"
-                label="Detect objects in your photos?"
-                required
-              ></v-checkbox>
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>
-              <v-checkbox
-                v-model="checkbox"
-                :rules="[(v) => !!v || 'You must agree to continue!']"
-                label="Enable on startup"
-                required
-              ></v-checkbox>
-            </v-col>
-          </v-row>
-
-          <v-row>
-            <v-col offset-md="8" md="2">
-              <v-btn class="mt-4" color="info" block @click="resetValidation">
-                <v-icon>mdi-trash-can</v-icon> Default
-              </v-btn>
-            </v-col>
-            <v-col md="2">
-              <v-btn class="mt-4" color="success" block @click="validate">
-                <v-icon> mdi-floppy </v-icon> Save
-              </v-btn>
+              <v-list>
+                <v-list-item
+                  v-for="directory in directories"
+                  :key="directory.title"
+                  :title="directory.title"
+                >
+                  <template v-slot:append>
+                    <v-btn
+                      icon="mdi-delete"
+                      size="small"
+                      variant="text"
+                      @click="remove_directory(directory.value)"
+                    ></v-btn>
+                  </template>
+                </v-list-item>
+              </v-list>
             </v-col>
           </v-row>
         </v-form>
@@ -78,8 +53,10 @@
 </template>
 <script>
 import * as path from "@tauri-apps/api/path";
+import { open } from "@tauri-apps/plugin-dialog";
 export default {
   data: () => ({
+    directories: [],
     dataDir: null,
     name: "",
     nameRules: [
@@ -92,6 +69,27 @@ export default {
   }),
 
   methods: {
+    async select_directory() {
+      const directory = await open({
+        multiple: true,
+        directory: true,
+      });
+
+      this.directories = directory.map((dir) => {
+        return {
+          title: dir,
+          value: dir,
+          props: {
+            color: "primary",
+            prependIcon: "mdi-folder",
+            appendIcon: "mdi-close",
+          },
+        };
+      });
+    },
+    remove_directory(path) {
+      this.directories = this.directories.filter((dir) => dir.value !== path);
+    },
     async validate() {
       const { valid } = await this.$refs.form.validate();
 
