@@ -101,6 +101,11 @@ export default {
     resetValidation() {
       this.$refs.form.resetValidation();
     },
+    list_directories() {
+      invoke("list_directories").then((directories) => {
+        this.directories = directories;
+      });
+    },
   },
   async mounted() {
     console.log("HELLOWORLD");
