@@ -32,6 +32,8 @@ impl Database {
             (),
         )
         .unwrap();
+        conn.execute("CREATE TABLE IF NOT EXISTS directory (name STRING);", ())
+            .unwrap();
         conn.execute(
             "CREATE TABLE IF NOT EXISTS object(
             photo_id STRING,
@@ -118,6 +120,19 @@ impl Database {
             );
         }
     }
+
+    pub fn list_directory(self, query: &str) -> Vec<String> {
+        let mut stm = self.connection.prepare("SELECT * FROM directory").unwrap();
+
+        stm.query_map((), |row| {
+            let s: String = row.get(0).unwrap();
+            Ok(s)
+        })
+        .unwrap()
+        .map(|x| x.unwrap())
+        .collect()
+    }
+
     pub fn list_objects(self, query: &str) -> Vec<String> {
         println!("Searching for {}", query);
         let mut objects = Vec::new();
