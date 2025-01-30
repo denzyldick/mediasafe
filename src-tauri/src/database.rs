@@ -121,18 +121,6 @@ impl Database {
         }
     }
 
-    pub fn list_directory(self, query: &str) -> Vec<String> {
-        let mut stm = self.connection.prepare("SELECT * FROM directory").unwrap();
-
-        stm.query_map((), |row| {
-            let s: String = row.get(0).unwrap();
-            Ok(s)
-        })
-        .unwrap()
-        .map(|x| x.unwrap())
-        .collect()
-    }
-
     pub fn list_objects(self, query: &str) -> Vec<String> {
         println!("Searching for {}", query);
         let mut objects = Vec::new();
@@ -246,6 +234,18 @@ impl Database {
             devices.push(d.unwrap());
         }
         devices
+    }
+
+    pub(crate) fn list_directories(&self ) -> Vec<String> {
+        let mut stm = self.connection.prepare("SELECT * FROM directory").unwrap();
+
+        stm.query_map((), |row| {
+            let s: String = row.get(0).unwrap();
+            Ok(s)
+        })
+        .unwrap()
+        .map(|x| x.unwrap())
+        .collect()
     }
 }
 #[derive(Debug, Clone, Serialize)]
