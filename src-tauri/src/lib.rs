@@ -10,6 +10,7 @@ pub fn run() {
             scan_files,
             listen_for_incomming_connect,
             list_devices,
+            list_directories,
             join_network,
             list_objects,
             get_thumbnail,
@@ -28,9 +29,11 @@ async fn join_network(ip: String) -> String {
 mod config;
 mod database;
 mod device;
+mod directory;
 mod file;
 mod server;
 mod transport;
+
 #[tauri::command]
 async fn listen_for_incomming_connect() {
     println!("Starting server");
@@ -116,4 +119,10 @@ fn get_thumbnail(path: String) -> String {
 fn get_device_by_name(name: &str) -> String {
     let device = device::get_device_by_name(name);
     serde_json::to_string(&device).unwrap()
+}
+
+#[tauri::command]
+fn list_directories() -> String {
+    let directories = directory::list_directories();
+    serde_json::to_string(&directories).unwrap()
 }
