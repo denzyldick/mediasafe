@@ -1,10 +1,7 @@
 use crate::database;
 use exif::Reader;
-use image::GenericImageView;
 use jwalk::WalkDir;
 use rand::{distributions::Alphanumeric, Rng};
-use rustc_serialize::base64;
-use rustc_serialize::base64::{ToBase64, MIME};
 use thumbnailer::ThumbnailSize;
 
 use std::collections::HashMap;
@@ -94,7 +91,7 @@ fn generate_thumbnail_base64(
     .unwrap();
 
     let thumbnail = thumbnails.pop().unwrap();
-    let mut buf = Cursor::new(Vec::new());
+    let buf = Cursor::new(Vec::new());
 
     let s = String::from_utf8_lossy(&mut buf.into_inner()).to_string();
     println!("{}r#", s);

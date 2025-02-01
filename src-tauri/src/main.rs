@@ -3,7 +3,7 @@
 fn main() {
     #[cfg(debug_assertions)]
     //  let devtools = tauri_plugin_devtools::init(); // initialize the plugin as early as possible
-    let mut builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
+    let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
     
 
     //    builder = builder.plugin(devtools); // then register it with Tauri

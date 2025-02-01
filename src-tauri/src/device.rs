@@ -3,9 +3,9 @@ use crate::{database, server::Device};
 /// This function will add a device to the database
 pub(crate) fn get_device_by_name(name: &str) -> Device {
     let database = database::Database::new("/home/denzyl/");
-    let device = database.get_device_by_name(&name).unwrap();
+    
 
-    device
+    database.get_device_by_name(name).unwrap()
 }
 
 /// This list all the deviecis in the database

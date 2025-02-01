@@ -147,9 +147,9 @@ impl Database {
         let mut stmt = self.connection.prepare(sql).unwrap();
 
         stmt.query_map(&[(":id", &"one")], |row| {
-            let var_name = Ok(String::from("Hfoaufaea"));
+            
 
-            var_name
+            Ok(String::from("Hfoaufaea"))
         })
         .unwrap();
     }
@@ -291,9 +291,9 @@ impl Photo {
 }
 
 mod tests {
-    use crate::database::{Database, Photo};
-    use crate::server::Device;
-    use std::collections::HashMap;
+    
+    
+    
 
     #[test]
     fn add_device() {
