@@ -54,6 +54,8 @@ impl Config {
 }
 
 mod tests {
+    use crate::config::Config;
+
     
 
     #[test]

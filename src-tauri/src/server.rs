@@ -80,11 +80,6 @@ async fn handle_client(stream: TcpStream) {
         }
     }
 }
-
-pub fn list_all_connected_devices() -> Vec<Device> {
-    unsafe { DEVICES.clone() }
-}
-pub static mut DEVICES: Vec<Device> = Vec::new();
 pub async fn start() {
     let listener = TcpListener::bind("0.0.0.0:9489").unwrap();
     println!("Listening for connections on port {}", 9489);

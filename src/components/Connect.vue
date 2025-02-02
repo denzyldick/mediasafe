@@ -11,11 +11,7 @@
         <v-card-text>
           Install and open this app on your other device.
 
-          <vue-qrcode
-            value="Hello, World!"
-            :options="{ width: 200 }"
-          ></vue-qrcode>
-          <v-progress-linear
+         <v-progress-linear
             indeterminate
             :height="12"
             v-if="devices.length == 0"

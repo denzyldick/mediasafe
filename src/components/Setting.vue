@@ -52,6 +52,7 @@
   </v-row>
 </template>
 <script>
+import { invoke } from "@tauri-apps/api/core";
 import * as path from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 export default {
@@ -76,6 +77,7 @@ export default {
       });
 
       this.directories = directory.map((dir) => {
+        invoke("add_directory", dir).then(() => {});
         return {
           title: dir,
           value: dir,
@@ -89,6 +91,9 @@ export default {
     },
     remove_directory(path) {
       this.directories = this.directories.filter((dir) => dir.value !== path);
+      invoke("remove_directory", path).then(() => {
+        this.list_directories();
+      });
     },
     async validate() {
       const { valid } = await this.$refs.form.validate();
@@ -108,7 +113,6 @@ export default {
     },
   },
   async mounted() {
-    console.log("HELLOWORLD");
     this.dataDir = await this.path.homeDir();
   },
 };

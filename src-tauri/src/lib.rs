@@ -10,6 +10,8 @@ pub fn run() {
             scan_files,
             listen_for_incomming_connect,
             list_devices,
+            remove_directory,
+            add_directory,
             list_directories,
             join_network,
             list_objects,
@@ -125,4 +127,12 @@ fn get_device_by_name(name: &str) -> String {
 fn list_directories() -> String {
     let directories = directory::list_directories();
     serde_json::to_string(&directories).unwrap()
+}
+#[tauri::command]
+fn remove_directory(path: String) {
+    directory::remove_directory(path);
+}
+#[tauri::command]
+fn add_directory(path: String) {
+    directory::add_directory(path);
 }

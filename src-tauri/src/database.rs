@@ -17,7 +17,8 @@ impl Database {
         let path = format!("{}/database.sql", cache_path);
         println!("Database.sql location: {}", path);
         let file = fs::metadata(&path);
-        if let Err(kind) = file {
+        if let Err(_kind) = file {
+            println!("Database located at {} doesns't exists.",path);
             File::create(&path);
         }
         let conn = Connection::open(format!("{}/database.sql", cache_path)).unwrap();
@@ -146,12 +147,8 @@ impl Database {
         let sql = "SELECT id,encoded FROM photo WHERE photo.id = :id";
         let mut stmt = self.connection.prepare(sql).unwrap();
 
-        stmt.query_map(&[(":id", &"one")], |row| {
-            
-
-            Ok(String::from("Hfoaufaea"))
-        })
-        .unwrap();
+        stmt.query_map(&[(":id", &"one")], |row| Ok(String::from("Hfoaufaea")))
+            .unwrap();
     }
     pub fn list_photos(self, query: &str, offset: usize, limit: usize) -> Vec<Photo> {
         let mut photos = Vec::new();
@@ -236,7 +233,7 @@ impl Database {
         devices
     }
 
-    pub(crate) fn list_directories(&self ) -> Vec<String> {
+    pub(crate) fn list_directories(&self) -> Vec<String> {
         let mut stm = self.connection.prepare("SELECT * FROM directory").unwrap();
 
         stm.query_map((), |row| {
@@ -246,6 +243,22 @@ impl Database {
         .unwrap()
         .map(|x| x.unwrap())
         .collect()
+    }
+
+    pub(crate) fn remove_directory(&self, path: String) {
+        let mut stm = self
+            .connection
+            .prepare("DELETE FROM directory WHERE name = ?1")
+            .unwrap();
+        stm.execute(&[&path]).unwrap();
+    }
+
+    pub(crate) fn add_directory(&self, path: String) {
+        let mut stm = self
+            .connection
+            .prepare("INSERT INTO directory (name) VALUES(?1)")
+            .unwrap();
+        stm.execute(&[&path]).unwrap();
     }
 }
 #[derive(Debug, Clone, Serialize)]
@@ -291,9 +304,12 @@ impl Photo {
 }
 
 mod tests {
-    
-    
-    
+    use std::collections::HashMap;
+
+    use crate::{database::Database, server::Device};
+
+    use super::Photo;
+
 
     #[test]
     fn add_device() {
