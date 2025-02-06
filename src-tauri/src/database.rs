@@ -13,15 +13,21 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new(cache_path: &str) -> Self {
-        let path = format!("{}/database.sql", cache_path);
+    pub fn new(config_path: &str) -> Self {
+        let path = format!("{}/database.sql", config_path);
         println!("Database.sql location: {}", path);
         let file = fs::metadata(&path);
         if let Err(_kind) = file {
-            println!("Database located at {} doesns't exists.",path);
+            println!("Database located at {} doesns't exists.", path);
             File::create(&path);
         }
-        let conn = Connection::open(format!("{}/database.sql", cache_path)).unwrap();
+        let conn = Connection::open(format!("{}/database.sql", config_path)).unwrap();
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS app (
+             config_path STRING
+            )",
+            (),
+        );
         conn.execute(
             "CREATE TABLE IF NOT EXISTS photo (
             id    STRING PRIMARY KEY,
@@ -73,6 +79,16 @@ impl Database {
         )
         .unwrap();
         Self { connection: conn }
+    }
+
+    pub fn get_state(&self) -> HashMap<String, String> {
+        let result = self.connection.query_row("SELECT * FROM app", (), |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        });
+
+        dbg!(result.unwrap());
+
+        HashMap::new()
     }
 
     pub fn add_device(&self, device: &Device) {
@@ -253,7 +269,7 @@ impl Database {
         stm.execute(&[&path]).unwrap();
     }
 
-    pub(crate) fn add_directory(&self, path: String) {
+    pub(crate) fn add_directory(&self, path: &str) {
         let mut stm = self
             .connection
             .prepare("INSERT INTO directory (name) VALUES(?1)")
@@ -309,7 +325,6 @@ mod tests {
     use crate::{database::Database, server::Device};
 
     use super::Photo;
-
 
     #[test]
     fn add_device() {

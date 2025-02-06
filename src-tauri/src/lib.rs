@@ -6,6 +6,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            get_initial_state,
             list_files,
             scan_files,
             listen_for_incomming_connect,
@@ -135,4 +136,10 @@ fn remove_directory(path: String) {
 #[tauri::command]
 fn add_directory(path: String) {
     directory::add_directory(path);
+}
+#[tauri::command]
+fn get_initial_state(path: &str) -> String {
+    let database  = database::Database::new(&path);
+    let state = database.get_state();
+    serdo_json::to_string(&state).unwrap()
 }
