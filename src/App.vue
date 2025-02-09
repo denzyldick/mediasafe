@@ -40,6 +40,8 @@ export default {
       });
     },
     scan: async function () {
+      console.log("Scanning files");
+
       this.scanning = !this.scanning;
       let data =  await this.path.homeDir();
       let response = await invoke("scan_files", {
