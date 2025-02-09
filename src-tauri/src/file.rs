@@ -107,12 +107,21 @@ pub fn get_thumbnail(path: String) -> String {
 }
 
 mod tests {
+    use std::{collections::HashMap, ptr::hash};
+
+    use crate::file;
 
     #[test]
     fn scan_folder() {
-        let file = crate::file::scan_folder(String::from("/home/denzyl"), "/home/denzyl/");
+        let mut state = HashMap::new();
+        state.insert("path".to_string(), "/home/denzyl".to_string());
 
-        /// I forgot what I was testing in the test.
-        assert_eq!(true, true)
+        let database = crate::database::Database::new("/home/denzyl");
+        database.set_state(state);
+
+        let state = database.get_state();
+        let directory = state.get("path").unwrap();
+        dbg!(&state);
+        let file = file::scan_folder(directory.to_string(), &directory);
     }
 }

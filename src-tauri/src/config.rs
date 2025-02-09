@@ -56,8 +56,6 @@ impl Config {
 mod tests {
     use crate::config::Config;
 
-    
-
     #[test]
     fn new() {
         let config = Config::init("/home/denzyl/").unwrap();

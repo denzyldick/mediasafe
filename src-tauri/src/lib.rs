@@ -43,6 +43,7 @@ async fn listen_for_incomming_connect() {
     server::start().await;
 }
 use get_if_addrs::get_if_addrs;
+use serde_json::from_str;
 use std::net::Ipv4Addr;
 #[tauri::command()]
 fn get_ip() -> String {
@@ -141,5 +142,14 @@ fn add_directory(path: String) {
 fn get_initial_state(path: &str) -> String {
     let database  = database::Database::new(&path);
     let state = database.get_state();
-    serdo_json::to_string(&state).unwrap()
+    serde_json::to_string(&state).unwrap()
+}
+
+#[tauri::command]
+fn set_initial_state(path: &str, state : String, ) {
+
+    let state = from_str(&state).unwrap();
+
+    let database  = database::Database::new(&path);
+    database.set_state(state);
 }

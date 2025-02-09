@@ -23,12 +23,6 @@ impl Database {
         }
         let conn = Connection::open(format!("{}/database.sql", config_path)).unwrap();
         conn.execute(
-            "CREATE TABLE IF NOT EXISTS app (
-             config_path STRING
-            )",
-            (),
-        );
-        conn.execute(
             "CREATE TABLE IF NOT EXISTS photo (
             id    STRING PRIMARY KEY,
             location  STRING,
@@ -82,13 +76,29 @@ impl Database {
     }
 
     pub fn get_state(&self) -> HashMap<String, String> {
-        let result = self.connection.query_row("SELECT * FROM app", (), |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        });
 
-        dbg!(result.unwrap());
+        let mut result = self.connection.prepare("SELECT key, value FROM config").unwrap();
+        result
+            .query_map([], |row| {
+                let key: String = row.get(0).unwrap();
+                let value: String = row.get(1).unwrap();
+                Ok((key, value))
+            })
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect()
 
-        HashMap::new()
+    }
+
+    pub fn set_state(&self, state: HashMap<String, String>) {
+        for (key, value) in state {
+            self.connection
+                .execute(
+                    "INSERT INTO config (key, value) VALUES(?1, ?2)",
+                    (&key, &value),
+                )
+                .unwrap();
+        }
     }
 
     pub fn add_device(&self, device: &Device) {
