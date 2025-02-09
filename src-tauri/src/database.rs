@@ -276,7 +276,7 @@ impl Database {
             .connection
             .prepare("DELETE FROM directory WHERE name = ?1")
             .unwrap();
-        stm.execute(&[&path]).unwrap();
+        stm.execute([&path]).unwrap();
     }
 
     pub(crate) fn add_directory(&self, path: &str) {
@@ -284,7 +284,7 @@ impl Database {
             .connection
             .prepare("INSERT INTO directory (name) VALUES(?1)")
             .unwrap();
-        stm.execute(&[&path]).unwrap();
+        stm.execute([&path]).unwrap();
     }
 }
 #[derive(Debug, Clone, Serialize)]
@@ -330,11 +330,11 @@ impl Photo {
 }
 
 mod tests {
-    use std::collections::HashMap;
+    
 
-    use crate::{database::Database, server::Device};
+    
 
-    use super::Photo;
+    
 
     #[test]
     fn add_device() {

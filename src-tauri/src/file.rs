@@ -107,9 +107,9 @@ pub fn get_thumbnail(path: String) -> String {
 }
 
 mod tests {
-    use std::{collections::HashMap, ptr::hash};
+    
 
-    use crate::file;
+    
 
     #[test]
     fn scan_folder() {

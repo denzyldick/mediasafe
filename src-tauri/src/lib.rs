@@ -140,7 +140,7 @@ fn add_directory(path: String) {
 }
 #[tauri::command]
 fn get_initial_state(path: &str) -> String {
-    let database  = database::Database::new(&path);
+    let database  = database::Database::new(path);
     let state = database.get_state();
     serde_json::to_string(&state).unwrap()
 }
@@ -150,6 +150,6 @@ fn set_initial_state(path: &str, state : String, ) {
 
     let state = from_str(&state).unwrap();
 
-    let database  = database::Database::new(&path);
+    let database  = database::Database::new(path);
     database.set_state(state);
 }
