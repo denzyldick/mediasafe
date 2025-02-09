@@ -5,4 +5,5 @@ The idea is to store my photos on all my devices.
 
 ### WIP
 
-![branding/mediasafe.png](branding/mediasafe.png);
+![https://github.com/denzyldick/mediasafe/blob/main/branding/screenshot.png](https://github.com/denzyldick/mediasafe/blob/main/branding/screenshot.png)
+
