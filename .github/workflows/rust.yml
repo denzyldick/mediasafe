@@ -17,8 +17,8 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Build
-      run: cargo build --verbose --target-dir=/home/runner/work/mediasafe/mediasafe/src-tauri
+      run: cargo build --verbose --target-dir=/home/runner/work/mediasafe/src-tauri
     - name: Run tests
-      run: cargo test --verbose --target-dir==/home/runner/work/mediasafe/mediasafe/src-tauri
+      run: cargo test --verbose --target-dir==/home/runner/work/mediasafe/src-tauri
 
 
