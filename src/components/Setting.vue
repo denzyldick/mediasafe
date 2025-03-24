@@ -20,30 +20,28 @@
           </v-row>
           <v-row>
             <v-col>
-              <v-btn @click="select_directory" class="info"
-                >Select folder(s)</v-btn
-              >
+              <v-btn @click="select_directory" class="info">Select folder(s)</v-btn>
             </v-col>
           </v-row>
           <v-row v-if="directories.length > 0">
             <v-col> You have selected the following directories: </v-col>
             <v-col>
               <v-list>
-                <v-list-item
-                  v-for="directory in directories"
-                  :key="directory.title"
-                  :title="directory.title"
-                >
+                <v-list-item v-for="directory in directories" :key="directory.title" :title="directory.title">
                   <template v-slot:append>
-                    <v-btn
-                      icon="mdi-delete"
-                      size="small"
-                      variant="text"
-                      @click="remove_directory(directory.value)"
-                    ></v-btn>
+                    <v-btn icon="mdi-delete" size="small" variant="text"
+                      @click="remove_directory(directory.value)"></v-btn>
                   </template>
                 </v-list-item>
               </v-list>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col offset=8>
+              <v-btn color="primary" v-if="directories.length > 0" @click="$emit('done')">
+                Continue&nbsp;
+                <v-icon>mdi-arrow-right</v-icon>
+              </v-btn>
             </v-col>
           </v-row>
         </v-form>
@@ -77,7 +75,7 @@ export default {
       });
 
       this.directories = directory.map((dir) => {
-        invoke("add_directory", dir).then(() => {});
+        invoke("add_directory", dir).then(() => { });
         return {
           title: dir,
           value: dir,

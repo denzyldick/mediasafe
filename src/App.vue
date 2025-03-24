@@ -43,7 +43,7 @@ export default {
       console.log("Scanning files");
 
       this.scanning = !this.scanning;
-      let data =  await this.path.homeDir();
+      let data = await this.path.homeDir();
       let response = await invoke("scan_files", {
         directory: data,
         path: this.resourcePath,
@@ -64,22 +64,13 @@ export default {
   <v-app>
     <v-layout>
       <v-main>
-        <v-app-bar
-          elevation="1"
-          v-if="current_page === 'home' && clean_install === false"
-        >
+        <v-app-bar elevation="1" v-if="current_page === 'home' && clean_install === false">
           <v-row>
             <v-col md="3" sm="3" lg="3">
               <v-btn color="green" v-if="scanning">
                 <v-icon>mdi-reload mdi-spin</v-icon>
-                &nbsp;...scanning</v-btn
-              >
-              <v-btn
-                flat
-                color="grey"
-                v-if="scanning === false"
-                @click="scan()"
-              >
+                &nbsp;...scanning</v-btn>
+              <v-btn flat color="grey" v-if="scanning === false" @click="scan()">
                 <v-icon>mdi-ok</v-icon> last scan 10s ago
               </v-btn>
             </v-col>
@@ -90,22 +81,18 @@ export default {
             </v-col>
           </v-row>
         </v-app-bar>
-        <Greet
-          v-if="clean_install"
-          @new_device="
+        <Greet v-if="clean_install" @new_device="
+          clean_install = false;
+        current_page = 'settings';
+        " @join_group="
             clean_install = false;
-            current_page = 'settings';
-          "
-          @join_group="
-            clean_install = false;
-            current_page = 'devices';
-          "
-        ></Greet>
+          current_page = 'devices';
+          "></Greet>
 
         <Photos v-if="current_page === 'home'" />
         <Map v-if="current_page === 'location'" />
         <DeviceList v-if="current_page === 'devices'" />
-        <Setting v-if="current_page === 'settings'" />
+        <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />
       </v-main>
     </v-layout>
     <v-bottom-navigation mode="shift" v-if="clean_install === false">
