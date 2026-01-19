@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
@@ -40,14 +40,14 @@ pub struct Device {
     pub offer: String,
 }
 
-#[derive(Serialize)]
-struct offer {
-    SDP: RTCSessionDescription,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Offer {
+    pub sdp: RTCSessionDescription,
 }
-async fn handle_write(mut stream: TcpStream, device: Device) {
+async fn handle_write(mut stream: TcpStream, _device: Device, config_path: String) {
     let sdp = generate_offer().await.unwrap();
 
-    let offer = offer { SDP: sdp };
+    let offer = Offer { sdp };
 
     let json = serde_json::to_string(&offer).unwrap();
     let response = format!(
@@ -61,7 +61,7 @@ async fn handle_write(mut stream: TcpStream, device: Device) {
         offer: json,
     };
 
-    let database = Database::new("/home/denzyl/");
+    let database = Database::new(&config_path);
     database.add_device(&device);
     match stream.write(response.as_bytes()) {
         Ok(_) => println!("Response sent"),
@@ -69,18 +69,18 @@ async fn handle_write(mut stream: TcpStream, device: Device) {
     }
 }
 
-async fn handle_client(stream: TcpStream) {
+async fn handle_client(stream: TcpStream, config_path: String) {
     let device = handle_read(&stream);
     match device {
         Some(device) => {
-            handle_write(stream, device).await;
+            handle_write(stream, device, config_path).await;
         }
         None => {
             println!("No device found");
         }
     }
 }
-pub async fn start() {
+pub async fn start(config_path: String) {
     let listener = TcpListener::bind("0.0.0.0:9489").unwrap();
     println!("Listening for connections on port {}", 9489);
 
@@ -88,7 +88,7 @@ pub async fn start() {
         match stream {
             Ok(stream) => {
                 println!("Incomming connection");
-                handle_client(stream).await
+                handle_client(stream, config_path.clone()).await
             }
             Err(e) => {
                 println!("Unable to connect: {}", e);
@@ -98,7 +98,21 @@ pub async fn start() {
 }
 
 pub async fn request_offer(ip: String) -> String {
-    println!("{ip}");
+    let mut stream = TcpStream::connect(format!("{}:9489", ip)).unwrap();
+    let request = "GET /new-device HTTP/1.1\r\n\r\n";
+    stream.write(request.as_bytes()).unwrap();
 
-    "Request made".to_string()
+    let mut buf = [0u8; 4096];
+    let n = stream.read(&mut buf).unwrap();
+    let response = String::from_utf8_lossy(&buf[..n]);
+
+    // Simple parsing to find the JSON body
+    // Assuming the body is after the double CRLF
+    if let Some(body_start) = response.find("\r\n\r\n") {
+        let body = &response[body_start + 4..];
+        let body = body.trim(); // Trim potential whitespace
+        return body.to_string();
+    }
+
+    String::new()
 }

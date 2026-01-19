@@ -16,6 +16,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "@vue-leaflet/vue-leaflet": "^0.10.1",
     "leaflet": "^1.9.4",
+    "leaflet.heat": "^0.2.0",
     "qrcode.vue": "^3.6.0",
     "vue": "^3.5.13",
     "vue-leaflet": "^0.1.0",

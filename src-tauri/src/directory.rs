@@ -1,12 +1,11 @@
-use crate::database;
-pub(crate) fn list_directories() -> Vec<String> {
-    let database = database::Database::new("/home/denzyl/");
+use super::database;
+pub(crate) fn list_directories(config_path: &str) -> Vec<String> {
+    let database = database::Database::new(config_path);
 
     database.list_directories()
 }
 
 mod test {
-    
 
     #[test]
     fn test_list_directories() {}
@@ -22,12 +21,13 @@ mod test {
     }
 }
 
-pub(crate) fn remove_directory(path: String) {
-    let database = database::Database::new("/home/denzyl/");
+pub(crate) fn remove_directory(path: String, config_path: &str) {
+    let database = database::Database::new(config_path);
     database.remove_directory(path);
 }
 
-pub(crate) fn add_directory(path: String) {
-    let database = database::Database::new("/home/denzyl/");
+pub(crate) fn add_directory(path: String, config_path: &str) {
+    println!("directory::add_directory called with: {}", path);
+    let database = database::Database::new(config_path);
     database.add_directory(&path);
 }

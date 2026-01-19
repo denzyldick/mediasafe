@@ -1,133 +1,113 @@
 <template>
-  <div>
-    <v-row>
-      <v-col>
-        <v-toolbar flat permanent>
-          <v-toolbar-title>All your devices</v-toolbar-title>
-          <v-toolbar-subtitle
-            v-if="device.name !== null && device.ip !== null"
-            >{{ device.name }}</v-toolbar-subtitle
-          >
-          <v-spacer></v-spacer>
-          <Connect />
-        </v-toolbar>
-      </v-col>
-    </v-row>
+  <v-container class="pa-6">
+    <div class="d-flex align-center justify-space-between mb-8">
+      <div>
+        <h1 class="text-h4 font-weight-bold mb-1">Devices</h1>
+        <div class="text-subtitle-1 text-medium-emphasis">Manage your connected devices</div>
+      </div>
+      <Connect />
+    </div>
 
+    <!-- Active Device Card (if needed, or just list all devices grid) -->
+    
     <v-row>
-      <v-col offset="1" md="4">
-        <Device></Device>
-      </v-col>
-    </v-row>
-    <v-row>
-      <v-col offset="1" md="10">
-        <v-list>
-          <v-list-item
-            v-for="file in devices"
-            :key="file.title"
-            :title="file.title"
-            :subtitle="file.subtitle"
-          >
+      <v-col cols="12" sm="6" md="4" v-for="device in devices" :key="device.title">
+        <v-card class="glass-panel" height="100%">
+          <v-card-item>
             <template v-slot:prepend>
-              <v-avatar :color="file.color">
-                <v-icon color="white">{{ file.icon }}</v-icon>
+              <v-avatar :color="device.color" variant="tonal" rounded="lg">
+                <v-icon>{{ device.icon }}</v-icon>
               </v-avatar>
             </template>
+            <v-card-title>{{ device.title }}</v-card-title>
+            <v-card-subtitle>{{ device.subtitle || 'Connected' }}</v-card-subtitle>
+            
             <template v-slot:append>
-              <v-icon
-                v-if="file.up_to_date && file.syncing == false"
-                color="green-lighten-1"
-                icon="mdi-check"
-                variant="text"
+               <v-icon
+                v-if="device.up_to_date && !device.syncing"
+                color="success"
+                icon="mdi-check-circle"
               ></v-icon>
-
               <v-icon
-                v-if="file.up_to_date == false && file.syncing == false"
-                color="red-lighten-1"
-                icon="mdi-sync-alert"
-                variant="text"
+                v-if="!device.up_to_date && !device.syncing"
+                color="warning"
+                icon="mdi-alert-circle"
               ></v-icon>
-
               <v-icon
-                v-if="file.up_to_date == false && file.syncing == true"
-                color="grey-lighten-1"
-                icon="fa:fas mdi-sync fa-spin"
+                v-if="device.syncing"
+                color="primary"
+                icon="mdi-loading"
+                class="mdi-spin"
               ></v-icon>
             </template>
-          </v-list-item>
-        </v-list>
+          </v-card-item>
+          
+          <v-card-text>
+               <div class="d-flex align-center mt-2">
+                   <div class="text-caption text-medium-emphasis">Status</div>
+                   <v-spacer></v-spacer>
+                   <v-chip size="x-small" :color="device.syncing ? 'primary' : device.up_to_date ? 'success' : 'warning'" variant="flat">
+                       {{ device.syncing ? 'Syncing...' : device.up_to_date ? 'Synced' : 'Attention' }}
+                   </v-chip>
+               </div>
+          </v-card-text>
+        </v-card>
       </v-col>
     </v-row>
-  </div>
+  </v-container>
 </template>
+
 <script>
 import { invoke } from "@tauri-apps/api/core";
 import Connect from "./Connect.vue";
-import Device from "./Device.vue";
+
 export default {
   name: "DeviceList",
   components: {
-    Device,
     Connect,
   },
-  data: function () {
-    return {
-      device: {
-        name: null,
-        ip: null,
-      },
+  data: () => ({
       devices: [
         {
           color: "red",
           icon: "mdi-android",
-          title: "Samsung Galaxy ",
-          subtitle: "Please turn on device. Last sync was 1 week ago.",
+          title: "Samsung Galaxy",
+          subtitle: "Last sync: 1 week ago",
           up_to_date: false,
           syncing: false,
         },
         {
           color: "blue",
           icon: "mdi-apple",
-          title: "Iphone 12",
-          subtitle: "",
+          title: "iPhone 12",
+          subtitle: "Just now",
           up_to_date: true,
           syncing: false,
         },
         {
           color: "yellow",
           icon: "mdi-microsoft",
-          title: "Windows desktop",
-          subtitle: "Syncing in progress...",
+          title: "Windows Desktop",
+          subtitle: "Syncing...",
           up_to_date: false,
           syncing: true,
         },
       ],
-    };
+  }),
+  async mounted() {
+      await this.list_devices();
   },
   methods: {
-    join: function () {
-      console.log("Joining");
-      invoke("join_network", { ip: "192.168.68.117" }).then((response) => {
-        console.log(response);
-      });
-    },
-    get_device_by_name: function (name) {
-      console.log("Getting device ", name);
-      invoke("get_device_by_name", {
-        name: name,
-      }).then((response) => {
-        console.log(response);
-      });
-    },
-    list_devices: async function () {
-      console.log("List devices");
-      this.devices = JSON.parse(await invoke("list_devices"));
-    },
-    async listen_for_incomming_connect() {
-      console.log("Listening for incomming connection");
-      invoke("listen_for_incomming_connect").then((response) => {
-        console.log(response);
-      });
+    async list_devices() {
+      // Keep dummy data for now, append real devices if any
+      const realDevicesStr = await invoke("list_devices");
+      const realDevices = JSON.parse(realDevicesStr);
+      
+      if (realDevices && realDevices.length > 0) {
+          // Map real devices to UI format if needed
+          // For now, simply logging them or adding to array
+          console.log("Real devices:", realDevices);
+      }
     },
   },
 };

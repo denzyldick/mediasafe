@@ -16,18 +16,31 @@ impl Database {
     pub fn new(config_path: &str) -> Self {
         let path = format!("{}/database.sql", config_path);
         println!("Database.sql location: {}", path);
+
+        // Ensure the directory exists
+        let _ = fs::create_dir_all(config_path);
+
         let file = fs::metadata(&path);
         if let Err(_kind) = file {
             println!("Database located at {} doesns't exists.", path);
-            File::create(&path);
+            let _ = File::create(&path);
         }
         let conn = Connection::open(format!("{}/database.sql", config_path)).unwrap();
+
+        // Check if photo table needs migration by checking if latitude exists
+        if conn.prepare("SELECT latitude FROM photo LIMIT 1").is_err() {
+            println!("Detected old schema. Dropping photo table to migrate...");
+            let _ = conn.execute("DROP TABLE IF EXISTS photo", ());
+        }
+
         conn.execute(
             "CREATE TABLE IF NOT EXISTS photo (
             id    STRING PRIMARY KEY,
             location  STRING,
             encoded STRING,
-            created DATE_TIME
+            created DATE_TIME,
+            latitude REAL,
+            longitude REAL
              );
         ",
             (),
@@ -76,18 +89,23 @@ impl Database {
     }
 
     pub fn get_state(&self) -> HashMap<String, String> {
-
-        let mut result = self.connection.prepare("SELECT key, value FROM config").unwrap();
+        let mut result = self
+            .connection
+            .prepare("SELECT key, value FROM config")
+            .unwrap();
         result
             .query_map([], |row| {
                 let key: String = row.get(0).unwrap();
-                let value: String = row.get(1).unwrap();
+                // Try to get as string first, if that fails try as i64 and convert
+                let value: String = row
+                    .get::<_, String>(1)
+                    .or_else(|_| row.get::<_, i64>(1).map(|v| v.to_string()))
+                    .unwrap();
                 Ok((key, value))
             })
             .unwrap()
             .map(|x| x.unwrap())
             .collect()
-
     }
 
     pub fn set_state(&self, state: HashMap<String, String>) {
@@ -101,13 +119,27 @@ impl Database {
         }
     }
 
+    pub fn get_last_scan_time(&self) -> Option<String> {
+        let state = self.get_state();
+        state.get("last_scan_time").cloned()
+    }
+
+    pub fn set_last_scan_time(&self, timestamp: String) {
+        self.connection
+            .execute(
+                "INSERT OR REPLACE INTO config (key, value) VALUES('last_scan_time', ?1)",
+                [&timestamp],
+            )
+            .unwrap();
+    }
+
     pub fn add_device(&self, device: &Device) {
         let result = self.connection.execute(
             "INSERT INTO device(ip, name, offer) VALUES(?1,?2, ?3)",
             (&device.ip, &device.name, &device.offer),
         );
 
-        if let Ok(result) = result {
+        if let Ok(_result) = result {
             println!("Device has been stored");
         }
 
@@ -117,11 +149,11 @@ impl Database {
     }
     pub fn store_photo(&self, photo: Photo) {
         let result = self.connection.execute(
-            "INSERT INTO photo(id, location, encoded) VALUES(?1, ?2, ?3 )",
-            (&photo.id, &photo.location, &photo.encoded),
+            "INSERT INTO photo(id, location, encoded, latitude, longitude) VALUES(?1, ?2, ?3, ?4, ?5 )",
+            (&photo.id, &photo.location, &photo.encoded, &photo.latitude, &photo.longitude),
         );
 
-        if let Ok(result) = result {
+        if let Ok(_result) = result {
             println!("Photo has been saved");
         }
 
@@ -138,6 +170,7 @@ impl Database {
 
             println!("Inserting probability");
         }
+        println!("Photo stored successfully: {}", photo.id);
 
         for (key, value) in photo.properties {
             let params = (&photo.id, &key, &value);
@@ -169,54 +202,143 @@ impl Database {
         println!("{objects:#?}");
         objects
     }
-    pub fn get_photo(self, id: &str) {
+    pub fn get_photo(self, _id: &str) {
         let sql = "SELECT id,encoded FROM photo WHERE photo.id = :id";
         let mut stmt = self.connection.prepare(sql).unwrap();
 
-        stmt.query_map(&[(":id", &"one")], |row| Ok(String::from("Hfoaufaea")))
+        let _ = stmt
+            .query_map(&[(":id", &"one")], |_row| Ok(String::from("Hfoaufaea")))
             .unwrap();
     }
-    pub fn list_photos(self, query: &str, offset: usize, limit: usize) -> Vec<Photo> {
+    pub fn list_photos(
+        self,
+        query: &str,
+        offset: usize,
+        limit: usize,
+        favorites_only: bool,
+    ) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if !query.is_empty() {
-            let   sql = "select * from photo LEFT JOIN object  ON photo.id = object.photo_id WHERE class LIKE ?3 ORDER by object.probability DESC LIMIT ?1, ?2;";
-            let param = (offset.to_string(), limit.to_string(), format!("%{query}"));
-            let mut stmt = self.connection.prepare(sql).unwrap();
-            let person_iter = stmt
-                .query_map(param, |row| {
-                    Ok(Photo {
-                        id: row.get(0)?,
-                        location: row.get(1)?,
-                        encoded: row.get(2)?,
-                        objects: HashMap::new(),
-                        properties: HashMap::new(),
-                    })
-                })
-                .unwrap();
-            for p in person_iter {
-                photos.push(p.unwrap());
-            }
-        } else {
-            let sql = "SELECT id, location, encoded FROM photo LIMIT ?1, ?2";
-            let param = (offset.to_string(), limit.to_string());
 
-            let mut stmt = self.connection.prepare(sql).unwrap();
-            let person_iter = stmt
-                .query_map(param, |row| {
-                    Ok(Photo {
-                        id: row.get(0)?,
-                        location: row.get(1)?,
-                        encoded: row.get(2)?,
-                        objects: HashMap::new(),
-                        properties: HashMap::new(),
-                    })
+        let should_filter_fav = if favorites_only {
+            "AND is_fav IS NOT NULL"
+        } else {
+            ""
+        };
+        let query_filter = if !query.is_empty() {
+            "AND class LIKE ?3"
+        } else {
+            ""
+        };
+
+        // Base query with joins to get favorite status efficiently
+        // We use a subquery or join for properties where key='favorite'
+        let sql = format!(
+            "SELECT 
+                p.id, 
+                p.location, 
+                p.encoded, 
+                p.latitude, 
+                p.longitude,
+                prop.value as is_fav
+             FROM photo p 
+             LEFT JOIN properties prop ON p.id = prop.photo_id AND prop.key = 'favorite'
+             LEFT JOIN object o ON p.id = o.photo_id 
+             WHERE 1=1 
+             {} 
+             {}
+             GROUP BY p.id
+             ORDER BY p.created DESC, o.probability DESC 
+             LIMIT ?1, ?2",
+            should_filter_fav, query_filter
+        );
+
+        let param_offset = offset.to_string();
+        let param_limit = limit.to_string();
+        let param_query = format!("%{query}%");
+
+        let mut stmt = self.connection.prepare(&sql).unwrap();
+
+        let params: Vec<&dyn rusqlite::ToSql> = if !query.is_empty() {
+            vec![&param_offset, &param_limit, &param_query]
+        } else {
+            vec![&param_offset, &param_limit]
+        };
+
+        let photo_iter = stmt
+            .query_map(params.as_slice(), |row| {
+                let fav_val: Option<String> = row.get(5).ok();
+                let is_fav = fav_val.map(|v| v == "true").unwrap_or(false);
+
+                Ok(Photo {
+                    id: row.get(0)?,
+                    location: row.get(1)?,
+                    encoded: row.get(2)?,
+                    objects: HashMap::new(),
+                    properties: HashMap::new(),
+                    latitude: row.get(3).unwrap_or(0.0),
+                    longitude: row.get(4).unwrap_or(0.0),
+                    favorite: is_fav,
                 })
-                .unwrap();
-            for p in person_iter {
-                photos.push(p.unwrap());
+            })
+            .unwrap();
+
+        for p in photo_iter {
+            if let Ok(photo) = p {
+                photos.push(photo);
             }
         }
+
         println!("Photos found, {}, {} {}", photos.len(), offset, limit);
+        photos
+    }
+
+    pub fn toggle_favorite(&self, photo_id: &str) -> bool {
+        // Check if currently favorite
+        let current_sql = "SELECT value FROM properties WHERE photo_id = ?1 AND key = 'favorite'";
+        let mut stmt = self.connection.prepare(current_sql).unwrap();
+        let exists = stmt.exists([photo_id]).unwrap_or(false);
+
+        if exists {
+            // Remove it
+            let _ = self.connection.execute(
+                "DELETE FROM properties WHERE photo_id = ?1 AND key = 'favorite'",
+                [photo_id],
+            );
+            return false;
+        } else {
+            // Add it
+            let _ = self.connection.execute(
+                "INSERT INTO properties (photo_id, key, value) VALUES(?1, 'favorite', 'true')",
+                [photo_id],
+            );
+            return true;
+        }
+    }
+
+    pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
+        let sql = "SELECT id, location, encoded, latitude, longitude FROM photo WHERE latitude != 0.0 AND longitude != 0.0";
+        let mut stmt = self.connection.prepare(sql).unwrap();
+        let photo_iter = stmt
+            .query_map([], |row| {
+                Ok(Photo {
+                    id: row.get(0)?,
+                    location: row.get(1)?,
+                    encoded: row.get(2)?,
+                    objects: HashMap::new(),
+                    properties: HashMap::new(),
+                    latitude: row.get(3).unwrap_or(0.0),
+                    longitude: row.get(4).unwrap_or(0.0),
+                    favorite: false,
+                })
+            })
+            .unwrap();
+
+        let mut photos = Vec::new();
+        for p in photo_iter {
+            if let Ok(photo) = p {
+                photos.push(photo);
+            }
+        }
         photos
     }
     pub fn get_device_by_name(&self, name: &str) -> Option<Device> {
@@ -260,15 +382,19 @@ impl Database {
     }
 
     pub(crate) fn list_directories(&self) -> Vec<String> {
+        println!("Listing directories form DB");
         let mut stm = self.connection.prepare("SELECT * FROM directory").unwrap();
 
-        stm.query_map((), |row| {
-            let s: String = row.get(0).unwrap();
-            Ok(s)
-        })
-        .unwrap()
-        .map(|x| x.unwrap())
-        .collect()
+        let results: Vec<String> = stm
+            .query_map((), |row| {
+                let s: String = row.get(0).unwrap();
+                Ok(s)
+            })
+            .unwrap()
+            .map(|x| x.unwrap())
+            .collect();
+        println!("Found {} directories", results.len());
+        results
     }
 
     pub(crate) fn remove_directory(&self, path: String) {
@@ -280,11 +406,15 @@ impl Database {
     }
 
     pub(crate) fn add_directory(&self, path: &str) {
+        println!("Adding directory to DB: {}", path);
         let mut stm = self
             .connection
             .prepare("INSERT INTO directory (name) VALUES(?1)")
             .unwrap();
-        stm.execute([&path]).unwrap();
+        match stm.execute([&path]) {
+            Ok(_) => println!("Successfully inserted directory"),
+            Err(e) => println!("Failed to insert directory: {}", e),
+        }
     }
 }
 #[derive(Debug, Clone, Serialize)]
@@ -294,6 +424,9 @@ pub struct Photo {
     pub encoded: String,
     pub objects: HashMap<String, f64>,
     pub properties: HashMap<String, String>,
+    pub latitude: f64,
+    pub longitude: f64,
+    pub favorite: bool,
 }
 //use image::io::Reader as ImageReader;
 //use image::{DynamicImage, GenericImageView};
@@ -330,11 +463,6 @@ impl Photo {
 }
 
 mod tests {
-    
-
-    
-
-    
 
     #[test]
     fn add_device() {
@@ -354,12 +482,15 @@ mod tests {
 
     #[test]
     fn clasify_image() {
-        let photo = Photo {
+        let _photo = Photo {
             id: String::from("1"),
             location: String::from(""),
             encoded: String::from(""),
             objects: HashMap::new(),
             properties: HashMap::new(),
+            latitude: 0.0,
+            longitude: 0.0,
+            favorite: false,
         };
     }
 }

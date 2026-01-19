@@ -1,115 +1,85 @@
 <template>
-  <v-row justify="center">
-    <v-dialog v-model="dialog" persistent width="auto">
-      <template v-slot:activator="{ props }">
-        <v-btn icon v-bind="props">
-          <v-icon>mdi-plus</v-icon>
-        </v-btn>
-      </template>
-      <v-card>
-        <v-card-title class="text-h5"> Connect a new device.</v-card-title>
-        <v-card-text>
-          Install and open this app on your other device.
+  <v-dialog v-model="dialog" width="auto" scrim="black" transition="dialog-bottom-transition">
+    <template v-slot:activator="{ props }">
+      <v-btn icon v-bind="props" color="primary" class="glass-panel" variant="text">
+        <v-icon>mdi-plus</v-icon>
+      </v-btn>
+    </template>
+    
+    <v-card class="glass-panel pa-6 text-center" min-width="350" max-width="400">
+      <div class="text-h5 font-weight-bold mb-2">Connect New Device</div>
+      <div class="text-body-2 text-medium-emphasis mb-6">
+        Scan this code with the MediaSafe app on your other device to connect.
+      </div>
 
-         <v-progress-linear
-            indeterminate
-            :height="12"
-            v-if="devices.length == 0"
-          ></v-progress-linear>
+      <div class="d-flex justify-center mb-6">
+        <v-sheet color="white" rounded="xl" class="pa-4" elevation="4">
+             <qrcode-vue :value="connectionUrl" :size="200" level="H" />
+        </v-sheet>
+      </div>
 
-          <v-list>
-            <v-list-item
-              v-for="device in devices"
-              :key="device.ip"
-              :subtitle="device.ip"
-              :title="device.name"
-            >
-              <template v-slot:append>
-                <v-btn
-                  color="green-lighten-1"
-                  icon="mdi-check"
-                  variant="text"
-                ></v-btn>
-              </template>
-            </v-list-item>
-          </v-list>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn color="green-darken-1" variant="text" @click="dialog = false">
-            Cancel
-          </v-btn>
-        </v-card-actions>
+      <div class="text-caption text-medium-emphasis mb-1">Manual Connection URL</div>
+      <v-chip color="primary" variant="flat" class="mb-6 font-weight-medium">
+        {{ connectionUrl }}
+      </v-chip>
 
-        <vue-qrcode
-          value="Hello, World!"
-          :options="{ width: 200 }"
-        ></vue-qrcode>
-      </v-card>
-    </v-dialog>
-  </v-row>
+      <div class="d-flex align-center justify-center text-caption text-medium-emphasis">
+         <v-progress-circular indeterminate color="primary" size="20" width="2" class="mr-2"></v-progress-circular>
+         Listening for devices...
+      </div>
+
+      <v-card-actions class="justify-center mt-4">
+        <v-btn color="white" variant="text" @click="dialog = false">Close</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
+
 <script>
 import { invoke } from "@tauri-apps/api/core";
+import QrcodeVue from 'qrcode.vue'
 
 export default {
   name: "Connect",
-  data: function () {
-    return {
-      device: {
-        name: null,
-        ip: null,
-      },
-      interval: null,
-      devices: [],
-      dialog: false,
-    };
+  components: {
+    QrcodeVue,
+  },
+  data: () => ({
+    dialog: false,
+    ip: "Loading...",
+    port: "9489",
+  }),
+  computed: {
+      connectionUrl() {
+          return `http://${this.ip}:${this.port}`;
+      }
   },
   watch: {
-    dialog: function (newV, oldV) {
-      if (newV) {
-        this.listen();
+    dialog(val) {
+      if (val) {
+        this.initialize();
       }
     },
   },
   methods: {
-    generateQR: function () {
-      let port = "9489";
-      let ip = "192.168.68.101";
-      let message = "http://" + ip + ":" + port;
-      return message;
+    async initialize() {
+        this.ip = await invoke("get_ip");
+        this.listen();
     },
-    listen: function () {
-      let interval = setInterval(
-        function () {
-          invoke("list_devices").then(
-            function (response) {
-              let devices = JSON.parse(response);
-              if (
-                this.devices.filter(function (device) {
-                  let s = devices.filter((d) => d.ip == device.ip);
-                  return s.length == 0;
-                }).length == 0
-              ) {
-                devices.forEach((d) => {
-                  this.devices.push(d);
-                });
-                this.devices.push(devices);
-                if (devices.length > 0) {
-                  // clearInterval(interval)
-                }
-              }
-            }.bind(this),
-          );
-        }.bind(this),
-        1000,
-      );
-
+    listen() {
       console.log("Listening for incomming connection");
       invoke("listen_for_incomming_connect").then((response) => {
-        console.log(response);
+        console.log("Connection established", response);
+        this.dialog = false;
+        // Optionally emit event to refresh device list
       });
     },
   },
 };
 </script>
+
+<style scoped>
+.glass-panel {
+    border-radius: 24px !important; 
+}
+</style>

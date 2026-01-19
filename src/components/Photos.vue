@@ -1,51 +1,73 @@
 <template>
-  <div style="margin-left: 20px; margin-top: 10px">
-    {{ resourcePath }}
-    <v-row>
-      <v-col md="10" lg="10">
-        <v-autocomplete
-          v-model="search"
-          v-model:search="query"
-          :items="objects"
-        ></v-autocomplete>
-      </v-col>
-    </v-row>
-    <v-row>
-      <v-col cols="12" md="10" lg="10">
-        <v-row>
-          <v-col>
-            <div class="grid">
-              <Image
-                v-for="image in images"
-                v-bind:key="image.id"
-                :path="image"
-              />
-            </div>
-          </v-col>
-        </v-row>
-      </v-col>
-    </v-row>
-    <v-row>
+  <div class="photos-container">
+    <div class="search-bar d-flex align-center gap-2">
+      <v-autocomplete
+        v-model="search"
+        v-model:search="query"
+        :items="objects"
+        prepend-inner-icon="mdi-magnify"
+        variant="solo"
+        density="comfortable"
+        placeholder="Search photos..."
+        hide-details
+        class="rounded-lg elevation-2 flex-grow-1"
+      ></v-autocomplete>
+      
+      <v-btn 
+        icon 
+        :color="favoritesOnly ? 'red' : 'grey'" 
+        class="ml-2 elevation-2"
+        @click="toggleFavoritesFilter"
+      >
+        <v-icon>mdi-heart</v-icon>
+      </v-btn>
+    </div>
+
+    <div class="grid">
+      <Image
+        v-for="(image, index) in images"
+        v-bind:key="image.id"
+        :path="image"
+        @click="openViewer(index)"
+        @toggle-favorite="handleToggleFavorite"
+      />
+    </div>
+
+    <!-- Loading State -->
+    <v-row class="mt-4">
       <v-col class="d-flex justify-center align-center">
         <v-progress-circular
           indeterminate
+          color="primary"
           v-if="loading === true"
         ></v-progress-circular>
-        <v-btn @click="list_files" flat v-if="loading === false"
-          >Load more</v-btn
+        <v-btn 
+          @click="list_files" 
+          variant="text" 
+          color="primary"
+          v-if="loading === false"
         >
+          Load more
+        </v-btn>
       </v-col>
     </v-row>
+
+    <PhotoViewer
+      v-model="viewerOpen"
+      :photos="images"
+      v-model:index="currentPhotoIndex"
+    />
   </div>
 </template>
 <script>
 import { invoke } from "@tauri-apps/api/core";
 import Image from "./Image.vue";
+import PhotoViewer from "./PhotoViewer.vue";
 import * as path from "@tauri-apps/api/path";
 
 export default {
   name: "Photos",
-  components: { Image },
+  components: { Image, PhotoViewer },
   data: () => ({
     resourcePath:null,
     search: null,
@@ -58,9 +80,22 @@ export default {
     objects: [],
     images: [],
     scan: false,
+    viewerOpen: false,
+    currentPhotoIndex: 0,
+    favoritesOnly: false,
   }),
+  props: {
+      favorites: {
+          type: Boolean,
+          default: false
+      }
+  },
   async created() {
     this.resourcePath = await path.homeDir();
+    // If mounted as "favorites view" via prop, set filter initially
+    if (this.favorites) {
+        this.favoritesOnly = true;
+    }
     this.list_files();
     window.onscroll = function () {
       if (
@@ -72,7 +107,10 @@ export default {
       }
     }.bind(this);
   },
+  mounted() {
+  },
   methods: {
+
     list_files: async function () {
       this.loading = true;
       if (this.images.length > 0) {
@@ -84,11 +122,11 @@ export default {
       }
       console.log("Listing files");
       invoke("list_files", {
-        path: this.resourcePath,
         offset: this.paging.offset,
         limit: this.paging.limit,
         query: this.search ?? "",
         scan: this.scan,
+        favoritesOnly: this.favoritesOnly,
       }).then(
         function (response) {
           let new_images = JSON.parse(response);
@@ -100,6 +138,26 @@ export default {
           this.loading = false;
         }.bind(this),
       );
+    },
+    async handleToggleFavorite(id) {
+        const isNowFavorite = await invoke("toggle_favorite", { id: id });
+        
+        // Update local state
+        const photo = this.images.find(p => p.id === id);
+        if (photo) {
+            photo.favorite = isNowFavorite;
+            
+            // If in favorites-only mode and it's no longer favorite, remove it
+            if (this.favoritesOnly && !isNowFavorite) {
+                this.images = this.images.filter(p => p.id !== id);
+            }
+        }
+    },
+    toggleFavoritesFilter() {
+        this.favoritesOnly = !this.favoritesOnly;
+        this.images = [];
+        this.paging.offset = 0;
+        this.list_files();
     },
     list_objects: function (val) {
       if (val.length > 0) {
@@ -124,6 +182,10 @@ export default {
         });
       }
     },
+    openViewer(index) {
+        this.currentPhotoIndex = index;
+        this.viewerOpen = true;
+    }
   },
   watch: {
     query(val) {
@@ -136,21 +198,36 @@ export default {
   },
 };
 </script>
-<style>
-/* input:before { */
-/*   box-shadow: none !important; */
-/* } */
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  grid-template-rows: repeat(auto-fit, minmax(0, 1fr));
-  grid-gap: 10px;
+<style scoped>
+.photos-container {
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
 }
 
-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
+.search-bar {
+  margin-bottom: 24px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  padding-bottom: 80px; /* Space for FAB or loading */
+}
+
+/* Scrollbar styling for webkit */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 4px;
 }
 </style>

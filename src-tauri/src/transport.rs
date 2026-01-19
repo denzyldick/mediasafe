@@ -33,7 +33,7 @@ pub async fn generate_offer() -> Result<RTCSessionDescription, Box<dyn std::erro
     let peer_connection = api.new_peer_connection(config).await?;
     let _data_channel = peer_connection.create_data_channel("data", None).await?;
 
-    /// Peer connection on stateChange
+    // Peer connection on stateChange
     let offer = peer_connection.create_offer(None).await?;
     let mut gather_complete = peer_connection.gathering_complete_promise().await;
 

@@ -1,53 +1,128 @@
 <template>
-  <v-row>
-    <v-col offset-md="2" style="margin-top: 40px; padding-left: 20px" md="8">
-      <div class="text-h5">Configuration</div>
-      <div class="text-grey font-weight-thin">
-        The configuration is being stored in {{ dataDir }}. <br />
+  <v-container class="fill-height" fluid style="background-color: #f5f5f5">
+    <v-row justify="center">
+      <v-col cols="12" md="8" lg="6">
+        <div class="d-flex align-center mb-6">
+          <v-icon color="primary" size="x-large" class="mr-3">mdi-cog</v-icon>
+          <h1 class="text-h4 font-weight-bold text-grey-darken-3">Settings</h1>
+        </div>
 
-        This is a
-        <a href="https://www.sqlite.org" class="text-grey">SQLite</a> file that
-        you can export.
-      </div>
-      <br />
-      <v-sheet class="mx-auto">
-        <v-form ref="form">
-          <v-row>
-            <v-col class="font-weight-thin">
-              MediaSafe won't randomly scan folders for pictures. It only scans
-              the folders you tell it to.
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col>
-              <v-btn @click="select_directory" class="info">Select folder(s)</v-btn>
-            </v-col>
-          </v-row>
-          <v-row v-if="directories.length > 0">
-            <v-col> You have selected the following directories: </v-col>
-            <v-col>
-              <v-list>
-                <v-list-item v-for="directory in directories" :key="directory.title" :title="directory.title">
-                  <template v-slot:append>
-                    <v-btn icon="mdi-delete" size="small" variant="text"
-                      @click="remove_directory(directory.value)"></v-btn>
-                  </template>
-                </v-list-item>
-              </v-list>
-            </v-col>
-          </v-row>
-          <v-row>
-            <v-col offset=8>
-              <v-btn color="primary" v-if="directories.length > 0" @click="$emit('done')">
-                Continue&nbsp;
-                <v-icon>mdi-arrow-right</v-icon>
-              </v-btn>
-            </v-col>
-          </v-row>
-        </v-form>
-      </v-sheet>
-    </v-col>
-  </v-row>
+        <!-- Storage Config Card -->
+        <v-card class="mb-6" elevation="2" rounded="lg">
+          <v-card-item>
+            <template v-slot:prepend>
+              <v-icon color="secondary" size="large">mdi-database</v-icon>
+            </template>
+            <v-card-title class="text-h6">Storage Configuration</v-card-title>
+            <v-card-subtitle>Where your media database is stored</v-card-subtitle>
+          </v-card-item>
+
+          <v-card-text>
+            <v-alert
+              color="info"
+              variant="tonal"
+              icon="mdi-information"
+              class="mb-2"
+            >
+              Your configuration database is located at:
+              <div class="font-weight-bold mt-1 text-body-2">{{ dataDir }}/database.sql</div>
+            </v-alert>
+            <div class="text-caption text-grey">
+              This is a standard <a href="https://www.sqlite.org" class="text-decoration-none font-weight-bold text-primary">SQLite</a> file. You can back it up or export it at any time.
+            </div>
+          </v-card-text>
+        </v-card>
+
+        <!-- Library Config Card -->
+        <v-card elevation="2" rounded="lg">
+          <v-card-item>
+            <template v-slot:prepend>
+              <v-icon color="secondary" size="large">mdi-image-multiple</v-icon>
+            </template>
+            <v-card-title class="text-h6">Media Library</v-card-title>
+            <v-card-subtitle>Manage which folders MediaSafe can access</v-card-subtitle>
+          </v-card-item>
+
+          <v-card-text>
+            <v-alert
+              type="success"
+              variant="tonal"
+              class="mb-4 text-body-2"
+              icon="mdi-shield-check"
+            >
+              <strong>Privacy First:</strong> MediaSafe only scans the specific folders you add below. It will never access other parts of your system.
+            </v-alert>
+
+            <v-row class="align-center mb-2">
+              <v-col>
+                <div class="text-subtitle-1 font-weight-medium">Watched Folders</div>
+              </v-col>
+              <v-col cols="auto">
+                 <v-btn
+                  color="primary"
+                  prepend-icon="mdi-folder-plus"
+                  variant="flat"
+                  @click="select_directory"
+                >
+                  Add Folder
+                </v-btn>
+              </v-col>
+            </v-row>
+
+            <v-expand-transition>
+              <div v-if="directories.length > 0">
+                 <v-list lines="one" class="bg-grey-lighten-5 rounded-lg border">
+                  <v-list-item
+                    v-for="(directory, index) in directories"
+                    :key="directory.value"
+                    :title="directory.title"
+                  >
+                    <template v-slot:prepend>
+                       <v-icon color="amber-darken-2">mdi-folder</v-icon>
+                    </template>
+                    
+                    <template v-slot:append>
+                      <v-btn
+                        icon="mdi-delete"
+                        variant="text"
+                        color="error"
+                        size="small"
+                        @click="remove_directory(directory.value)"
+                        title="Remove folder"
+                      ></v-btn>
+                    </template>
+                     <v-divider v-if="index < directories.length - 1"></v-divider>
+                  </v-list-item>
+                </v-list>
+              </div>
+              <div v-else class="text-center py-8 text-grey-darken-1 border border-dashed rounded-lg">
+                <v-icon size="48" color="grey-lighten-1" class="mb-2">mdi-folder-open-outline</v-icon>
+                <div>No folders added yet.</div>
+                <div class="text-caption">Click "Add Folder" to get started.</div>
+              </div>
+            </v-expand-transition>
+          </v-card-text>
+          
+          <v-divider></v-divider>
+          
+          <v-card-actions class="pa-4">
+             <v-spacer></v-spacer>
+             <v-btn
+              color="primary"
+              size="large"
+              variant="elevated"
+              :disabled="directories.length === 0"
+              @click="$emit('done')"
+              append-icon="mdi-arrow-right"
+            >
+              Continue to Library
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+
+      </v-col>
+    </v-row>
+  </v-container>
 </template>
 <script>
 import { invoke } from "@tauri-apps/api/core";
@@ -75,7 +150,13 @@ export default {
       });
 
       this.directories = directory.map((dir) => {
-        invoke("add_directory", dir).then(() => { });
+        invoke("add_directory", { path: dir, configPath: this.dataDir }).then(() => { 
+          console.log("Added directory:", dir);
+          this.list_directories();
+          invoke("scan_files");
+        }).catch(err => {
+          console.error("Failed to add directory:", err);
+        });
         return {
           title: dir,
           value: dir,
@@ -89,7 +170,7 @@ export default {
     },
     remove_directory(path) {
       this.directories = this.directories.filter((dir) => dir.value !== path);
-      invoke("remove_directory", path).then(() => {
+      invoke("remove_directory", { path: path, configPath: this.dataDir }).then(() => {
         this.list_directories();
       });
     },
@@ -105,13 +186,28 @@ export default {
       this.$refs.form.resetValidation();
     },
     list_directories() {
-      invoke("list_directories").then((directories) => {
-        this.directories = directories;
+      console.log("Listing directories. Config path:", this.dataDir);
+      invoke("list_directories", { path: this.dataDir }).then((response) => {
+        console.log("Raw response from list_directories:", response);
+        const dirs = JSON.parse(response);
+        console.log("Parsed directories:", dirs);
+        this.directories = dirs.map(dir => ({
+          title: dir,
+          value: dir,
+          props: {
+            color: "primary",
+            prependIcon: "mdi-folder",
+            appendIcon: "mdi-close",
+          }
+        }));
+      }).catch(err => {
+        console.error("Failed to list directories:", err);
       });
     },
   },
   async mounted() {
-    this.dataDir = await this.path.homeDir();
+    this.dataDir = await path.homeDir();
+    this.list_directories();
   },
 };
 </script>

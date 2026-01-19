@@ -48,4 +48,5 @@ mime = "0.3.17"
 tauri-plugin-fs = "2"
 tauri-plugin-devtools = "2.0.0"
 tauri-plugin-dialog = "2"
+base64 = "0.22.1"
 
