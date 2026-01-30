@@ -19,13 +19,26 @@ pub fn scan_folder(directory: String, path: &str) {
     let database = database::Database::new(path);
     println!("Scanning all files in: {}", directory);
     for entry in WalkDir::new(directory).follow_links(false) {
-        let entry = entry.unwrap();
+        let entry = match entry {
+            Ok(e) => e,
+            Err(e) => {
+                println!("Error reading entry: {}", e);
+                continue;
+            }
+        };
 
         let path = entry.path();
         println!("Checking file: {:?}", path);
-        let metadata = fs::metadata(&path).unwrap();
+        let metadata = match fs::metadata(&path) {
+            Ok(m) => m,
+            Err(e) => {
+                println!("Error getting metadata for {:?}: {}", path, e);
+                continue;
+            }
+        };
+
         let file_name = match path.file_name() {
-            Some(f) => String::from(f.to_str().unwrap()),
+            Some(f) => String::from(f.to_str().unwrap_or("")),
             None => String::from(""),
         };
         if (file_name != "." || !file_name.is_empty()) && metadata.is_file() {

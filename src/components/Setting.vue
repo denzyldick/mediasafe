@@ -1,5 +1,5 @@
 <template>
-  <v-container class="fill-height" fluid style="background-color: #f5f5f5">
+  <v-container class="fill-height" fluid>
     <v-row justify="center">
       <v-col cols="12" md="8" lg="6">
         <div class="d-flex align-center mb-6">
@@ -71,7 +71,7 @@
 
             <v-expand-transition>
               <div v-if="directories.length > 0">
-                 <v-list lines="one" class="bg-grey-lighten-5 rounded-lg border">
+                 <v-list lines="one" class="rounded-0 border">
                   <v-list-item
                     v-for="(directory, index) in directories"
                     :key="directory.value"
@@ -122,13 +122,22 @@
 
       </v-col>
     </v-row>
+    <FolderPicker
+        v-model="showFolderPicker"
+        @select="onFolderSelected"
+    />
   </v-container>
 </template>
 <script>
 import { invoke } from "@tauri-apps/api/core";
 import * as path from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
+import { platform } from "@tauri-apps/plugin-os";
+import FolderPicker from "./FolderPicker.vue";
 export default {
+  components: {
+    FolderPicker
+  },
   data: () => ({
     directories: [],
     dataDir: null,
@@ -140,33 +149,62 @@ export default {
     select: null,
     items: ["Gpu", "Cpu"],
     checkbox: false,
+    showFolderPicker: false,
+    isAndroid: false,
   }),
 
   methods: {
     async select_directory() {
-      const directory = await open({
-        multiple: true,
-        directory: true,
-      });
+      if (this.isAndroid) {
+        this.showFolderPicker = true;
+        return;
+      }
 
-      this.directories = directory.map((dir) => {
-        invoke("add_directory", { path: dir, configPath: this.dataDir }).then(() => { 
-          console.log("Added directory:", dir);
-          this.list_directories();
-          invoke("scan_files");
-        }).catch(err => {
-          console.error("Failed to add directory:", err);
+      try {
+        const selection = await open({
+          multiple: true,
+          directory: true,
         });
-        return {
-          title: dir,
-          value: dir,
-          props: {
-            color: "primary",
-            prependIcon: "mdi-folder",
-            appendIcon: "mdi-close",
-          },
-        };
-      });
+
+        if (selection === null) {
+          console.log("No directory selected");
+          return;
+        }
+
+        const dirs = Array.isArray(selection) ? selection : [selection];
+
+        for (const dir of dirs) {
+          try {
+            await invoke("add_directory", { path: dir, configPath: this.dataDir });
+            console.log("Added directory:", dir);
+          } catch (err) {
+            console.error("Failed to add directory:", err);
+          }
+        }
+        
+        this.list_directories();
+        invoke("scan_files");
+      } catch (err) {
+        console.error("Error selecting directory:", err);
+        // Fallback or specific error handling for Android if platform check failed
+        if (err.toString().includes("not implemented") || err.toString().includes("picker")) {
+             console.log("Falling back to custom folder picker due to error");
+             this.showFolderPicker = true;
+        } else {
+             alert("Failed to select directory: " + err);
+        }
+      }
+    },
+    async onFolderSelected(path) {
+        console.log("Android folder selected:", path);
+        try {
+            await invoke("add_directory", { path: path, configPath: this.dataDir });
+            this.list_directories();
+            invoke("scan_files");
+        } catch (err) {
+            console.error("Failed to add directory:", err);
+            alert("Failed to add directory: " + err);
+        }
     },
     remove_directory(path) {
       this.directories = this.directories.filter((dir) => dir.value !== path);
@@ -207,6 +245,25 @@ export default {
   },
   async mounted() {
     this.dataDir = await path.homeDir();
+    
+    try {
+        const platformName = await platform();
+        console.log("Platform detected via plugin-os:", platformName);
+        this.isAndroid = platformName === 'android';
+        
+        // Double check using error workaround logic if needed, but let's rely on log first.
+        if (this.isAndroid) {
+            console.log("Android mode enabled");
+        }
+    } catch (e) {
+        console.warn("Failed to detect platform:", e);
+        // Fallback heuristic: check user agent or specific tauri window properties if needed
+         if (navigator.userAgent.toLowerCase().includes("android")) {
+             console.log("Detected android via UserAgent fallback");
+             this.isAndroid = true;
+         }
+    }
+
     this.list_directories();
   },
 };

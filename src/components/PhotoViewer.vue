@@ -1,6 +1,6 @@
 <template>
   <v-dialog v-model="visible" fullscreen transition="dialog-bottom-transition">
-    <v-card color="black" class="d-flex align-center justify-center fill-height">
+    <v-card rounded="0" color="black" class="d-flex align-center justify-center fill-height">
       <v-btn icon="mdi-close" variant="text" color="white" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
 
       <v-btn icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>

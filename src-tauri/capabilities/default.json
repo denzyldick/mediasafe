@@ -14,6 +14,9 @@
       "allow": [
         {
           "path": "$HOME/*"
+        },
+        {
+          "path": "/storage/emulated/0/**"
         }
       ]
     },

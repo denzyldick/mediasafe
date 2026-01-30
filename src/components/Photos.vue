@@ -12,10 +12,10 @@
         hide-details
         class="rounded-lg elevation-2 flex-grow-1"
       ></v-autocomplete>
-      
-      <v-btn 
-        icon 
-        :color="favoritesOnly ? 'red' : 'grey'" 
+
+      <v-btn
+        icon
+        :color="favoritesOnly ? 'red' : 'grey'"
         class="ml-2 elevation-2"
         @click="toggleFavoritesFilter"
       >
@@ -41,9 +41,9 @@
           color="primary"
           v-if="loading === true"
         ></v-progress-circular>
-        <v-btn 
-          @click="list_files" 
-          variant="text" 
+        <v-btn
+          @click="list_files"
+          variant="text"
           color="primary"
           v-if="loading === false"
         >
@@ -69,13 +69,13 @@ export default {
   name: "Photos",
   components: { Image, PhotoViewer },
   data: () => ({
-    resourcePath:null,
+    resourcePath: null,
     search: null,
     query: null,
     loading: false,
     paging: {
       offset: 0,
-      limit: 4,
+      limit: 50,
     },
     objects: [],
     images: [],
@@ -85,16 +85,16 @@ export default {
     favoritesOnly: false,
   }),
   props: {
-      favorites: {
-          type: Boolean,
-          default: false
-      }
+    favorites: {
+      type: Boolean,
+      default: false,
+    },
   },
   async created() {
     this.resourcePath = await path.homeDir();
     // If mounted as "favorites view" via prop, set filter initially
     if (this.favorites) {
-        this.favoritesOnly = true;
+      this.favoritesOnly = true;
     }
     this.list_files();
     window.onscroll = function () {
@@ -107,10 +107,8 @@ export default {
       }
     }.bind(this);
   },
-  mounted() {
-  },
+  mounted() {},
   methods: {
-
     list_files: async function () {
       this.loading = true;
       if (this.images.length > 0) {
@@ -140,24 +138,24 @@ export default {
       );
     },
     async handleToggleFavorite(id) {
-        const isNowFavorite = await invoke("toggle_favorite", { id: id });
-        
-        // Update local state
-        const photo = this.images.find(p => p.id === id);
-        if (photo) {
-            photo.favorite = isNowFavorite;
-            
-            // If in favorites-only mode and it's no longer favorite, remove it
-            if (this.favoritesOnly && !isNowFavorite) {
-                this.images = this.images.filter(p => p.id !== id);
-            }
+      const isNowFavorite = await invoke("toggle_favorite", { id: id });
+
+      // Update local state
+      const photo = this.images.find((p) => p.id === id);
+      if (photo) {
+        photo.favorite = isNowFavorite;
+
+        // If in favorites-only mode and it's no longer favorite, remove it
+        if (this.favoritesOnly && !isNowFavorite) {
+          this.images = this.images.filter((p) => p.id !== id);
         }
+      }
     },
     toggleFavoritesFilter() {
-        this.favoritesOnly = !this.favoritesOnly;
-        this.images = [];
-        this.paging.offset = 0;
-        this.list_files();
+      this.favoritesOnly = !this.favoritesOnly;
+      this.images = [];
+      this.paging.offset = 0;
+      this.list_files();
     },
     list_objects: function (val) {
       if (val.length > 0) {
@@ -183,9 +181,9 @@ export default {
       }
     },
     openViewer(index) {
-        this.currentPhotoIndex = index;
-        this.viewerOpen = true;
-    }
+      this.currentPhotoIndex = index;
+      this.viewerOpen = true;
+    },
   },
   watch: {
     query(val) {
