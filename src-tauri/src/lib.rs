@@ -174,13 +174,22 @@ async fn scan_files(app: tauri::AppHandle) {
     let directories = directory::list_directories(&path);
     let total_dirs = directories.len();
 
+    let log_msg = format!(
+        "Found {} directories to scan in config path: {}",
+        total_dirs, path
+    );
+    println!("{}", log_msg);
+    let _ = app.emit("log-message", log_msg);
+
     for (index, directory) in directories.iter().enumerate() {
-        println!(
+        let msg = format!(
             "Scanning folder {} ({}/{})",
             directory,
             index + 1,
             total_dirs
         );
+        println!("{}", msg);
+        let _ = app.emit("log-message", msg);
 
         // Emit progress event
         let _ = app.emit(
@@ -194,7 +203,7 @@ async fn scan_files(app: tauri::AppHandle) {
             }),
         );
 
-        file::scan_folder(directory.clone(), &path);
+        file::scan_folder(&app, directory.clone(), &path);
     }
 
     // Save last scan timestamp
@@ -274,10 +283,13 @@ async fn add_directory(app: tauri::AppHandle, path: String) {
         .to_str()
         .unwrap()
         .to_string();
-    println!(
+    let msg = format!(
         "Command add_directory called with path: {} and config_path: {}",
         path, config_path
     );
+    println!("{}", msg);
+    use tauri::Emitter;
+    let _ = app.emit("log-message", msg);
     directory::add_directory(path, &config_path);
 }
 #[tauri::command]

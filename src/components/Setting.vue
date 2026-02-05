@@ -1,5 +1,5 @@
 <template>
-  <v-container class="fill-height" fluid>
+  <v-container class="pb-16" fluid>
     <v-row justify="center">
       <v-col cols="12" md="8" lg="6">
         <div class="d-flex align-center mb-6">
@@ -119,7 +119,28 @@
             </v-btn>
           </v-card-actions>
         </v-card>
-
+        
+        <!-- Debug Logs Expansion Panel -->
+        <v-expansion-panels class="mb-6">
+          <v-expansion-panel title="Debug Logs">
+            <template v-slot:text>
+               <v-sheet
+                 color="grey-darken-4"
+                 class="pa-2 overflow-y-auto"
+                 rounded
+                 height="300"
+                 id="log-container"
+               >
+                 <div v-for="(log, i) in logs" :key="i" class="text-caption text-mono font-weight-light" style="font-family: monospace; white-space: pre-wrap; word-break: break-all;">
+                   <span :class="log.type === 'error' ? 'text-red-accent-2' : 'text-grey-lighten-2'">
+                     [{{ log.time }}] {{ log.message }}
+                   </span>
+                 </div>
+               </v-sheet>
+               <v-btn size="small" variant="text" color="grey" class="mt-2" @click="logs = []">Clear Logs</v-btn>
+            </template>
+          </v-expansion-panel>
+        </v-expansion-panels>
       </v-col>
     </v-row>
     <FolderPicker
@@ -130,6 +151,7 @@
 </template>
 <script>
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import * as path from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
 import { platform } from "@tauri-apps/plugin-os";
@@ -141,6 +163,7 @@ export default {
   data: () => ({
     directories: [],
     dataDir: null,
+    logs: [],
     name: "",
     nameRules: [
       (v) => !!v || "Path is required",
@@ -244,6 +267,43 @@ export default {
     },
   },
   async mounted() {
+    // Intercept console Logs
+    const originalLog = console.log;
+    const originalError = console.error;
+    
+    const addLog = (type, args) => {
+        const message = args.map(arg => 
+            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
+        ).join(' ');
+        
+        this.logs.push({
+            time: new Date().toLocaleTimeString(),
+            type,
+            message
+        });
+        
+        // Auto-scroll
+        this.$nextTick(() => {
+            const container = document.getElementById('log-container');
+            if (container) container.scrollTop = container.scrollHeight;
+        });
+    };
+
+    console.log = (...args) => {
+        addLog('info', args);
+        originalLog.apply(console, args);
+    };
+    
+    console.error = (...args) => {
+        addLog('error', args);
+        originalError.apply(console, args);
+    };
+
+    // Listen for backend logs
+    await listen('log-message', (event) => {
+        addLog('info', ["[Backend]", event.payload]);
+    });
+
     this.dataDir = await path.homeDir();
     
     try {
