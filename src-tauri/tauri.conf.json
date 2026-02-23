@@ -5,7 +5,7 @@
   "identifier": "io.denzyl.mediasafe",
   "build": {
     "beforeDevCommand": "yarn dev -- --host",
-    "devUrl": "http://0.0.0.0:1420",
+    "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "yarn build",
     "frontendDist": "../dist"
   },
@@ -20,7 +20,9 @@
     "security": {
       "csp": null,
       "assetProtocol": {
-        "scope": ["**"]
+        "scope": [
+          "**"
+        ]
       }
     }
   },
@@ -36,4 +38,3 @@
     ]
   }
 }
-
