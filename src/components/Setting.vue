@@ -120,6 +120,87 @@
           </v-card-actions>
         </v-card>
         
+        
+        <!-- AI Models Config Card -->
+        <v-card elevation="2" rounded="lg" class="mb-6">
+          <v-card-item>
+            <template v-slot:prepend>
+              <v-icon color="secondary" size="large">mdi-brain</v-icon>
+            </template>
+            <v-card-title class="text-h6">AI Models Configuration</v-card-title>
+            <v-card-subtitle>Download models for smart search and face detection</v-card-subtitle>
+          </v-card-item>
+
+          <v-card-text>
+            <v-alert
+              color="info"
+              variant="tonal"
+              icon="mdi-information"
+              class="mb-4 text-body-2"
+            >
+              Models are downloaded natively and run completely offline to preserve privacy.
+            </v-alert>
+
+            <v-list lines="two" class="bg-transparent">
+              <v-list-item>
+                <template v-slot:prepend>
+                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0"></v-checkbox>
+                </template>
+                <v-list-item-title class="font-weight-bold">CLIP Model</v-list-item-title>
+                <v-list-item-subtitle>Enables smart zero-shot search (e.g., searching for "passport", "dog", "car" directly in your photos).</v-list-item-subtitle>
+                <template v-if="downloadProgress.clip !== undefined">
+                  <div class="mt-2 text-caption text-grey">
+                    Downloading: {{ formatBytes(downloadProgress.clip.downloaded) }} / {{ formatBytes(downloadProgress.clip.total) }}
+                  </div>
+                  <v-progress-linear
+                    :model-value="(downloadProgress.clip.downloaded / downloadProgress.clip.total) * 100"
+                    color="primary"
+                    height="6"
+                    rounded
+                    class="mt-1"
+                  ></v-progress-linear>
+                </template>
+              </v-list-item>
+
+              <v-list-item>
+                <template v-slot:prepend>
+                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0"></v-checkbox>
+                </template>
+                <v-list-item-title class="font-weight-bold">UltraFace Model</v-list-item-title>
+                <v-list-item-subtitle>Enables offline face detection to group photos by people.</v-list-item-subtitle>
+                <template v-if="downloadProgress.ultraface !== undefined">
+                  <div class="mt-2 text-caption text-grey">
+                    Downloading: {{ formatBytes(downloadProgress.ultraface.downloaded) }} / {{ formatBytes(downloadProgress.ultraface.total) }}
+                  </div>
+                  <v-progress-linear
+                    :model-value="(downloadProgress.ultraface.downloaded / downloadProgress.ultraface.total) * 100"
+                    color="primary"
+                    height="6"
+                    rounded
+                    class="mt-1"
+                  ></v-progress-linear>
+                </template>
+              </v-list-item>
+            </v-list>
+          </v-card-text>
+          
+          <v-divider></v-divider>
+          
+          <v-card-actions class="pa-4">
+             <v-spacer></v-spacer>
+             <v-btn
+              color="primary"
+              variant="elevated"
+              :disabled="selectedModels.length === 0 || isDownloading"
+              :loading="isDownloading"
+              @click="downloadModels"
+              prepend-icon="mdi-download"
+            >
+              Download Selected Models
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+
         <!-- Debug Logs Expansion Panel -->
         <v-expansion-panels class="mb-6">
           <v-expansion-panel title="Debug Logs">
@@ -173,10 +254,37 @@ export default {
     items: ["Gpu", "Cpu"],
     checkbox: false,
     showFolderPicker: false,
+    selectedModels: [],
+    isDownloading: false,
+    downloadProgress: {},
     isAndroid: false,
   }),
 
   methods: {
+    formatBytes(bytes) {
+      if (bytes === 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+    async downloadModels() {
+      if (this.selectedModels.length === 0) return;
+      this.isDownloading = true;
+      this.downloadProgress = {};
+      
+      try {
+        await invoke('download_models', { models: this.selectedModels });
+        console.log("Model downloads initiated or completed!");
+        // The __RELOAD_MODELS__ signal is sent automatically by the backend now
+      } catch (err) {
+        console.error("Failed to download models:", err);
+      } finally {
+        this.isDownloading = false;
+        // Optionally keep progress bars at 100% or clear them. We'll leave them to show they finished.
+      }
+    },
+
     async select_directory() {
       if (this.isAndroid) {
         this.showFolderPicker = true;
@@ -299,10 +407,25 @@ export default {
         originalError.apply(console, args);
     };
 
+
     // Listen for backend logs
     await listen('log-message', (event) => {
         addLog('info', ["[Backend]", event.payload]);
     });
+
+    // Listen for ML model download progress
+    await listen('download-progress', (event) => {
+        const payload = event.payload;
+        // Due to reactivity of deeply nested objects in some vue versions, assigning a new object is safer
+        this.downloadProgress = {
+            ...this.downloadProgress,
+            [payload.model]: {
+                downloaded: payload.downloaded,
+                total: payload.total || (payload.downloaded + 1) // prevent zero division
+            }
+        };
+    });
+
 
     this.dataDir = await path.homeDir();
     

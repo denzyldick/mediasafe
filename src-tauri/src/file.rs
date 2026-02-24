@@ -13,7 +13,8 @@ use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::string::String;
 
-use tauri::Emitter;
+use crate::ml::MlContext;
+use tauri::{Emitter, Manager};
 
 fn emit_log(app: &tauri::AppHandle, message: String) {
     println!("{}", message);
@@ -106,6 +107,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                                         }
                                     };
 
+                                let photo_id_clone = id.clone();
                                 let photo = database::Photo {
                                     id,
                                     encoded,
@@ -116,7 +118,11 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                                     longitude: 0.0,
                                     favorite: false,
                                 };
-                                database.store_photo(photo)
+                                database.store_photo(photo);
+
+                                if let Some(state) = app.try_state::<MlContext>() {
+                                    let _ = state.tx.lock().unwrap().send(photo_id_clone);
+                                }
                             }
                         }
                         Err(_err) => {}

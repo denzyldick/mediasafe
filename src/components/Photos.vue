@@ -11,7 +11,23 @@
         placeholder="Search photos..."
         hide-details
         class="rounded-lg elevation-2 flex-grow-1"
-      ></v-autocomplete>
+      >
+        <template v-slot:prepend-item>
+          <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
+            <v-avatar
+              v-for="face in faces"
+              :key="face.face_id"
+              size="48"
+              class="cursor-pointer face-avatar"
+              @click="addFaceToSearch(face)"
+              color="grey-lighten-2"
+            >
+              <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
+            </v-avatar>
+          </div>
+          <v-divider v-if="faces.length > 0" class="my-1"></v-divider>
+        </template>
+      </v-autocomplete>
 
       <v-btn
         icon
@@ -60,7 +76,7 @@
   </div>
 </template>
 <script>
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import Image from "./Image.vue";
 import PhotoViewer from "./PhotoViewer.vue";
 import * as path from "@tauri-apps/api/path";
@@ -79,6 +95,7 @@ export default {
     },
     objects: [],
     images: [],
+    faces: [],
     scan: false,
     viewerOpen: false,
     currentPhotoIndex: 0,
@@ -96,6 +113,12 @@ export default {
     if (this.favorites) {
       this.favoritesOnly = true;
     }
+    
+    // Fetch faces
+    invoke("get_faces").then(response => {
+      this.faces = JSON.parse(response);
+    });
+
     this.list_files();
     window.onscroll = function () {
       if (
@@ -184,6 +207,18 @@ export default {
       this.currentPhotoIndex = index;
       this.viewerOpen = true;
     },
+    getFaceImageSrc(crop_path) {
+      if (!crop_path) return '';
+      const converted = convertFileSrc(crop_path);
+      if (converted === crop_path && crop_path.startsWith('/')) {
+         return `http://asset.localhost${encodeURI(crop_path)}`;
+      }
+      return converted;
+    },
+    addFaceToSearch(face) {
+      this.search = (this.search || '') ? this.search + ' ' + face.photo_id : face.photo_id;
+      // Triggers watcher to list_files automatically
+    },
   },
   watch: {
     query(val) {
@@ -227,5 +262,17 @@ export default {
 ::-webkit-scrollbar-thumb {
   background: #ccc;
   border-radius: 4px;
+}
+
+.faces-scroller {
+  /* Hide scrollbar for aesthetics but allow touch/trackpad scroll */
+  scrollbar-width: thin;
+}
+.face-avatar {
+  border: 2px solid transparent;
+  transition: border-color 0.2s;
+}
+.face-avatar:hover {
+  border-color: #1867c0;
 }
 </style>

@@ -55,7 +55,7 @@ mod tests {
 
         let devices = list_devices(path);
 
-        for device in devices {
+        for _device in devices {
             // This loop assertion logic seems incomplete/wrong in original code (looping over all devices and asserting matching specific ones?),
             // but preserving the intent fix: just passing the path.
             // Actually, assert_eq inside loop for both devices will fail unless logic is better.

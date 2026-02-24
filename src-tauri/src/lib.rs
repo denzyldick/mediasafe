@@ -14,14 +14,84 @@ async fn get_last_scan_time(app: tauri::AppHandle) -> String {
         .unwrap_or_else(|| "Never".to_string())
 }
 
+
+#[derive(serde::Serialize, Clone)]
+struct DownloadProgress {
+    model: String,
+    downloaded: u64,
+    total: Option<u64>,
+}
+
+#[tauri::command]
+async fn download_models(app: tauri::AppHandle, models: Vec<String>, state: tauri::State<'_, ml::MlContext>) -> Result<(), String> {
+    use tokio::io::AsyncWriteExt;
+    use tauri::Emitter;
+    
+    let app_config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    let models_dir = app_config_dir.join("models");
+    std::fs::create_dir_all(&models_dir).map_err(|e| e.to_string())?;
+
+    let mut files_to_download = Vec::new();
+    for model in &models {
+        if model == "clip" {
+            files_to_download.push(("clip", "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/vision_model.onnx?download=true", "clip-vit-base-patch32-visual.onnx"));
+            files_to_download.push(("clip", "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/onnx/text_model.onnx?download=true", "clip-vit-base-patch32-text.onnx"));
+            files_to_download.push(("clip", "https://huggingface.co/Xenova/clip-vit-base-patch32/resolve/main/tokenizer.json?download=true", "tokenizer.json"));
+        } else if model == "ultraface" {
+            files_to_download.push(("ultraface", "https://github.com/onnx/models/blob/main/validated/vision/body_analysis/ultraface/models/version-RFB-320.onnx?raw=true", "version-RFB-320.onnx"));
+        }
+    }
+
+    for (model_name, url, filename) in files_to_download {
+        let path = models_dir.join(filename);
+        let mut response = reqwest::get(url).await.map_err(|e| e.to_string())?;
+        let total_size = response.content_length();
+        let mut file = tokio::fs::File::create(&path).await.map_err(|e| e.to_string())?;
+        let mut downloaded: u64 = 0;
+
+        while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
+            file.write_all(&chunk).await.map_err(|e| e.to_string())?;
+            downloaded += chunk.len() as u64;
+
+            let _ = app.emit("download-progress", DownloadProgress {
+                model: model_name.to_string(),
+                downloaded,
+                total: total_size,
+            });
+        }
+    }
+
+    // Trigger reload
+    if let Ok(tx) = state.tx.lock() {
+        let _ = tx.send("__RELOAD_MODELS__".to_string());
+    }
+
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .setup(|app| {
+            let config_path = app
+                .path()
+                .app_config_dir()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string();
+            let tx = ml::start_background_worker(&app.handle(), config_path);
+            app.manage(ml::MlContext {
+                tx: std::sync::Mutex::new(tx),
+            });
+            Ok(())
+        })
         // .plugin(tauri_plugin_devtools::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            download_models,
             get_initial_state,
             list_files,
             scan_files,
@@ -37,7 +107,9 @@ pub fn run() {
             get_ip,
             get_device_by_name,
             get_heatmap_data,
-            generate_dummy_data
+            generate_dummy_data,
+            toggle_favorite,
+            get_faces
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -52,7 +124,9 @@ mod config;
 mod database;
 mod device;
 mod directory;
+mod face_detector;
 mod file;
+mod ml;
 mod server;
 mod transport;
 
@@ -159,77 +233,79 @@ async fn list_files(
 }
 
 #[tauri::command]
-async fn scan_files(app: tauri::AppHandle) {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+fn scan_files(app: tauri::AppHandle) {
+    std::thread::spawn(move || {
+        let path = app
+            .path()
+            .app_config_dir()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
 
-    use std::time::SystemTime;
-    use tauri::Emitter;
+        use std::time::SystemTime;
+        use tauri::Emitter;
 
-    let directories = directory::list_directories(&path);
-    let total_dirs = directories.len();
+        let directories = directory::list_directories(&path);
+        let total_dirs = directories.len();
 
-    let log_msg = format!(
-        "Found {} directories to scan in config path: {}",
-        total_dirs, path
-    );
-    println!("{}", log_msg);
-    let _ = app.emit("log-message", log_msg);
-
-    for (index, directory) in directories.iter().enumerate() {
-        let msg = format!(
-            "Scanning folder {} ({}/{})",
-            directory,
-            index + 1,
-            total_dirs
+        let log_msg = format!(
+            "Found {} directories to scan in config path: {}",
+            total_dirs, path
         );
-        println!("{}", msg);
-        let _ = app.emit("log-message", msg);
+        println!("{}", log_msg);
+        let _ = app.emit("log-message", log_msg);
 
-        // Emit progress event
+        for (index, directory) in directories.iter().enumerate() {
+            let msg = format!(
+                "Scanning folder {} ({}/{})",
+                directory,
+                index + 1,
+                total_dirs
+            );
+            println!("{}", msg);
+            let _ = app.emit("log-message", msg);
+
+            // Emit progress event
+            let _ = app.emit(
+                "scan-progress",
+                serde_json::json!({
+                    "status": "scanning",
+                    "current_directory": directory,
+                    "progress": ((index + 1) as f32 / total_dirs as f32 * 100.0) as u32,
+                    "current": index + 1,
+                    "total": total_dirs
+                }),
+            );
+
+            file::scan_folder(&app, directory.clone(), &path);
+        }
+
+        // Save last scan timestamp
+        let database_path = app
+            .path()
+            .app_config_dir()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
+        let database = database::Database::new(&database_path);
+        let timestamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .to_string();
+        database.set_last_scan_time(timestamp);
+
+        // Emit completion event
         let _ = app.emit(
             "scan-progress",
             serde_json::json!({
-                "status": "scanning",
-                "current_directory": directory,
-                "progress": ((index + 1) as f32 / total_dirs as f32 * 100.0) as u32,
-                "current": index + 1,
-                "total": total_dirs
+                "status": "complete",
+                "progress": 100
             }),
         );
-
-        file::scan_folder(&app, directory.clone(), &path);
-    }
-
-    // Save last scan timestamp
-    let database_path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
-    let database = database::Database::new(&database_path);
-    let timestamp = SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_secs()
-        .to_string();
-    database.set_last_scan_time(timestamp);
-
-    // Emit completion event
-    let _ = app.emit(
-        "scan-progress",
-        serde_json::json!({
-            "status": "complete",
-            "progress": 100
-        }),
-    );
+    });
 }
 
 #[tauri::command]
@@ -381,4 +457,18 @@ async fn toggle_favorite(app: tauri::AppHandle, id: String) -> bool {
         .to_string();
     let database = database::Database::new(&path);
     database.toggle_favorite(&id)
+}
+
+#[tauri::command]
+async fn get_faces(app: tauri::AppHandle) -> String {
+    let path = app
+        .path()
+        .app_config_dir()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let database = database::Database::new(&path);
+    let faces = database.get_all_faces();
+    serde_json::to_string(&faces).unwrap()
 }

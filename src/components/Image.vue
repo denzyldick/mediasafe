@@ -11,6 +11,18 @@
     >
       <v-icon>{{ isFavorite ? 'mdi-heart' : 'mdi-heart-outline' }}</v-icon>
     </v-btn>
+    <div class="tags-container" v-if="tags.length > 0">
+      <v-chip
+        v-for="tag in tags"
+        :key="tag"
+        size="x-small"
+        color="primary"
+        variant="flat"
+        class="ma-1"
+      >
+        {{ tag }}
+      </v-chip>
+    </div>
   </div>
 </template>
 
@@ -43,6 +55,13 @@ export default {
     },
     isFavorite() {
         return this.path.favorite === true;
+    },
+    tags() {
+      if (!this.path || !this.path.objects) return [];
+      return Object.entries(this.path.objects)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(entry => entry[0]);
     }
   },
   methods: {
@@ -82,5 +101,15 @@ img {
     right: 5px;
     z-index: 2;
     background-color: rgba(0,0,0,0.3);
+}
+
+.tags-container {
+  position: absolute;
+  bottom: 4px;
+  left: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  z-index: 2;
+  gap: 2px;
 }
 </style>

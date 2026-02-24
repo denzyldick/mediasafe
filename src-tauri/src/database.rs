@@ -9,7 +9,7 @@ use serde::Serialize;
 use crate::server::Device;
 
 pub struct Database {
-    connection: Connection,
+    pub connection: Connection,
 }
 
 impl Database {
@@ -75,7 +75,18 @@ impl Database {
                 offer STRING
                 );",
             (),
-        );
+        )
+        .unwrap();
+
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS faces (
+                photo_id STRING,
+                face_id STRING PRIMARY KEY,
+                crop_path STRING
+            );",
+            (),
+        )
+        .unwrap();
 
         conn.execute(
             "CREATE TABLE IF NOT EXISTS config(
@@ -225,7 +236,7 @@ impl Database {
             ""
         };
         let query_filter = if !query.is_empty() {
-            "AND class LIKE ?3"
+            "AND (o.class LIKE ?3 OR p.location LIKE ?3 OR p.id LIKE ?3)"
         } else {
             ""
         };
@@ -239,7 +250,8 @@ impl Database {
                 p.encoded, 
                 p.latitude, 
                 p.longitude,
-                prop.value as is_fav
+                prop.value as is_fav,
+                GROUP_CONCAT(o.class || ':' || o.probability) as tags
              FROM photo p 
              LEFT JOIN properties prop ON p.id = prop.photo_id AND prop.key = 'favorite'
              LEFT JOIN object o ON p.id = o.photo_id 
@@ -247,7 +259,7 @@ impl Database {
              {} 
              {}
              GROUP BY p.id
-             ORDER BY p.created DESC, o.probability DESC 
+             ORDER BY p.created DESC, MAX(o.probability) DESC 
              LIMIT ?1, ?2",
             should_filter_fav, query_filter
         );
@@ -269,11 +281,23 @@ impl Database {
                 let fav_val: Option<String> = row.get(5).ok();
                 let is_fav = fav_val.map(|v| v == "true").unwrap_or(false);
 
+                let mut objects = HashMap::new();
+                if let Ok(Some(tags_str)) = row.get::<_, Option<String>>(6) {
+                    for tag_pair in tags_str.split(',') {
+                        let parts: Vec<&str> = tag_pair.split(':').collect();
+                        if parts.len() == 2 {
+                            let class = parts[0].to_string();
+                            let prob = parts[1].parse::<f64>().unwrap_or(1.0);
+                            objects.insert(class, prob);
+                        }
+                    }
+                }
+
                 Ok(Photo {
                     id: row.get(0)?,
                     location: row.get(1)?,
                     encoded: row.get(2)?,
-                    objects: HashMap::new(),
+                    objects,
                     properties: HashMap::new(),
                     latitude: row.get(3).unwrap_or(0.0),
                     longitude: row.get(4).unwrap_or(0.0),
@@ -381,6 +405,40 @@ impl Database {
         devices
     }
 
+    pub fn store_face(&self, face: Face) {
+        let result = self.connection.execute(
+            "INSERT INTO faces(photo_id, face_id, crop_path) VALUES(?1, ?2, ?3)",
+            (&face.photo_id, &face.face_id, &face.crop_path),
+        );
+        if let Err(error) = result {
+            println!("Error storing face: {}", error);
+        }
+    }
+
+    pub fn get_all_faces(&self) -> Vec<Face> {
+        let mut stmt = self
+            .connection
+            .prepare("SELECT photo_id, face_id, crop_path FROM faces GROUP BY face_id")
+            .unwrap();
+        let face_iter = stmt
+            .query_map([], |row| {
+                Ok(Face {
+                    photo_id: row.get(0)?,
+                    face_id: row.get(1)?,
+                    crop_path: row.get(2)?,
+                })
+            })
+            .unwrap();
+
+        let mut faces = Vec::new();
+        for f in face_iter {
+            if let Ok(face) = f {
+                faces.push(face);
+            }
+        }
+        faces
+    }
+
     pub(crate) fn list_directories(&self) -> Vec<String> {
         println!("Listing directories form DB");
         let mut stm = self.connection.prepare("SELECT * FROM directory").unwrap();
@@ -427,6 +485,13 @@ pub struct Photo {
     pub latitude: f64,
     pub longitude: f64,
     pub favorite: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Face {
+    pub photo_id: String,
+    pub face_id: String,
+    pub crop_path: String,
 }
 //use image::io::Reader as ImageReader;
 //use image::{DynamicImage, GenericImageView};
