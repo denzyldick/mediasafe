@@ -1,17 +1,17 @@
 use axum::{
+    Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         Path, State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
     routing::get,
-    Router,
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
-use tokio::sync::{mpsc, RwLock};
-use tracing::{info, warn};
+use tokio::sync::{RwLock, mpsc};
+use tracing::{debug, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // Standard WebSocket payload structure
@@ -59,14 +59,14 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(|| async { "Signaling Server OK" }))
-        .route("/ws/:room_id", get(ws_handler))
+        .route("/ws/{room_id}", get(ws_handler))
         .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "9489".to_string());
     let addr = format!("0.0.0.0:{}", port).parse::<SocketAddr>().unwrap();
-    
+
     info!("Starting WebRTC Signaling Server on {}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
@@ -82,7 +82,7 @@ async fn ws_handler(
 async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
     let (mut sender, mut receiver) = socket.split();
     let (tx, mut rx) = mpsc::unbounded_channel();
-    
+
     // Spawn a task to forward messages from the mpsc channel to the actual WebSocket
     let mut send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
@@ -103,42 +103,55 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                     SignalMessage::Join { device_id: id } => {
                         device_id = id.clone();
                         info!("Device {} joining room {}", device_id, room_id);
-                        
+
                         let mut rooms = state.write().await;
                         let room = rooms.entry(room_id.clone()).or_insert_with(|| Room {
                             clients: HashMap::new(),
                         });
-                        
+
                         // Reject if room is full (2 devices max for P2P)
                         if room.clients.len() >= 2 {
-                            let err = SignalMessage::Error { message: "Room is full".to_string() };
-                            let _ = tx.send(Message::Text(serde_json::to_string(&err).unwrap().into()));
+                            let err = SignalMessage::Error {
+                                message: "Room is full".to_string(),
+                            };
+                            let _ =
+                                tx.send(Message::Text(serde_json::to_string(&err).unwrap().into()));
                             break;
                         }
-                        
-                        room.clients.insert(device_id.clone(), Client { sender: tx.clone() });
-                    },
+
+                        room.clients
+                            .insert(device_id.clone(), Client { sender: tx.clone() });
+                    }
                     SignalMessage::Offer { payload, target } => {
                         info!("Relaying offer from {} to {}", device_id, target);
-                        let msg = SignalMessage::Offer { payload, target: target.clone() };
+                        let msg = SignalMessage::Offer {
+                            payload,
+                            target: target.clone(),
+                        };
                         relay_message(&state, &room_id, &target, msg).await;
-                    },
+                    }
                     SignalMessage::Answer { payload, target } => {
                         info!("Relaying answer from {} to {}", device_id, target);
-                        let msg = SignalMessage::Answer { payload, target: target.clone() };
+                        let msg = SignalMessage::Answer {
+                            payload,
+                            target: target.clone(),
+                        };
                         relay_message(&state, &room_id, &target, msg).await;
-                    },
+                    }
                     SignalMessage::IceCandidate { payload, target } => {
                         // Very noisy, keeping as debug
                         tracing::debug!("Relaying ICE candidate to {}", target);
-                        let msg = SignalMessage::IceCandidate { payload, target: target.clone() };
+                        let msg = SignalMessage::IceCandidate {
+                            payload,
+                            target: target.clone(),
+                        };
                         relay_message(&state, &room_id, &target, msg).await;
-                    },
+                    }
                     _ => {}
                 }
             }
         }
-        
+
         // Cleanup when client disconnects
         if !device_id.is_empty() {
             info!("Device {} disconnected from {}", device_id, room_id);
@@ -147,10 +160,14 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                 room.clients.remove(&device_id);
                 // Notify remaining peer
                 for (_, client) in room.clients.iter() {
-                    let msg = SignalMessage::PeerDisconnected { device_id: device_id.clone() };
-                    let _ = client.sender.send(Message::Text(serde_json::to_string(&msg).unwrap().into()));
+                    let msg = SignalMessage::PeerDisconnected {
+                        device_id: device_id.clone(),
+                    };
+                    let _ = client
+                        .sender
+                        .send(Message::Text(serde_json::to_string(&msg).unwrap().into()));
                 }
-                
+
                 if room.clients.is_empty() {
                     rooms.remove(&room_id);
                     info!("Room {} deleted", room_id);
