@@ -34,16 +34,18 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Build Tauri App via Action
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build Tauri App
+        run: npm run tauri build
+        
+      - name: Upload Artifacts
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'MediaSafe v__VERSION__'
-          releaseBody: 'See the attached assets for the latest release versions.'
-          releaseDraft: true
-          prerelease: false
+          files: |
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/msi/*.msi
+            src-tauri/target/release/bundle/dmg/*.dmg
 
   release-android:
     runs-on: ubuntu-latest
@@ -130,18 +132,18 @@ jobs:
           
       - uses: actions/checkout@v4
       
-      - name: Build Arch Package
+      - name: Build Arch AppImage
         run: |
           chown -R builder:builder .
           su builder -c "
             rustup default stable
             npm install
-            npm run tauri build -- --bundles pacman
+            npm run tauri build -- --bundles appimage
           "
           
-      - name: Upload Pacman Package
+      - name: Upload Arch AppImage
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: src-tauri/target/release/bundle/pacman/*.pkg.tar.zst
+          files: src-tauri/target/release/bundle/appimage/*.AppImage
 
