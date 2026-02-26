@@ -1,0 +1,5 @@
+    Blocking waiting for file lock on package cache
+   0.719789768s  INFO prepare_target{force=false package_id=signaling-server v0.1.0 (/home/denzyl/Projects/mediasafe/signaling-server) target="signaling-server"}: cargo::core::compiler::fingerprint: fingerprint dirty for signaling-server v0.1.0 (/home/denzyl/Projects/mediasafe/signaling-server)/Check { test: true }/TargetInner { name: "signaling-server", doc: true, ..: with_path("/home/denzyl/Projects/mediasafe/signaling-server/src/main.rs", Edition2024) }
+   0.719854622s  INFO prepare_target{force=false package_id=signaling-server v0.1.0 (/home/denzyl/Projects/mediasafe/signaling-server) target="signaling-server"}: cargo::core::compiler::fingerprint:     dirty: FsStatusOutdated(Stale)
+    Checking signaling-server v0.1.0 (/home/denzyl/Projects/mediasafe/signaling-server)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.97s
