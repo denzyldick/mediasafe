@@ -35,17 +35,16 @@ jobs:
         run: npm install
 
       - name: Build Tauri App
-        run: npm run tauri build
-        
-      - name: Upload Artifacts
-        uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          files: |
-            src-tauri/target/release/bundle/appimage/*.AppImage
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/dmg/*.dmg
+          tagName: ${{ github.ref_name }}
+          releaseName: 'MediaSafe v__VERSION__'
+          releaseBody: 'See the attached assets for the latest release versions.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.platform == 'ubuntu-22.04' && '--bundles appimage deb' || '' }}
 
   release-android:
     runs-on: ubuntu-latest
