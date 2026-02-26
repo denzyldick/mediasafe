@@ -124,7 +124,7 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm git nodejs npm rustup webkit2gtk sudo
+          pacman -S --noconfirm git nodejs npm rustup webkit2gtk sudo yarn
           
           # Create non-root user for makepkg (Tauri requirement)
           useradd -m -G wheel builder
