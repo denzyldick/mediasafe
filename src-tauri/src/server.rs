@@ -1,118 +1,60 @@
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
-
+use bip39::Mnemonic;
+use hex;
+use rand::rngs::OsRng;
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
-
-use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
-
-use crate::database::Database;
-use crate::transport::generate_offer;
-
-fn handle_read(mut stream: &TcpStream) -> Option<Device> {
-    let mut buf = [0u8; 4096];
-    stream.read(&mut buf).unwrap();
-    let req_str = String::from_utf8_lossy(&buf);
-    let mut iterator = req_str.lines();
-    let line = iterator.next().unwrap();
-
-    if line.starts_with("GET /new-device HTTP/1.1") {
-        println!("New device");
-        let ip = stream.peer_addr().unwrap().ip();
-        let device = Device {
-            ip: ip.to_string(),
-            name: "Arch".to_string(),
-            offer: String::from(""),
-        };
-        Some(device)
-    } else {
-        None
-    }
-}
-#[derive(Debug, Clone)]
-pub struct Devices {
-    list: Vec<Device>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct Device {
-    pub ip: String,
-    pub name: String,
-    pub offer: String,
-}
+use sha2::{Digest, Sha256};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Offer {
-    pub sdp: RTCSessionDescription,
+pub struct PairingCodes {
+    pub uuid: String,
+    pub passphrase: Vec<String>,
 }
-async fn handle_write(mut stream: TcpStream, _device: Device, config_path: String) {
-    let sdp = generate_offer().await.unwrap();
 
-    let offer = Offer { sdp };
+/// Generates a high-entropy UUID for QR codes, and a mathematically
+/// correlated 4-word dictionary passphrase for manual typing.
+#[tauri::command]
+pub async fn generate_pairing_codes() -> Result<PairingCodes, String> {
+    // Generate 16 bytes of cryptographically secure random entropy
+    let mut entropy = [0u8; 16];
+    OsRng.fill_bytes(&mut entropy);
 
-    let json = serde_json::to_string(&offer).unwrap();
-    let response = format!(
-        "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n {} \r\n",
-        json
-    );
-
-    let device = Device {
-        ip: stream.peer_addr().unwrap().ip().to_string(),
-        name: String::from("Jhonny"),
-        offer: json,
+    // Generate the 12-word BIP39 phrase from entropy
+    let mnemonic = match Mnemonic::from_entropy(&entropy) {
+        Ok(m) => m,
+        Err(e) => return Err(format!("Failed to generate mnemonic: {}", e)),
     };
 
-    let database = Database::new(&config_path);
-    database.add_device(&device);
-    match stream.write(response.as_bytes()) {
-        Ok(_) => println!("Response sent"),
-        Err(e) => println!("Failed sending response: {}", e),
-    }
+    // We only need a 4-word passphrase for easy typing to guarantee 43 bits of entropy (plenty for a temporary room)
+    let words: Vec<String> = mnemonic.words().take(4).map(|w| w.to_string()).collect();
+
+    // Map the selected words back into a unique hex string (this mimics reading the QR code)
+    let derived_uuid = hex::encode(words.join("-").as_bytes());
+
+    Ok(PairingCodes {
+        uuid: derived_uuid,
+        passphrase: words,
+    })
 }
 
-async fn handle_client(stream: TcpStream, config_path: String) {
-    let device = handle_read(&stream);
-    match device {
-        Some(device) => {
-            handle_write(stream, device, config_path).await;
-        }
-        None => {
-            println!("No device found");
-        }
-    }
-}
-pub async fn start(config_path: String) {
-    let listener = TcpListener::bind("0.0.0.0:9489").unwrap();
-    println!("Listening for connections on port {}", 9489);
+/// Hashes either a scanned QR UUID or a manually typed 4-word passphrase
+/// so both devices end up mathematically producing the exact same `room_id` for the Signaling Server.
+#[tauri::command]
+pub async fn hash_pairing_code(input: String) -> Result<String, String> {
+    // Sanitize input (lowercase, trim whitespace, normalize hyphens)
+    let sanitized = input.to_lowercase().trim().replace(" ", "-");
 
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
-                println!("Incomming connection");
-                handle_client(stream, config_path.clone()).await
-            }
-            Err(e) => {
-                println!("Unable to connect: {}", e);
-            }
-        }
-    }
-}
+    // If the input was the raw 4-word phrase, derive the pseudo-UUID first
+    let raw_payload = if sanitized.split('-').count() == 4 {
+        hex::encode(sanitized.as_bytes())
+    } else {
+        sanitized // Assume it's already the UUID from the QR
+    };
 
-pub async fn request_offer(ip: String) -> String {
-    let mut stream = TcpStream::connect(format!("{}:9489", ip)).unwrap();
-    let request = "GET /new-device HTTP/1.1\r\n\r\n";
-    stream.write(request.as_bytes()).unwrap();
+    // Hash the UUID using SHA-256 to create the secure Room ID
+    let mut hasher = Sha256::new();
+    hasher.update(raw_payload.as_bytes());
+    let room_id = hex::encode(hasher.finalize());
 
-    let mut buf = [0u8; 4096];
-    let n = stream.read(&mut buf).unwrap();
-    let response = String::from_utf8_lossy(&buf[..n]);
-
-    // Simple parsing to find the JSON body
-    // Assuming the body is after the double CRLF
-    if let Some(body_start) = response.find("\r\n\r\n") {
-        let body = &response[body_start + 4..];
-        let body = body.trim(); // Trim potential whitespace
-        return body.to_string();
-    }
-
-    String::new()
+    Ok(room_id)
 }

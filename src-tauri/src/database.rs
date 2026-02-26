@@ -6,8 +6,6 @@ use std::{
 use rusqlite::Connection;
 use serde::Serialize;
 
-use crate::server::Device;
-
 pub struct Database {
     pub connection: Connection,
 }
@@ -144,20 +142,6 @@ impl Database {
             .unwrap();
     }
 
-    pub fn add_device(&self, device: &Device) {
-        let result = self.connection.execute(
-            "INSERT INTO device(ip, name, offer) VALUES(?1,?2, ?3)",
-            (&device.ip, &device.name, &device.offer),
-        );
-
-        if let Ok(_result) = result {
-            println!("Device has been stored");
-        }
-
-        if let Err(error) = result {
-            println!("{}", error);
-        }
-    }
     pub fn store_photo(&self, photo: Photo) {
         let result = self.connection.execute(
             "INSERT INTO photo(id, location, encoded, latitude, longitude) VALUES(?1, ?2, ?3, ?4, ?5 )",
@@ -365,45 +349,6 @@ impl Database {
         }
         photos
     }
-    pub fn get_device_by_name(&self, name: &str) -> Option<Device> {
-        let sql = "SELECT name, offer, ip FROM device WHERE name = ?1";
-
-        let params = &[(&name)];
-        let mut stm = self.connection.prepare(sql).unwrap();
-        let devices = stm
-            .query_map(params, |row| {
-                Ok(Device {
-                    ip: row.get(2)?,
-                    name: row.get(0)?,
-                    offer: row.get(1)?,
-                })
-            })
-            .unwrap();
-
-        for device in devices {
-            return Some(device.unwrap());
-        }
-        None
-    }
-
-    pub(crate) fn list_devices(&self) -> Vec<Device> {
-        let sql = "SELECT ip, name, offer FROM device";
-        let mut statement = self.connection.prepare(sql).unwrap();
-        let device_iter = statement.query_map((), |device| {
-            Ok(Device {
-                ip: device.get(0)?,
-                name: device.get(1)?,
-                offer: device.get(2)?,
-            })
-        });
-
-        let mut devices = Vec::new();
-
-        for d in device_iter.unwrap() {
-            devices.push(d.unwrap());
-        }
-        devices
-    }
 
     pub fn store_face(&self, face: Face) {
         let result = self.connection.execute(
@@ -527,22 +472,13 @@ impl Photo {
         */
 }
 
+#[cfg(test)]
 mod tests {
+    use super::*;
 
     #[test]
-    fn add_device() {
-        let device = Device {
-            ip: String::new(),
-            name: String::from("test"),
-            offer: String::new(),
-        };
-
-        let database = Database::new("./tests");
-        database.add_device(&device);
-
-        let d = database.get_device_by_name(&device.name).unwrap();
-
-        assert_eq!(device.name, d.name)
+    fn db_init() {
+        let _database = Database::new("./tests");
     }
 
     #[test]

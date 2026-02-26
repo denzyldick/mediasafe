@@ -104,33 +104,29 @@ pub fn run() {
             list_files,
             scan_files,
             get_last_scan_time,
-            listen_for_incomming_connect,
-            list_devices,
-            remove_directory,
-            add_directory,
-            list_directories,
-            join_network,
-            list_objects,
-            get_thumbnail,
             get_ip,
-            get_device_by_name,
             get_heatmap_data,
             generate_dummy_data,
             toggle_favorite,
-            get_faces
+            get_faces,
+            server::generate_pairing_codes,
+            server::hash_pairing_code,
+            start_webrtc_session
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
 #[tauri::command]
-async fn join_network(ip: String) -> String {
-    server::request_offer(ip.to_string()).await
+async fn join_network(_ip: String) -> String {
+    // This function will be rewritten to use the new WebSocket signaling server
+    // For now, return a placeholder
+    "Connecting to signaling server...".to_string()
 }
 
 mod config;
 mod database;
-mod device;
+// Removed device.rs module
 mod directory;
 mod face_detector;
 mod file;
@@ -139,16 +135,25 @@ mod server;
 mod transport;
 
 #[tauri::command]
-async fn listen_for_incomming_connect(app: tauri::AppHandle) {
-    println!("Starting server");
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
-    server::start(path).await;
+async fn start_webrtc_session(
+    room_id: String,
+    is_initiator: bool,
+    signaling_url: String,
+) -> Result<(), String> {
+    println!("Starting WebRTC session for room_id: {}", room_id);
+    // Spawn WebRTC connection loop in the background so Tauri remains responsive
+    tauri::async_runtime::spawn(async move {
+        let client = transport::WebRtcClient {
+            room_id,
+            is_initiator,
+            signaling_url,
+        };
+        if let Err(e) = client.start().await {
+            println!("WebRTC signaling failed: {}", e);
+        }
+    });
+
+    Ok(())
 }
 use get_if_addrs::get_if_addrs;
 use serde_json::from_str;
@@ -177,18 +182,8 @@ fn is_local_network_ip(ip: Ipv4Addr) -> bool {
         || (ip.octets()[0] == 192 && ip.octets()[1] == 168)
 }
 
-#[tauri::command()]
-async fn list_devices(app: tauri::AppHandle) -> String {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
-    let devices = device::list_devices(&path);
-    serde_json::to_string(&devices).unwrap()
-}
+// Obsolete TCP list_devices command removed.
+// Device discovery is now handled passively via passing the 4-word mnemonic or QR code.
 #[tauri::command]
 async fn list_objects(app: tauri::AppHandle, query: String) -> String {
     let path = app
@@ -322,18 +317,7 @@ async fn get_thumbnail(path: String) -> String {
     file::get_thumbnail(path)
 }
 
-#[tauri::command]
-async fn get_device_by_name(app: tauri::AppHandle, name: String) -> String {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
-    let device = device::get_device_by_name(&name, &path);
-    serde_json::to_string(&device).unwrap()
-}
+// Obsolete get_device_by_name command removed.
 
 #[tauri::command]
 async fn list_directories(app: tauri::AppHandle) -> String {
