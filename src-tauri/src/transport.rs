@@ -126,7 +126,7 @@ impl WebRtcClient {
             let data_channel = peer_connection
                 .create_data_channel("file_transfer", None)
                 .await?;
-            
+
             let dc_clone = Arc::clone(&data_channel);
             data_channel.on_open(Box::new(move || {
                 println!("Data channel opened! Ready to send files.");
@@ -141,7 +141,10 @@ impl WebRtcClient {
             }));
             data_channel.on_message(Box::new(
                 move |msg: webrtc::data_channel::data_channel_message::DataChannelMessage| {
-                    println!("Sender received ack: {}", String::from_utf8_lossy(&msg.data));
+                    println!(
+                        "Sender received ack: {}",
+                        String::from_utf8_lossy(&msg.data)
+                    );
                     Box::pin(async move {})
                 },
             ));
@@ -166,14 +169,14 @@ impl WebRtcClient {
             // Receiver waits for Data Channel
             peer_connection.on_data_channel(Box::new(move |d: Arc<webrtc::data_channel::RTCDataChannel>| {
                 println!("Data channel created by initiator!");
-                
+
                 let d_clone = Arc::clone(&d);
                 d.on_message(Box::new(move |msg: webrtc::data_channel::data_channel_message::DataChannelMessage| {
                     println!("Receiver got data chunk (len: {})", msg.data.len());
                     // If it's the transfer init signal...
                     if msg.data.starts_with(b"INIT_FILE_TRANSFER:") {
                        println!("Begin receiving file: {}", String::from_utf8_lossy(&msg.data));
-                       
+
                        // Send ACK
                        let dc = Arc::clone(&d_clone);
                        return Box::pin(async move {
@@ -181,7 +184,7 @@ impl WebRtcClient {
                            let _ = dc.send(&ack_payload).await;
                        });
                     }
-                    
+
                     // Otherwise it's raw binary data
                     // TODO: Write chunk to disk sequentially
                     Box::pin(async move {})
