@@ -41,8 +41,6 @@ pub fn start_background_worker(_app: &AppHandle, config_path: String) -> Unbound
         let clip_tokenizer_path = Path::new(&models_dir).join("tokenizer.json");
         let ultraface_path = Path::new(&models_dir).join("version-RFB-320.onnx");
 
-
-
         let db = Database::new(&db_path);
 
         // Load Tokenizer

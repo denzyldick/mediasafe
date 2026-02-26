@@ -14,7 +14,6 @@ async fn get_last_scan_time(app: tauri::AppHandle) -> String {
         .unwrap_or_else(|| "Never".to_string())
 }
 
-
 #[derive(serde::Serialize, Clone)]
 struct DownloadProgress {
     model: String,
@@ -23,10 +22,14 @@ struct DownloadProgress {
 }
 
 #[tauri::command]
-async fn download_models(app: tauri::AppHandle, models: Vec<String>, state: tauri::State<'_, ml::MlContext>) -> Result<(), String> {
-    use tokio::io::AsyncWriteExt;
+async fn download_models(
+    app: tauri::AppHandle,
+    models: Vec<String>,
+    state: tauri::State<'_, ml::MlContext>,
+) -> Result<(), String> {
     use tauri::Emitter;
-    
+    use tokio::io::AsyncWriteExt;
+
     let app_config_dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     let models_dir = app_config_dir.join("models");
     std::fs::create_dir_all(&models_dir).map_err(|e| e.to_string())?;
@@ -46,18 +49,23 @@ async fn download_models(app: tauri::AppHandle, models: Vec<String>, state: taur
         let path = models_dir.join(filename);
         let mut response = reqwest::get(url).await.map_err(|e| e.to_string())?;
         let total_size = response.content_length();
-        let mut file = tokio::fs::File::create(&path).await.map_err(|e| e.to_string())?;
+        let mut file = tokio::fs::File::create(&path)
+            .await
+            .map_err(|e| e.to_string())?;
         let mut downloaded: u64 = 0;
 
         while let Some(chunk) = response.chunk().await.map_err(|e| e.to_string())? {
             file.write_all(&chunk).await.map_err(|e| e.to_string())?;
             downloaded += chunk.len() as u64;
 
-            let _ = app.emit("download-progress", DownloadProgress {
-                model: model_name.to_string(),
-                downloaded,
-                total: total_size,
-            });
+            let _ = app.emit(
+                "download-progress",
+                DownloadProgress {
+                    model: model_name.to_string(),
+                    downloaded,
+                    total: total_size,
+                },
+            );
         }
     }
 
