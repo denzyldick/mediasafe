@@ -12,20 +12,49 @@
         Scan this code with the MediaSafe app on your other device to connect.
       </div>
 
-      <div class="d-flex justify-center mb-6">
+      <div class="d-flex justify-center mb-6 mt-2">
+         <v-btn-toggle v-model="mode" color="primary" mandatory variant="outlined" divided>
+            <v-btn value="host">Host</v-btn>
+            <v-btn value="join">Join</v-btn>
+         </v-btn-toggle>
+      </div>
+
+      <div class="d-flex justify-center mb-6" v-if="uuid && mode === 'host'">
         <v-sheet color="white" rounded="xl" class="pa-4" elevation="4">
-             <qrcode-vue :value="connectionUrl" :size="200" level="H" />
+             <qrcode-vue :value="uuid" :size="200" level="H" />
         </v-sheet>
       </div>
 
-      <div class="text-caption text-medium-emphasis mb-1">Manual Connection URL</div>
-      <v-chip color="primary" variant="flat" class="mb-6 font-weight-medium">
-        {{ connectionUrl }}
-      </v-chip>
+      <div class="text-caption text-medium-emphasis mb-1">Manual Connection Passphrase</div>
+      <div class="d-flex justify-center flex-wrap gap-2 mb-6" v-if="passphrase.length > 0 && mode === 'host'">
+        <v-chip
+          v-for="(word, index) in passphrase"
+          :key="index"
+          color="primary"
+          variant="flat"
+          class="font-weight-medium mx-1"
+        >
+          {{ word }}
+        </v-chip>
+      </div>
 
-      <div class="d-flex align-center justify-center text-caption text-medium-emphasis">
-         <v-progress-circular indeterminate color="primary" size="20" width="2" class="mr-2"></v-progress-circular>
-         Listening for devices...
+      <div class="d-flex justify-center mb-6" v-if="mode === 'join'">
+         <v-text-field
+           v-model="joinPassphrase"
+           label="Enter 4-word Passphrase"
+           variant="outlined"
+           density="compact"
+           hide-details
+           class="mb-2"
+           @keyup.enter="joinWebRTC"
+         ></v-text-field>
+         <v-btn color="primary" @click="joinWebRTC" class="ml-2 mt-1">Join</v-btn>
+      </div>
+
+      <div class="text-caption text-medium-emphasis mb-1 text-center" v-if="connectionStatus">
+         <v-progress-circular v-if="!isConnected" indeterminate color="primary" size="20" width="2" class="mr-2"></v-progress-circular>
+         <v-icon v-else color="success" class="mr-2">mdi-check-circle</v-icon>
+         {{ connectionStatus }}
       </div>
 
       <v-card-actions class="justify-center mt-4">
@@ -46,34 +75,77 @@ export default {
   },
   data: () => ({
     dialog: false,
-    ip: "Loading...",
-    port: "9489",
+    mode: "host",
+    uuid: "",
+    passphrase: [],
+    joinPassphrase: "",
+    connectionStatus: "",
+    isConnected: false,
   }),
-  computed: {
-      connectionUrl() {
-          return `http://${this.ip}:${this.port}`;
-      }
-  },
   watch: {
     dialog(val) {
       if (val) {
         this.initialize();
       }
     },
+    mode(newMode) {
+       if (newMode === 'host' && !this.uuid) {
+           this.initialize();
+       } else if (newMode === 'join') {
+           this.connectionStatus = "";
+       }
+    }
   },
   methods: {
     async initialize() {
-        this.ip = await invoke("get_ip");
-        this.listen();
+        this.connectionStatus = "Generating secure pair key...";
+        
+        try {
+          const codes = await invoke("generate_pairing_codes");
+          this.uuid = codes.uuid;
+          this.passphrase = codes.passphrase;
+          
+          const roomId = await invoke("hash_pairing_code", { input: this.uuid });
+          this.listen(roomId);
+        } catch (error) {
+           console.error("Failed to generate code", error);
+           this.connectionStatus = "Pairing Error.";
+        }
     },
-    listen() {
-      console.log("Listening for incomming connection");
-      invoke("listen_for_incomming_connect").then((response) => {
-        console.log("Connection established", response);
-        this.dialog = false;
-        // Optionally emit event to refresh device list
-      });
+    async listen(roomId) {
+      this.connectionStatus = "Waiting for partner device to scan or type phrase...";
+      try {
+          // Hardcoded external signaling server for testing, will replace with prod later
+          const signalingUrl = "ws://localhost:3000";
+          await invoke("start_webrtc_session", {
+              roomId: roomId,
+              isInitiator: true,
+              signalingUrl: signalingUrl
+          });
+          this.connectionStatus = "Signaling channel requested. Awaiting WebRTC connection.";
+          // TODO: Listen for WebRTC event complete to actually set isConnected = true
+      } catch (error) {
+          console.error("WebRTC Error", error);
+          this.connectionStatus = "Error connecting to Signaling server.";
+      }
     },
+    async joinWebRTC() {
+        if (!this.joinPassphrase) return;
+        this.connectionStatus = "Joining room...";
+        try {
+           const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
+           const signalingUrl = "ws://localhost:3000";
+           await invoke("start_webrtc_session", {
+              roomId: roomId,
+              isInitiator: false,
+              signalingUrl: signalingUrl
+           });
+           this.connectionStatus = "Signaling channel requested. Awaiting WebRTC Receiver connection.";
+        } catch(error) {
+           console.error("WebRTC Join Error", error);
+           this.connectionStatus = "Error joining via Signaling server.";
+        }
+    }
   },
 };
 </script>
