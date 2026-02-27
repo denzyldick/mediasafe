@@ -52,8 +52,7 @@ export default {
       }
     });
     
-    // Start scan on load
-    invoke("scan_files");
+    // Auto-scan disabled on load per user request
 
     // Listen for scan progress events
     listen("scan-progress", (event) => {
