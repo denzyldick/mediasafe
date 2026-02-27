@@ -115,8 +115,8 @@ export default {
     async listen(roomId) {
       this.connectionStatus = "Waiting for partner device to scan or type phrase...";
       try {
-          // Hardcoded external signaling server for testing, will replace with prod later
-          const signalingUrl = "ws://localhost:3000";
+          // Production Signaling Server
+          const signalingUrl = "wss://mediasafe.denzyl.io";
           await invoke("start_webrtc_session", {
               roomId: roomId,
               isInitiator: true,
@@ -134,7 +134,7 @@ export default {
         this.connectionStatus = "Joining room...";
         try {
            const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
-           const signalingUrl = "ws://localhost:3000";
+           const signalingUrl = "wss://mediasafe.denzyl.io";
            await invoke("start_webrtc_session", {
               roomId: roomId,
               isInitiator: false,
