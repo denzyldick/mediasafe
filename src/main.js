@@ -15,11 +15,11 @@ const vuetify = createVuetify({
       dark: {
         dark: true,
         colors: {
-          background: "#09090b", // Deep Zinc
+          background: "#09090b", // Zinc-950
           surface: "#09090b", 
-          primary: "#3f3f46", // Neutral Zinc-600
-          secondary: "#27272a", // Zinc-800
-          accent: "#ffffff",
+          primary: "#27272a", // Zinc-800
+          secondary: "#18181b", // Zinc-900
+          accent: "#d4d4d8", // Zinc-300
           error: "#ef4444",
           info: "#3b82f6",
           success: "#22c55e",
@@ -40,8 +40,8 @@ const vuetify = createVuetify({
     VCard: {
       rounded: "lg",
       elevation: 0,
-      border: "1px solid rgba(255, 255, 255, 0.1)",
-      color: "#09090b",
+      color: "#18181b", // Zinc-900
+      class: "border-subtle",
     },
     VDialog: {
       cardProps: {

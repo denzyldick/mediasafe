@@ -3,68 +3,59 @@
     <v-row justify="center">
       <v-col cols="12" md="8" lg="6">
         <div class="d-flex align-center mb-6">
-          <v-icon color="white" size="x-large" class="mr-3 opacity-80">mdi-cog</v-icon>
-          <h1 class="text-h4 font-weight-bold text-grey-lighten-4">Settings</h1>
+          <v-icon color="#e4e4e7" size="x-large" class="mr-3 opacity-60">mdi-cog</v-icon>
+          <h1 class="text-h4 font-weight-bold text-zinc-primary">Settings</h1>
         </div>
 
         <!-- Storage Config Card -->
-        <v-card class="mb-6" variant="outlined" rounded="lg" style="border-color: rgba(255,255,255,0.1) !important;">
+        <v-card class="mb-6 border-subtle" variant="flat" rounded="lg">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="grey-lighten-1" size="large" class="opacity-70">mdi-database</v-icon>
+              <v-icon color="#a1a1aa" size="large" class="opacity-50">mdi-database</v-icon>
             </template>
-            <v-card-title class="text-h6 text-grey-lighten-3">Storage Configuration</v-card-title>
-            <v-card-subtitle class="text-grey-lighten-1">Where your media database is stored</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-primary">Storage Configuration</v-card-title>
+            <v-card-subtitle class="text-zinc-secondary">Where your media database is stored</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
             <v-alert
-              variant="tonal"
+              variant="flat"
               border="start"
-              class="mb-2 text-grey-lighten-2"
-              style="background: rgba(255,255,255,0.03) !important;"
+              class="mb-2 text-zinc-secondary"
+              style="background: rgba(255,255,255,0.02) !important; border-left: 2px solid rgba(255,255,255,0.1) !important;"
             >
               Your configuration database is located at:
-              <div class="font-weight-medium mt-1 text-body-2 text-grey-lighten-1">{{ dataDir }}/database.sql</div>
+              <div class="font-weight-medium mt-1 text-body-2 text-zinc-primary opacity-80">{{ dataDir }}/database.sql</div>
             </v-alert>
-            <div class="text-caption text-grey-darken-1">
-              This is a standard <a href="https://www.sqlite.org" class="text-decoration-none font-weight-bold text-grey-lighten-1 opacity-80">SQLite</a> file. You can back it up or export it at any time.
+            <div class="text-caption text-zinc-muted">
+              This is a standard <a href="https://www.sqlite.org" class="text-decoration-none font-weight-bold text-zinc-secondary opacity-80">SQLite</a> file.
             </div>
           </v-card-text>
         </v-card>
 
         <!-- Library Config Card -->
-        <v-card variant="outlined" rounded="lg" class="mb-6" style="border-color: rgba(255,255,255,0.1) !important;">
+        <v-card variant="flat" rounded="lg" class="mb-6 border-subtle">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="grey-lighten-1" size="large" class="opacity-70">mdi-image-multiple</v-icon>
+              <v-icon color="#a1a1aa" size="large" class="opacity-50">mdi-image-multiple</v-icon>
             </template>
-            <v-card-title class="text-h6 text-grey-lighten-3">Media Library</v-card-title>
-            <v-card-subtitle class="text-grey-lighten-1">Manage which folders MediaSafe can access</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-primary">Media Library</v-card-title>
+            <v-card-subtitle class="text-zinc-secondary">Manage folders</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
-            <v-alert
-              variant="tonal"
-              class="mb-4 text-body-2 text-grey-lighten-2"
-              icon="mdi-shield-check"
-              style="background: rgba(255,255,255,0.03) !important;"
-            >
-              <strong>Privacy First:</strong> MediaSafe only scans the specific folders you add below. It will never access other parts of your system.
-            </v-alert>
-
-            <v-row class="align-center mb-2">
+            <v-row class="align-center mb-2 mt-2">
               <v-col>
-                <div class="text-subtitle-1 font-weight-medium text-grey-lighten-2">Watched Folders</div>
+                <div class="text-subtitle-1 font-weight-medium text-zinc-primary">Watched Folders</div>
               </v-col>
               <v-col cols="auto">
                  <v-btn
-                  color="grey-lighten-2"
+                  color="#e4e4e7"
                   prepend-icon="mdi-folder-plus"
                   variant="outlined"
                   @click="select_directory"
-                  class="text-none"
-                  style="border-color: rgba(255,255,255,0.2) !important;"
+                  class="text-none border-subtle"
+                  style="color: #e4e4e7 !important;"
                 >
                   Add Folder
                 </v-btn>
@@ -73,15 +64,15 @@
 
             <v-expand-transition>
               <div v-if="directories.length > 0">
-                 <v-list lines="one" class="bg-transparent border rounded-lg" style="border-color: rgba(255,255,255,0.1) !important;">
+                 <v-list lines="one" class="bg-transparent border-subtle rounded-lg">
                   <v-list-item
                     v-for="(directory, index) in directories"
                     :key="directory.value"
                     :title="directory.title"
-                    class="text-grey-lighten-1"
+                    class="text-zinc-secondary"
                   >
                     <template v-slot:prepend>
-                       <v-icon color="grey-lighten-1" class="opacity-50">mdi-folder</v-icon>
+                       <v-icon color="#a1a1aa" class="opacity-30">mdi-folder</v-icon>
                     </template>
                     
                     <template v-slot:append>
@@ -92,118 +83,101 @@
                         size="small"
                         @click="remove_directory(directory.value)"
                         title="Remove folder"
-                        class="opacity-60"
+                        class="opacity-40"
                       ></v-btn>
                     </template>
-                     <v-divider v-if="index < directories.length - 1" style="opacity: 0.05"></v-divider>
+                     <v-divider v-if="index < directories.length - 1" class="opacity-5"></v-divider>
                   </v-list-item>
                 </v-list>
               </div>
-              <div v-else class="text-center py-8 text-grey-lighten-1 border border-dashed rounded-lg opacity-50" style="border-color: rgba(255,255,255,0.1) !important;">
-                <v-icon size="48" color="grey-lighten-1" class="mb-2 opacity-20">mdi-folder-open-outline</v-icon>
+              <div v-else class="text-center py-8 text-zinc-muted border border-dashed rounded-lg opacity-40" style="border-color: rgba(255,255,255,0.1) !important;">
                 <div>No folders added yet.</div>
-                <div class="text-caption">Click "Add Folder" to get started.</div>
               </div>
             </v-expand-transition>
           </v-card-text>
           
-          <v-divider style="opacity: 0.1"></v-divider>
+          <v-divider class="opacity-5"></v-divider>
           
           <v-card-actions class="pa-4">
              <v-spacer></v-spacer>
              <v-btn
-              color="grey-lighten-4"
+              color="#e4e4e7"
               size="large"
-              variant="elevated"
+              variant="flat"
               :disabled="directories.length === 0"
               @click="$emit('done')"
-              append-icon="mdi-arrow-right"
               class="text-none px-8"
+              style="background: #27272a !important; color: #e4e4e7 !important;"
             >
-              Continue to Library
+              Continue
             </v-btn>
           </v-card-actions>
         </v-card>
         
         
         <!-- AI Models Config Card -->
-        <v-card variant="outlined" rounded="lg" class="mb-6" style="border-color: rgba(255,255,255,0.1) !important;">
+        <v-card variant="flat" rounded="lg" class="mb-6 border-subtle">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="grey-lighten-1" size="large" class="opacity-70">mdi-brain</v-icon>
+              <v-icon color="#a1a1aa" size="large" class="opacity-50">mdi-brain</v-icon>
             </template>
-            <v-card-title class="text-h6 text-grey-lighten-3">AI Models</v-card-title>
-            <v-card-subtitle class="text-grey-lighten-1">Download models for smart search and face detection</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-primary">AI Models</v-card-title>
+            <v-card-subtitle class="text-zinc-secondary">Offline detection & search</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
-            <v-alert
-              variant="tonal"
-              icon="mdi-information"
-              class="mb-4 text-body-2 text-grey-lighten-2"
-              style="background: rgba(255,255,255,0.03) !important;"
-            >
-              Models are downloaded natively and run completely offline to preserve privacy.
-            </v-alert>
-
             <v-list lines="two" class="bg-transparent">
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="grey-lighten-3"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="#e4e4e7"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-grey-lighten-3">CLIP Model</v-list-item-title>
-                <v-list-item-subtitle class="text-grey-darken-1">Enables smart search (e.g., "passport", "dog", "car").</v-list-item-subtitle>
+                <v-list-item-title class="font-weight-bold text-zinc-primary">CLIP Model</v-list-item-title>
+                <v-list-item-subtitle class="text-zinc-muted">Smart search indexing</v-list-item-subtitle>
                 <template v-if="downloadProgress.clip !== undefined">
-                  <div class="mt-2 text-caption text-grey">
-                    {{ formatBytes(downloadProgress.clip.downloaded) }} / {{ formatBytes(downloadProgress.clip.total) }}
-                  </div>
                   <v-progress-linear
                     :model-value="(downloadProgress.clip.downloaded / downloadProgress.clip.total) * 100"
-                    color="grey-lighten-2"
-                    height="4"
+                    color="#e4e4e7"
+                    height="2"
                     rounded
-                    class="mt-1"
+                    class="mt-2"
                   ></v-progress-linear>
                 </template>
               </v-list-item>
 
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="grey-lighten-3"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="#e4e4e7"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-grey-lighten-3">UltraFace Model</v-list-item-title>
-                <v-list-item-subtitle class="text-grey-darken-1">Enables offline face detection to group photos by people.</v-list-item-subtitle>
+                <v-list-item-title class="font-weight-bold text-zinc-primary">UltraFace Model</v-list-item-title>
+                <v-list-item-subtitle class="text-zinc-muted">Offline face detection</v-list-item-subtitle>
                 <template v-if="downloadProgress.ultraface !== undefined">
-                  <div class="mt-2 text-caption text-grey">
-                    {{ formatBytes(downloadProgress.ultraface.downloaded) }} / {{ formatBytes(downloadProgress.ultraface.total) }}
-                  </div>
                   <v-progress-linear
                     :model-value="(downloadProgress.ultraface.downloaded / downloadProgress.ultraface.total) * 100"
-                    color="grey-lighten-2"
-                    height="4"
+                    color="#e4e4e7"
+                    height="2"
                     rounded
-                    class="mt-1"
+                    class="mt-2"
                   ></v-progress-linear>
                 </template>
               </v-list-item>
             </v-list>
           </v-card-text>
           
-          <v-divider style="opacity: 0.1"></v-divider>
+          <v-divider class="opacity-5"></v-divider>
           
           <v-card-actions class="pa-4">
              <v-spacer></v-spacer>
              <v-btn
-              color="grey-lighten-2"
+              color="#e4e4e7"
               variant="outlined"
               :disabled="selectedModels.length === 0 || isDownloading"
               :loading="isDownloading"
               @click="downloadModels"
               prepend-icon="mdi-download"
-              class="text-none"
-              style="border-color: rgba(255,255,255,0.2) !important;"
+              class="text-none border-subtle"
+              style="color: #e4e4e7 !important;"
             >
-              Download Models
+              Download
             </v-btn>
           </v-card-actions>
         </v-card>

@@ -114,6 +114,22 @@ button {
   border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
+.border-subtle {
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+}
+
+.text-zinc-primary {
+  color: #e4e4e7 !important; /* Zinc-200 */
+}
+
+.text-zinc-secondary {
+  color: #a1a1aa !important; /* Zinc-400 */
+}
+
+.text-zinc-muted {
+  color: #71717a !important; /* Zinc-500 */
+}
+
 /* Hide scrollbars for a cleaner app feel */
 ::-webkit-scrollbar {
   width: 8px;
