@@ -4,7 +4,7 @@
       <v-col cols="12" md="8" lg="6">
         <div class="d-flex align-center mb-6">
           <v-icon color="primary" size="x-large" class="mr-3">mdi-cog</v-icon>
-          <h1 class="text-h4 font-weight-bold text-grey-darken-3">Settings</h1>
+          <h1 class="text-h4 font-weight-bold text-white">Settings</h1>
         </div>
 
         <!-- Storage Config Card -->
@@ -95,7 +95,7 @@
                   </v-list-item>
                 </v-list>
               </div>
-              <div v-else class="text-center py-8 text-grey-darken-1 border border-dashed rounded-lg">
+              <div v-else class="text-center py-8 text-grey-lighten-1 border border-dashed rounded-lg opacity-70">
                 <v-icon size="48" color="grey-lighten-1" class="mb-2">mdi-folder-open-outline</v-icon>
                 <div>No folders added yet.</div>
                 <div class="text-caption">Click "Add Folder" to get started.</div>
