@@ -15,8 +15,8 @@ export default {
       <v-col cols="12" md="10" lg="8">
         <!-- Hero Section -->
         <div class="text-center mb-16">
-          <v-icon color="white" size="64" class="mb-6 opacity-80">mdi-shield-lock-outline</v-icon>
-          <h1 class="text-h3 font-weight-bold text-white mb-4 tracking-tight">
+          <v-icon color="grey-lighten-2" size="64" class="mb-6 opacity-60">mdi-shield-lock-outline</v-icon>
+          <h1 class="text-h3 font-weight-bold text-grey-lighten-4 mb-4 tracking-tight">
             MediaSafe
           </h1>
           <p class="text-body-1 text-grey-lighten-1 mx-auto" style="max-width: 500px; line-height: 1.6;">
@@ -34,8 +34,8 @@ export default {
               @click="$emit('new_device')"
             >
               <div class="d-flex align-center mb-4">
-                <v-icon size="28" color="white" class="mr-3">mdi-plus-circle-outline</v-icon>
-                <v-card-title class="text-h5 font-weight-bold pa-0 text-white">
+                <v-icon size="28" color="grey-lighten-2" class="mr-3">mdi-plus-circle-outline</v-icon>
+                <v-card-title class="text-h5 font-weight-bold pa-0 text-grey-lighten-3">
                   Start Fresh
                 </v-card-title>
               </div>
@@ -53,8 +53,8 @@ export default {
               @click="$emit('join_group')"
             >
               <div class="d-flex align-center mb-4">
-                <v-icon size="28" color="white" class="mr-3">mdi-link-variant</v-icon>
-                <v-card-title class="text-h5 font-weight-bold pa-0 text-white">
+                <v-icon size="28" color="grey-lighten-2" class="mr-3">mdi-link-variant</v-icon>
+                <v-card-title class="text-h5 font-weight-bold pa-0 text-grey-lighten-3">
                   Connect
                 </v-card-title>
               </div>

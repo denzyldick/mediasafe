@@ -126,10 +126,10 @@ export default {
                 </template>
                 <v-card min-width="300" border class="mt-2">
                   <v-card-text>
-                    <div class="text-subtitle-2 mb-2 text-white">Library Status</div>
+                    <div class="text-subtitle-2 mb-2 text-grey-lighten-3">Library Status</div>
                     <div class="d-flex align-center mb-4">
                       <v-chip 
-                        :color="scanStatus === 'scanning' ? 'white' : scanStatus === 'complete' ? 'white' : 'grey'"
+                        color="grey-lighten-4"
                         size="x-small"
                         variant="flat"
                         class="mr-2"
@@ -143,7 +143,7 @@ export default {
                       <div class="text-caption mb-1 text-grey">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
                       <v-progress-linear 
                         :model-value="scanProgress.progress"
-                        color="white"
+                        color="grey-lighten-3"
                         height="2"
                         rounded
                       ></v-progress-linear>
@@ -157,7 +157,7 @@ export default {
                       v-if="scanStatus !== 'scanning'"
                       @click="scan()"
                       variant="flat"
-                      color="white"
+                      color="grey-lighten-4"
                       block
                       class="text-none"
                     >
@@ -200,7 +200,7 @@ export default {
         <v-btn 
           icon 
           variant="text" 
-          :color="current_page === 'home' ? 'white' : 'grey-darken-1'"
+          :color="current_page === 'home' ? 'grey-lighten-4' : 'grey-darken-1'"
           @click="current_page = 'home'"
           size="small"
         >
@@ -210,7 +210,7 @@ export default {
         <v-btn 
           icon 
           variant="text" 
-          :color="current_page === 'location' ? 'white' : 'grey-darken-1'"
+          :color="current_page === 'location' ? 'grey-lighten-4' : 'grey-darken-1'"
           @click="current_page = 'location'"
           size="small"
         >
@@ -220,7 +220,7 @@ export default {
         <v-btn 
           icon 
           variant="text" 
-          :color="current_page === 'devices' ? 'white' : 'grey-darken-1'"
+          :color="current_page === 'devices' ? 'grey-lighten-4' : 'grey-darken-1'"
           @click="current_page = 'devices'"
           size="small"
         >
@@ -230,7 +230,7 @@ export default {
         <v-btn 
           icon 
           variant="text" 
-          :color="current_page === 'settings' ? 'white' : 'grey-darken-1'"
+          :color="current_page === 'settings' ? 'grey-lighten-4' : 'grey-darken-1'"
           @click="current_page = 'settings'"
           size="small"
         >
