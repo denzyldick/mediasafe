@@ -6,6 +6,7 @@ pub(crate) fn list_directories(config_path: &str) -> Vec<String> {
 }
 
 mod test {
+    use super::*;
 
     #[test]
     fn test_list_directories() {}

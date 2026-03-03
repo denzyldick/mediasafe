@@ -54,6 +54,8 @@ impl Config {
 }
 
 mod tests {
+    use super::*;
+
     #[test]
     fn new() {
         let config = Config::init("/home/denzyl/").unwrap();
