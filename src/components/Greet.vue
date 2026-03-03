@@ -10,7 +10,6 @@ export default {
 </script>
 
 <template>
-  <template>
   <v-container class="fill-height pb-16" fluid>
     <v-row justify="center" align="center">
       <v-col cols="12" md="10" lg="8">
@@ -102,4 +101,3 @@ export default {
   letter-spacing: 0.1em;
 }
 </style>
-</template>
