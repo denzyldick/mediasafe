@@ -140,7 +140,7 @@ export default {
       <v-main>
         <v-app-bar elevation="0" v-if="clean_install === false" class="border-subtle" color="background">
           <v-row class="px-4 align-center no-gutters">
-            <v-col cols="auto">
+            <v-col cols="auto" v-if="current_page === 'home'">
               <v-menu offset-y>
                 <template v-slot:activator="{ props }">
                   <v-btn 
@@ -213,7 +213,7 @@ export default {
                 rounded="lg"
                 class="search-autocomplete"
                 bg-color="rgba(255,255,255,0.03)"
-                :menu-props="{ contentClass: 'search-menu', elevation: 0 }"
+                :menu-props="{ contentClass: 'search-menu', elevation: 4 }"
               >
                 <template v-slot:prepend-item>
                   <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
@@ -227,14 +227,14 @@ export default {
                       <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
                     </v-avatar>
                   </div>
-                  <v-divider v-if="faces.length > 0" class="opacity-5 my-1"></v-divider>
+                  <v-divider v-if="faces.length > 0" class="opacity-10 my-1"></v-divider>
                 </template>
               </v-autocomplete>
             </v-col>
             
             <v-spacer v-if="current_page !== 'home'"></v-spacer>
 
-            <v-col cols="auto">
+            <v-col cols="auto" v-if="current_page === 'home'">
               <v-btn icon size="small" variant="text" color="#71717a">
                 <v-icon size="20">mdi-filter-variant</v-icon>
               </v-btn>
@@ -319,19 +319,28 @@ export default {
 }
 
 :global(.search-menu) {
-  background: #18181b !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  border-top: none !important;
+  background: #ffffff !important;
+  border: 1px solid #e4e4e7 !important;
   border-radius: 0 0 8px 8px !important;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
 }
 
 :global(.search-menu .v-list) {
   background: transparent !important;
-  color: #a1a1aa !important;
+  color: #27272a !important; /* Zinc-800 */
+}
+
+:global(.search-menu .v-list-item:hover) {
+  background: #f4f4f5 !important; /* Zinc-100 */
 }
 
 :global(.search-menu .v-list-item--active) {
-  color: #e4e4e7 !important;
+  background: #e4e4e7 !important; /* Zinc-200 */
+  color: #09090b !important;
+}
+
+:global(.search-menu .v-divider) {
+  border-color: #e4e4e7 !important;
 }
 
 .dock-container {
