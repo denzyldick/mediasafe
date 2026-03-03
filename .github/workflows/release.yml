@@ -59,6 +59,8 @@ jobs:
           
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-34 build-tools;34.0.0 ndk;26.1.10909125"
           
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -76,13 +78,13 @@ jobs:
       - name: Install npm deps
         run: npm install
 
-      # Wait for NDK setup, usually setup-android handles it or we map it from the runner
       - name: Add NDK to local.properties
-        run: echo "ndk.dir=$ANDROID_NDK_HOME" >> src-tauri/gen/android/local.properties || true
+        run: |
+          ANDROID_NDK_PATH="$ANDROID_HOME/ndk/26.1.10909125"
+          echo "ndk.dir=$ANDROID_NDK_PATH" >> src-tauri/gen/android/local.properties
+          echo "NDK_HOME=$ANDROID_NDK_PATH" >> $GITHUB_ENV
           
       - name: Build Android APK
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: npm run tauri android build -- --apk
         
       - name: Upload APK to Release
