@@ -17,13 +17,25 @@ open class RustPlugin : Plugin<Project> {
     override fun apply(project: Project) = with(project) {
         config = extensions.create("rust", Config::class.java)
 
-        val defaultAbiList = listOf("arm64-v8a", "x86_64");
+        val defaultAbiList = listOf("arm64-v8a", "x86_64")
+        val defaultArchList = listOf("arm64", "x86_64")
+        val defaultTargetsList = listOf("aarch64", "x86_64")
+
         val abiList = (findProperty("abiList") as? String)?.split(',') ?: defaultAbiList
-
-        val defaultArchList = listOf("arm64", "x86_64");
         val archList = (findProperty("archList") as? String)?.split(',') ?: defaultArchList
+        val targetsList = (findProperty("targetList") as? String)?.split(',') ?: defaultTargetsList
 
-        val targetsList = (findProperty("targetList") as? String)?.split(',') ?: listOf("aarch64", "x86_64")
+        // Find indices of architectures we want to support (64-bit only)
+        val supportedIndices = mutableListOf<Int>()
+        for (i in archList.indices) {
+            if (archList[i] == "arm64" || archList[i] == "x86_64") {
+                supportedIndices.add(i)
+            }
+        }
+
+        val finalAbiList = supportedIndices.map { abiList[it] }
+        val finalArchList = supportedIndices.map { archList[it] }
+        val finalTargetsList = supportedIndices.map { targetsList[it] }
 
         extensions.configure<ApplicationExtension> {
             @Suppress("UnstableApiUsage")
@@ -32,14 +44,14 @@ open class RustPlugin : Plugin<Project> {
                 create("universal") {
                     dimension = "abi"
                     ndk {
-                        abiFilters += abiList
+                        abiFilters += finalAbiList
                     }
                 }
-                defaultArchList.forEachIndexed { index, arch ->
+                finalArchList.forEachIndexed { index, arch ->
                     create(arch) {
                         dimension = "abi"
                         ndk {
-                            abiFilters.add(defaultAbiList[index])
+                            abiFilters.add(finalAbiList[index])
                         }
                     }
                 }
@@ -59,9 +71,9 @@ open class RustPlugin : Plugin<Project> {
 
                 tasks["mergeUniversal${profileCapitalized}JniLibFolders"].dependsOn(buildTask)
 
-                for (targetPair in targetsList.withIndex()) {
+                for (targetPair in finalTargetsList.withIndex()) {
                     val targetName = targetPair.value
-                    val targetArch = archList[targetPair.index]
+                    val targetArch = finalArchList[targetPair.index]
                     val targetArchCapitalized = targetArch.replaceFirstChar { it.uppercase() }
                     val targetBuildTask = project.tasks.maybeCreate(
                         "rustBuild$targetArchCapitalized$profileCapitalized",
