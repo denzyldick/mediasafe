@@ -11,7 +11,7 @@ import * as path from "@tauri-apps/api/path";
 export default {
   components: { DeviceList, Map, Photos, Setting, Greet },
   data: () => ({
-    clean_install: true,
+    clean_install: false,
     scanning: false,
     scanStatus: 'idle',
     scanProgress: {
@@ -46,6 +46,10 @@ export default {
     ],
   }),
   async mounted() {
+    // Check if we should show onboarding
+    const dbExists = await invoke("check_db_exists");
+    this.clean_install = !dbExists;
+
     // Load last scan time
     invoke("get_last_scan_time").then((time) => {
       if (time !== "Never") {

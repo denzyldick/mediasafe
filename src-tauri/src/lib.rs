@@ -77,6 +77,12 @@ async fn download_models(
     Ok(())
 }
 
+#[tauri::command]
+async fn check_db_exists(app: tauri::AppHandle) -> bool {
+    let path = app.path().app_config_dir().unwrap().join("database.sql");
+    path.exists()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -99,6 +105,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            check_db_exists,
             download_models,
             get_initial_state,
             set_initial_state,
