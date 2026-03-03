@@ -419,6 +419,14 @@ impl Database {
             Err(e) => println!("Failed to insert directory: {}", e),
         }
     }
+
+    pub fn path_exists(&self, path: &str) -> bool {
+        let mut stmt = self
+            .connection
+            .prepare("SELECT 1 FROM photo WHERE location = ?1")
+            .unwrap();
+        stmt.exists([path]).unwrap_or(false)
+    }
 }
 #[derive(Debug, Clone, Serialize)]
 pub struct Photo {

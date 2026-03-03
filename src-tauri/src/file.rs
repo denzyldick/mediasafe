@@ -60,6 +60,12 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 {
                     match fs::canonicalize(path) {
                         Ok(path) => {
+                            let path_str = path.display().to_string();
+                            if database.path_exists(&path_str) {
+                                emit_log(app, format!("Skipping duplicate: {}", path_str));
+                                continue;
+                            }
+
                             let id: String = rand::thread_rng()
                                 .sample_iter(&Alphanumeric)
                                 .take(7)
