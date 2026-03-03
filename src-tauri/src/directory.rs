@@ -5,6 +5,7 @@ pub(crate) fn list_directories(config_path: &str) -> Vec<String> {
     database.list_directories()
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
 

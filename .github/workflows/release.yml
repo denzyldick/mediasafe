@@ -10,8 +10,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-latest, ubuntu-24.04, windows-latest]
+        platform: [macos-latest, ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.platform }}
+    env:
+      ORT_STRATEGY: download
     
     steps:
       - name: Checkout repository
@@ -47,7 +49,9 @@ jobs:
           args: ${{ matrix.platform == 'ubuntu-22.04' && '--bundles appimage deb' || '' }}
 
   release-android:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
+    env:
+      ORT_STRATEGY: download
     steps:
       - uses: actions/checkout@v4
       
@@ -118,7 +122,9 @@ jobs:
         run: npm run tauri ios build || echo "iOS build skipped/failed due to missing certs. Please configure code signing."
 
   release-arch:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
+    env:
+      ORT_STRATEGY: download
     container:
       image: archlinux:base-devel
     steps:
