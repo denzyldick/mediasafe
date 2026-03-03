@@ -336,8 +336,8 @@ export default {
       this.$refs.form.resetValidation();
     },
     list_directories() {
-      console.log("Listing directories. Config path:", this.dataDir);
-      invoke("list_directories", { path: this.dataDir }).then((response) => {
+      console.log("Listing directories.");
+      invoke("list_directories").then((response) => {
         console.log("Raw response from list_directories:", response);
         const dirs = JSON.parse(response);
         console.log("Parsed directories:", dirs);
