@@ -3,32 +3,32 @@
     <v-row justify="center">
       <v-col cols="12" md="8" lg="6">
         <div class="d-flex align-center mb-6">
-          <v-icon color="#e4e4e7" size="x-large" class="mr-3 opacity-60">mdi-cog</v-icon>
-          <h1 class="text-h4 font-weight-bold text-zinc-primary">Settings</h1>
+          <v-icon color="#a1a1aa" size="x-large" class="mr-3 opacity-40">mdi-cog</v-icon>
+          <h1 class="text-h4 font-weight-bold text-zinc-secondary">Settings</h1>
         </div>
 
         <!-- Storage Config Card -->
         <v-card class="mb-6 border-subtle" variant="flat" rounded="lg">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="#a1a1aa" size="large" class="opacity-50">mdi-database</v-icon>
+              <v-icon color="#71717a" size="large" class="opacity-50">mdi-database</v-icon>
             </template>
-            <v-card-title class="text-h6 text-zinc-primary">Storage Configuration</v-card-title>
-            <v-card-subtitle class="text-zinc-secondary">Where your media database is stored</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-secondary">Storage Configuration</v-card-title>
+            <v-card-subtitle class="text-zinc-muted">Where your media database is stored</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
             <v-alert
               variant="flat"
               border="start"
-              class="mb-2 text-zinc-secondary"
-              style="background: rgba(255,255,255,0.02) !important; border-left: 2px solid rgba(255,255,255,0.1) !important;"
+              class="mb-2 text-zinc-muted"
+              style="background: rgba(255,255,255,0.01) !important; border-left: 2px solid rgba(255,255,255,0.05) !important;"
             >
               Your configuration database is located at:
-              <div class="font-weight-medium mt-1 text-body-2 text-zinc-primary opacity-80">{{ dataDir }}/database.sql</div>
+              <div class="font-weight-medium mt-1 text-body-2 text-zinc-secondary opacity-60">{{ dataDir }}/database.sql</div>
             </v-alert>
-            <div class="text-caption text-zinc-muted">
-              This is a standard <a href="https://www.sqlite.org" class="text-decoration-none font-weight-bold text-zinc-secondary opacity-80">SQLite</a> file.
+            <div class="text-caption text-zinc-muted opacity-60">
+              This is a standard <a href="https://www.sqlite.org" class="text-decoration-none font-weight-bold text-zinc-muted opacity-80">SQLite</a> file.
             </div>
           </v-card-text>
         </v-card>
@@ -37,25 +37,25 @@
         <v-card variant="flat" rounded="lg" class="mb-6 border-subtle">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="#a1a1aa" size="large" class="opacity-50">mdi-image-multiple</v-icon>
+              <v-icon color="#71717a" size="large" class="opacity-50">mdi-image-multiple</v-icon>
             </template>
-            <v-card-title class="text-h6 text-zinc-primary">Media Library</v-card-title>
-            <v-card-subtitle class="text-zinc-secondary">Manage folders</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-secondary">Media Library</v-card-title>
+            <v-card-subtitle class="text-zinc-muted">Manage folders</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
             <v-row class="align-center mb-2 mt-2">
               <v-col>
-                <div class="text-subtitle-1 font-weight-medium text-zinc-primary">Watched Folders</div>
+                <div class="text-subtitle-1 font-weight-medium text-zinc-secondary">Watched Folders</div>
               </v-col>
               <v-col cols="auto">
                  <v-btn
-                  color="#e4e4e7"
+                  color="#a1a1aa"
                   prepend-icon="mdi-folder-plus"
                   variant="outlined"
                   @click="select_directory"
-                  class="text-none border-subtle"
-                  style="color: #e4e4e7 !important;"
+                  class="text-none border-subtle opacity-70"
+                  style="color: #a1a1aa !important;"
                 >
                   Add Folder
                 </v-btn>
@@ -69,10 +69,10 @@
                     v-for="(directory, index) in directories"
                     :key="directory.value"
                     :title="directory.title"
-                    class="text-zinc-secondary"
+                    class="text-zinc-muted"
                   >
                     <template v-slot:prepend>
-                       <v-icon color="#a1a1aa" class="opacity-30">mdi-folder</v-icon>
+                       <v-icon color="#71717a" class="opacity-30">mdi-folder</v-icon>
                     </template>
                     
                     <template v-slot:append>
@@ -83,14 +83,14 @@
                         size="small"
                         @click="remove_directory(directory.value)"
                         title="Remove folder"
-                        class="opacity-40"
+                        class="opacity-30"
                       ></v-btn>
                     </template>
                      <v-divider v-if="index < directories.length - 1" class="opacity-5"></v-divider>
                   </v-list-item>
                 </v-list>
               </div>
-              <div v-else class="text-center py-8 text-zinc-muted border border-dashed rounded-lg opacity-40" style="border-color: rgba(255,255,255,0.1) !important;">
+              <div v-else class="text-center py-8 text-zinc-muted border border-dashed rounded-lg opacity-30" style="border-color: rgba(255,255,255,0.05) !important;">
                 <div>No folders added yet.</div>
               </div>
             </v-expand-transition>
@@ -101,13 +101,13 @@
           <v-card-actions class="pa-4">
              <v-spacer></v-spacer>
              <v-btn
-              color="#e4e4e7"
+              color="#a1a1aa"
               size="large"
               variant="flat"
               :disabled="directories.length === 0"
               @click="$emit('done')"
               class="text-none px-8"
-              style="background: #27272a !important; color: #e4e4e7 !important;"
+              style="background: #27272a !important; color: #a1a1aa !important;"
             >
               Continue
             </v-btn>
@@ -119,24 +119,24 @@
         <v-card variant="flat" rounded="lg" class="mb-6 border-subtle">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="#a1a1aa" size="large" class="opacity-50">mdi-brain</v-icon>
+              <v-icon color="#71717a" size="large" class="opacity-50">mdi-brain</v-icon>
             </template>
-            <v-card-title class="text-h6 text-zinc-primary">AI Models</v-card-title>
-            <v-card-subtitle class="text-zinc-secondary">Offline detection & search</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-secondary">AI Models</v-card-title>
+            <v-card-subtitle class="text-zinc-muted">Offline detection & search</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
             <v-list lines="two" class="bg-transparent">
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="#e4e4e7"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="#a1a1aa"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-zinc-primary">CLIP Model</v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-muted">Smart search indexing</v-list-item-subtitle>
+                <v-list-item-title class="font-weight-bold text-zinc-secondary opacity-80">CLIP Model</v-list-item-title>
+                <v-list-item-subtitle class="text-zinc-muted opacity-60">Smart search indexing</v-list-item-subtitle>
                 <template v-if="downloadProgress.clip !== undefined">
                   <v-progress-linear
                     :model-value="(downloadProgress.clip.downloaded / downloadProgress.clip.total) * 100"
-                    color="#e4e4e7"
+                    color="#71717a"
                     height="2"
                     rounded
                     class="mt-2"
@@ -146,14 +146,14 @@
 
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="#e4e4e7"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="#a1a1aa"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-zinc-primary">UltraFace Model</v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-muted">Offline face detection</v-list-item-subtitle>
+                <v-list-item-title class="font-weight-bold text-zinc-secondary opacity-80">UltraFace Model</v-list-item-title>
+                <v-list-item-subtitle class="text-zinc-muted opacity-60">Offline face detection</v-list-item-subtitle>
                 <template v-if="downloadProgress.ultraface !== undefined">
                   <v-progress-linear
                     :model-value="(downloadProgress.ultraface.downloaded / downloadProgress.ultraface.total) * 100"
-                    color="#e4e4e7"
+                    color="#71717a"
                     height="2"
                     rounded
                     class="mt-2"
@@ -168,14 +168,14 @@
           <v-card-actions class="pa-4">
              <v-spacer></v-spacer>
              <v-btn
-              color="#e4e4e7"
+              color="#a1a1aa"
               variant="outlined"
               :disabled="selectedModels.length === 0 || isDownloading"
               :loading="isDownloading"
               @click="downloadModels"
               prepend-icon="mdi-download"
-              class="text-none border-subtle"
-              style="color: #e4e4e7 !important;"
+              class="text-none border-subtle opacity-70"
+              style="color: #a1a1aa !important;"
             >
               Download
             </v-btn>
