@@ -137,7 +137,7 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm git nodejs npm rustup webkit2gtk-4.1 libayatana-appindicator librsvg libxdo openssl sudo yarn
+          pacman -S --noconfirm git nodejs npm rustup webkit2gtk-4.1 libayatana-appindicator librsvg xdotool openssl sudo yarn
           
           # Create non-root user for makepkg (Tauri requirement)
           useradd -m -G wheel builder
