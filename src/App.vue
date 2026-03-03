@@ -223,7 +223,7 @@ export default {
                 rounded="lg"
                 class="search-autocomplete"
                 bg-color="rgba(255,255,255,0.03)"
-                :menu-props="{ contentClass: 'search-menu', elevation: 4 }"
+                :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%' }"
               >
                 <template v-slot:prepend-item>
                   <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
