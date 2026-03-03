@@ -1,5 +1,5 @@
 <script>
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, convertFileSrc } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import DeviceList from "./components/DeviceList.vue";
 import Map from "./components/Map.vue";
@@ -22,7 +22,10 @@ export default {
     },
     lastScanTime: 'Never',
     search: null,
-    current_page: "photos",
+    query: null,
+    objects: [],
+    faces: [],
+    current_page: "home",
     group: null,
     items: [
       {
@@ -50,6 +53,11 @@ export default {
         const date = new Date(timestamp * 1000);
         this.lastScanTime = date.toLocaleString();
       }
+    });
+
+    // Fetch faces for search
+    invoke("get_faces").then(response => {
+      this.faces = JSON.parse(response);
     });
     
     // Auto-scan disabled on load per user request
@@ -94,11 +102,34 @@ export default {
       this.scanning = true;
       await invoke("scan_files");
     },
+    list_objects: function (val) {
+      if (val && val.length > 0) {
+        invoke("list_objects", { query: val }).then(
+          function (response) {
+            this.objects = JSON.parse(response);
+          }.bind(this),
+        );
+      }
+    },
+    getFaceImageSrc(crop_path) {
+      if (!crop_path) return '';
+      const converted = convertFileSrc(crop_path);
+      if (converted === crop_path && crop_path.startsWith('/')) {
+         return `http://asset.localhost${encodeURI(crop_path)}`;
+      }
+      return converted;
+    },
+    addFaceToSearch(face) {
+      this.search = (this.search || '') ? this.search + ' ' + face.photo_id : face.photo_id;
+    },
   },
   watch: {
     group() {
       this.drawer = false;
     },
+    query(val) {
+      this.list_objects(val);
+    }
   },
 };
 </script>
@@ -107,8 +138,8 @@ export default {
   <v-app>
     <v-layout>
       <v-main>
-        <v-app-bar elevation="0" v-if="current_page === 'home' && clean_install === false" class="border-subtle" color="background">
-          <v-row class="px-4 align-center">
+        <v-app-bar elevation="0" v-if="clean_install === false" class="border-subtle" color="background">
+          <v-row class="px-4 align-center no-gutters">
             <v-col cols="auto">
               <v-menu offset-y>
                 <template v-slot:activator="{ props }">
@@ -121,8 +152,7 @@ export default {
                     class="text-none border-subtle"
                     style="color: #a1a1aa !important;"
                   >
-                    <v-icon start size="18">{{ scanStatus === 'scanning' ? 'mdi-reload mdi-spin' : 'mdi-magnify' }}</v-icon>
-                    {{ scanStatus === 'scanning' ? 'Scanning...' : 'Scan Library' }}
+                    <v-icon size="18">{{ scanStatus === 'scanning' ? 'mdi-reload mdi-spin' : 'mdi-sync' }}</v-icon>
                   </v-btn>
                 </template>
                 <v-card min-width="300" border class="mt-2 border-subtle">
@@ -168,14 +198,50 @@ export default {
                 </v-card>
               </v-menu>
             </v-col>
-            <v-spacer></v-spacer>
+
+            <v-col class="mx-4" v-if="current_page === 'home'">
+              <v-autocomplete
+                v-model="search"
+                v-model:search="query"
+                :items="objects"
+                prepend-inner-icon="mdi-magnify"
+                variant="solo-filled"
+                density="compact"
+                placeholder="Search memories..."
+                hide-details
+                flat
+                rounded="lg"
+                class="search-autocomplete"
+                bg-color="rgba(255,255,255,0.03)"
+                :menu-props="{ contentClass: 'search-menu', elevation: 0 }"
+              >
+                <template v-slot:prepend-item>
+                  <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
+                    <v-avatar
+                      v-for="face in faces"
+                      :key="face.face_id"
+                      size="40"
+                      class="cursor-pointer face-avatar"
+                      @click="addFaceToSearch(face)"
+                    >
+                      <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
+                    </v-avatar>
+                  </div>
+                  <v-divider v-if="faces.length > 0" class="opacity-5 my-1"></v-divider>
+                </template>
+              </v-autocomplete>
+            </v-col>
+            
+            <v-spacer v-if="current_page !== 'home'"></v-spacer>
+
             <v-col cols="auto">
               <v-btn icon size="small" variant="text" color="#71717a">
-                <v-icon>mdi-filter-variant</v-icon>
+                <v-icon size="20">mdi-filter-variant</v-icon>
               </v-btn>
             </v-col>
           </v-row>
         </v-app-bar>
+        
         <Greet v-if="clean_install" @new_device="
           clean_install = false;
         current_page = 'settings';
@@ -184,7 +250,7 @@ export default {
           current_page = 'devices';
           "></Greet>
 
-        <Photos v-if="current_page === 'home'" />
+        <Photos v-if="current_page === 'home'" :search-query="search" />
         <Map v-if="current_page === 'location'" />
         <DeviceList v-if="current_page === 'devices'" />
         <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />
@@ -243,6 +309,31 @@ export default {
 </template>
 
 <style scoped>
+.search-autocomplete :deep(.v-field__outline) {
+  display: none;
+}
+
+.search-autocomplete :deep(.v-field__input) {
+  font-size: 0.875rem;
+  color: #e4e4e7 !important;
+}
+
+:global(.search-menu) {
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-top: none !important;
+  border-radius: 0 0 8px 8px !important;
+}
+
+:global(.search-menu .v-list) {
+  background: transparent !important;
+  color: #a1a1aa !important;
+}
+
+:global(.search-menu .v-list-item--active) {
+  color: #e4e4e7 !important;
+}
+
 .dock-container {
   position: fixed;
   bottom: 0;
