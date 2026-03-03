@@ -4,6 +4,8 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+  release:
+    types: [published]
 
 jobs:
   release:
@@ -93,8 +95,9 @@ jobs:
         
       - name: Upload APK to Release
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.event_name == 'release'
         with:
+          tag_name: ${{ github.ref_name }}
           files: src-tauri/gen/android/app/build/outputs/apk/universal/release/*.apk
           
   release-ios:
@@ -131,7 +134,7 @@ jobs:
       - name: Install dependencies
         run: |
           pacman -Syu --noconfirm
-          pacman -S --noconfirm git nodejs npm rustup webkit2gtk sudo yarn
+          pacman -S --noconfirm git nodejs npm rustup webkit2gtk-4.1 libayatana-appindicator librsvg libxdo openssl sudo yarn
           
           # Create non-root user for makepkg (Tauri requirement)
           useradd -m -G wheel builder
@@ -150,7 +153,8 @@ jobs:
           
       - name: Upload Arch AppImage
         uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/')
+        if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch' || github.event_name == 'release'
         with:
+          tag_name: ${{ github.ref_name }}
           files: src-tauri/target/release/bundle/appimage/*.AppImage
 
