@@ -190,7 +190,7 @@ export default {
         <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />
       </v-main>
     </v-layout>
-    <div class="dock-container">
+    <div class="dock-container" v-if="!clean_install">
       <v-sheet
         class="dock d-flex justify-space-around align-center pa-2 border-subtle rounded-pill mb-8"
         elevation="0"
