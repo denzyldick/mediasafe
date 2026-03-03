@@ -135,176 +135,180 @@ export default {
 </script>
 
 <template>
-  <v-app>
-    <v-layout>
-      <v-main>
-        <v-app-bar elevation="0" v-if="clean_install === false" class="border-subtle" color="background">
-          <v-row class="px-4 align-center no-gutters">
-            <v-col cols="auto" v-if="current_page === 'home'">
-              <v-menu offset-y>
-                <template v-slot:activator="{ props }">
-                  <v-btn 
-                    v-bind="props"
-                    variant="outlined"
-                    color="#a1a1aa"
-                    :loading="scanStatus === 'scanning'"
-                    size="small"
-                    class="text-none border-subtle"
-                    style="color: #a1a1aa !important;"
-                  >
-                    <v-icon size="18">{{ scanStatus === 'scanning' ? 'mdi-reload mdi-spin' : 'mdi-sync' }}</v-icon>
-                  </v-btn>
-                </template>
-                <v-card min-width="300" border class="mt-2 border-subtle">
-                  <v-card-text>
-                    <div class="text-subtitle-2 mb-2 text-zinc-primary">Library Status</div>
-                    <div class="d-flex align-center mb-4">
-                      <v-chip 
-                        color="#27272a"
-                        size="x-small"
-                        variant="flat"
-                        class="mr-2 text-zinc-secondary"
-                      >
-                        {{ scanStatus === 'scanning' ? 'Active' : scanStatus === 'complete' ? 'Finished' : 'Ready' }}
-                      </v-chip>
-                      <span class="text-caption text-zinc-muted">{{ scanStatus.toUpperCase() }}</span>
-                    </div>
-                    
-                    <div v-if="scanStatus === 'scanning'" class="mb-4">
-                      <div class="text-caption mb-1 text-zinc-muted">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
-                      <v-progress-linear 
-                        :model-value="scanProgress.progress"
-                        color="#71717a"
-                        height="2"
-                        rounded
-                      ></v-progress-linear>
-                    </div>
-                    
-                    <div class="text-caption text-zinc-muted mb-4">
-                      Last update: {{ lastScanTime }}
-                    </div>
-                    
-                    <v-btn 
-                      v-if="scanStatus !== 'scanning'"
-                      @click="scan()"
-                      variant="flat"
-                      color="#27272a"
-                      block
-                      class="text-none text-zinc-primary"
-                    >
-                      Refresh Now
-                    </v-btn>
-                  </v-card-text>
-                </v-card>
-              </v-menu>
-            </v-col>
-
-            <v-col class="mx-4" v-if="current_page === 'home'">
-              <v-autocomplete
-                v-model="search"
-                v-model:search="query"
-                :items="objects"
-                prepend-inner-icon="mdi-magnify"
-                variant="solo-filled"
-                density="compact"
-                placeholder="Search memories..."
-                hide-details
-                flat
-                rounded="lg"
-                class="search-autocomplete"
-                bg-color="rgba(255,255,255,0.03)"
-                :menu-props="{ contentClass: 'search-menu', elevation: 4 }"
-              >
-                <template v-slot:prepend-item>
-                  <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
-                    <v-avatar
-                      v-for="face in faces"
-                      :key="face.face_id"
-                      size="40"
-                      class="cursor-pointer face-avatar"
-                      @click="addFaceToSearch(face)"
-                    >
-                      <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
-                    </v-avatar>
-                  </div>
-                  <v-divider v-if="faces.length > 0" class="opacity-10 my-1"></v-divider>
-                </template>
-              </v-autocomplete>
-            </v-col>
-            
-            <v-spacer v-if="current_page !== 'home'"></v-spacer>
-
-            <v-col cols="auto" v-if="current_page === 'home'">
-              <v-btn icon size="small" variant="text" color="#71717a">
-                <v-icon size="20">mdi-filter-variant</v-icon>
-              </v-btn>
-            </v-col>
-          </v-row>
-        </v-app-bar>
-        
-        <Greet v-if="clean_install" @new_device="
-          clean_install = false;
+    <v-app>
+      <!-- Onboarding Only -->
+      <Greet v-if="clean_install" @new_device="
+        clean_install = false;
         current_page = 'settings';
-        " @join_group="
-            clean_install = false;
-          current_page = 'devices';
-          "></Greet>
-
-        <Photos v-if="current_page === 'home'" :search-query="search" />
-        <Map v-if="current_page === 'location'" />
-        <DeviceList v-if="current_page === 'devices'" />
-        <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />
-      </v-main>
-    </v-layout>
-    <div class="dock-container" v-if="!clean_install">
-      <v-sheet
-        class="dock d-flex justify-space-around align-center pa-2 border-subtle rounded-pill mb-8"
-        elevation="0"
-        width="100%"
-        max-width="320"
-        color="rgba(24, 24, 27, 0.8)"
-      >
-        <v-btn 
-          icon 
-          variant="text" 
-          :color="current_page === 'home' ? '#e4e4e7' : '#52525b'"
-          @click="current_page = 'home'"
-          size="small"
-        >
-          <v-icon size="24">mdi-grid</v-icon>
-        </v-btn>
-
-        <v-btn 
-          icon 
-          variant="text" 
-          :color="current_page === 'location' ? '#e4e4e7' : '#52525b'"
-          @click="current_page = 'location'"
-          size="small"
-        >
-          <v-icon size="24">mdi-map-outline</v-icon>
-        </v-btn>
-
-        <v-btn 
-          icon 
-          variant="text" 
-          :color="current_page === 'devices' ? '#e4e4e7' : '#52525b'"
-          @click="current_page = 'devices'"
-          size="small"
-        >
-          <v-icon size="24">mdi-devices</v-icon>
-        </v-btn>
-
-        <v-btn 
-          icon 
-          variant="text" 
-          :color="current_page === 'settings' ? '#e4e4e7' : '#52525b'"
-          @click="current_page = 'settings'"
-          size="small"
-        >
-          <v-icon size="24">mdi-tune-variant</v-icon>
-        </v-btn>
-      </v-sheet>
-    </div>
+      " @join_group="
+        clean_install = false;
+        current_page = 'devices';
+      "></Greet>
+  
+      <!-- Main Application -->
+      <v-layout v-else>
+        <v-main>
+          <v-app-bar elevation="0" v-if="clean_install === false" class="border-subtle" color="background">
+            <v-row class="px-4 align-center no-gutters">
+              <v-col cols="auto" v-if="current_page === 'home'">
+                <v-menu offset-y>
+                  <template v-slot:activator="{ props }">
+                    <v-btn 
+                      v-bind="props"
+                      variant="outlined"
+                      color="#a1a1aa"
+                      :loading="scanStatus === 'scanning'"
+                      size="small"
+                      class="text-none border-subtle"
+                      style="color: #a1a1aa !important;"
+                    >
+                      <v-icon size="18">{{ scanStatus === 'scanning' ? 'mdi-reload mdi-spin' : 'mdi-sync' }}</v-icon>
+                    </v-btn>
+                  </template>
+                  <v-card min-width="300" border class="mt-2 border-subtle">
+                    <v-card-text>
+                      <div class="text-subtitle-2 mb-2 text-zinc-primary">Library Status</div>
+                      <div class="d-flex align-center mb-4">
+                        <v-chip 
+                          color="#27272a"
+                          size="x-small"
+                          variant="flat"
+                          class="mr-2 text-zinc-secondary"
+                        >
+                          {{ scanStatus === 'scanning' ? 'Active' : scanStatus === 'complete' ? 'Finished' : 'Ready' }}
+                        </v-chip>
+                        <span class="text-caption text-zinc-muted">{{ scanStatus.toUpperCase() }}</span>
+                      </div>
+                      
+                      <div v-if="scanStatus === 'scanning'" class="mb-4">
+                        <div class="text-caption mb-1 text-zinc-muted">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
+                        <v-progress-linear 
+                          :model-value="scanProgress.progress"
+                          color="#71717a"
+                          height="2"
+                          rounded
+                        ></v-progress-linear>
+                      </div>
+                      
+                      <div class="text-caption text-zinc-muted mb-4">
+                        Last update: {{ lastScanTime }}
+                      </div>
+                      
+                      <v-btn 
+                        v-if="scanStatus !== 'scanning'"
+                        @click="scan()"
+                        variant="flat"
+                        color="#27272a"
+                        block
+                        class="text-none text-zinc-primary"
+                      >
+                        Refresh Now
+                      </v-btn>
+                    </v-card-text>
+                  </v-card>
+                </v-menu>
+              </v-col>
+  
+              <v-col class="mx-4" v-if="current_page === 'home'">
+                <v-autocomplete
+                  v-model="search"
+                  v-model:search="query"
+                  :items="objects"
+                  prepend-inner-icon="mdi-magnify"
+                  variant="solo-filled"
+                  density="compact"
+                  placeholder="Search memories..."
+                  hide-details
+                  flat
+                  rounded="lg"
+                  class="search-autocomplete"
+                  bg-color="rgba(255,255,255,0.03)"
+                  :menu-props="{ contentClass: 'search-menu', elevation: 4 }"
+                >
+                  <template v-slot:prepend-item>
+                    <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
+                      <v-avatar
+                        v-for="face in faces"
+                        :key="face.face_id"
+                        size="40"
+                        class="cursor-pointer face-avatar"
+                        @click="addFaceToSearch(face)"
+                      >
+                        <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
+                      </v-avatar>
+                    </div>
+                    <v-divider v-if="faces.length > 0" class="opacity-10 my-1"></v-divider>
+                  </template>
+                </v-autocomplete>
+              </v-col>
+              
+              <v-spacer v-if="current_page !== 'home'"></v-spacer>
+  
+              <v-col cols="auto" v-if="current_page === 'home'">
+                <v-btn icon size="small" variant="text" color="#71717a">
+                  <v-icon size="20">mdi-filter-variant</v-icon>
+                </v-btn>
+              </v-col>
+            </v-row>
+          </v-app-bar>
+  
+          <Photos v-if="current_page === 'home'" :search-query="search" />
+          <Map v-if="current_page === 'location'" />
+          <DeviceList v-if="current_page === 'devices'" />
+          <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />
+        </v-main>
+  
+        <div class="dock-container">
+          <v-sheet
+            class="dock d-flex justify-space-around align-center pa-2 border-subtle rounded-pill mb-8"
+            elevation="0"
+            width="100%"
+            max-width="320"
+            color="rgba(24, 24, 27, 0.8)"
+          >
+            <v-btn 
+              icon 
+              variant="text" 
+              :color="current_page === 'home' ? '#e4e4e7' : '#52525b'"
+              @click="current_page = 'home'"
+              size="small"
+            >
+              <v-icon size="24">mdi-grid</v-icon>
+            </v-btn>
+  
+            <v-btn 
+              icon 
+              variant="text" 
+              :color="current_page === 'location' ? '#e4e4e7' : '#52525b'"
+              @click="current_page = 'location'"
+              size="small"
+            >
+              <v-icon size="24">mdi-map-outline</v-icon>
+            </v-btn>
+  
+            <v-btn 
+              icon 
+              variant="text" 
+              :color="current_page === 'devices' ? '#e4e4e7' : '#52525b'"
+              @click="current_page = 'devices'"
+              size="small"
+            >
+              <v-icon size="24">mdi-devices</v-icon>
+            </v-btn>
+  
+            <v-btn 
+              icon 
+              variant="text" 
+              :color="current_page === 'settings' ? '#e4e4e7' : '#52525b'"
+              @click="current_page = 'settings'"
+              size="small"
+            >
+              <v-icon size="24">mdi-tune-variant</v-icon>
+            </v-btn>
+          </v-sheet>
+        </div>
+      </v-layout>
+    </v-app>
   </v-app>
 </template>
 
