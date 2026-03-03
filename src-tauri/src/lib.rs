@@ -101,6 +101,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             download_models,
             get_initial_state,
+            set_initial_state,
             list_files,
             scan_files,
             get_last_scan_time,
@@ -109,6 +110,12 @@ pub fn run() {
             generate_dummy_data,
             toggle_favorite,
             get_faces,
+            list_directories,
+            add_directory,
+            remove_directory,
+            get_thumbnail,
+            list_objects,
+            join_network,
             server::generate_pairing_codes,
             server::hash_pairing_code,
             start_webrtc_session
