@@ -78,9 +78,16 @@ async fn download_models(
 }
 
 #[tauri::command]
-async fn check_db_exists(app: tauri::AppHandle) -> bool {
-    let path = app.path().app_config_dir().unwrap().join("database.sql");
-    path.exists()
+async fn is_initialized(app: tauri::AppHandle) -> bool {
+    let path = app
+        .path()
+        .app_config_dir()
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    let database = database::Database::new(&path);
+    !database.list_directories().is_empty()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -105,7 +112,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
-            check_db_exists,
+            is_initialized,
             download_models,
             get_initial_state,
             set_initial_state,

@@ -47,8 +47,8 @@ export default {
   }),
   async mounted() {
     // Check if we should show onboarding
-    const dbExists = await invoke("check_db_exists");
-    this.clean_install = !dbExists;
+    const initialized = await invoke("is_initialized");
+    this.clean_install = !initialized;
 
     // Load last scan time
     invoke("get_last_scan_time").then((time) => {
