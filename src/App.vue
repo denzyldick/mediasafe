@@ -318,7 +318,7 @@ export default {
 
 .search-autocomplete :deep(.v-field__input) {
   font-size: 0.875rem;
-  color: #e4e4e7 !important;
+  color: #f4f4f5 !important; /* Zinc-100 */
 }
 
 :global(.search-menu) {
