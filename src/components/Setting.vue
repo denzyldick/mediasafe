@@ -21,11 +21,11 @@
             <v-alert
               variant="flat"
               border="start"
-              class="mb-2 text-zinc-muted"
-              style="background: rgba(255,255,255,0.01) !important; border-left: 2px solid rgba(255,255,255,0.05) !important;"
+              class="mb-2 text-zinc-secondary"
+              style="background: rgba(255,255,255,0.01) !important; border-left: 2px solid rgba(255,255,255,0.1) !important;"
             >
               Your configuration database is located at:
-              <div class="font-weight-medium mt-1 text-body-2 text-zinc-secondary opacity-60">{{ dataDir }}/database.sql</div>
+              <div class="font-weight-medium mt-1 text-body-2 text-white">{{ dataDir }}/database.sql</div>
             </v-alert>
             <div class="text-caption text-zinc-muted opacity-60">
               This is a standard <a href="https://www.sqlite.org" class="text-decoration-none font-weight-bold text-zinc-muted opacity-80">SQLite</a> file.
