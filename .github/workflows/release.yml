@@ -47,7 +47,7 @@ jobs:
           args: ${{ matrix.platform == 'ubuntu-22.04' && '--bundles appimage deb' || '' }}
 
   release-android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       
@@ -118,7 +118,7 @@ jobs:
         run: npm run tauri ios build || echo "iOS build skipped/failed due to missing certs. Please configure code signing."
 
   release-arch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     container:
       image: archlinux:base-devel
     steps:
