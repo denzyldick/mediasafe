@@ -15,11 +15,11 @@ const vuetify = createVuetify({
       dark: {
         dark: true,
         colors: {
-          background: "#09090b", // Ultra-Deep Zinc/Charcoal
-          surface: "#18181b", // Elevated Zinc
-          primary: "#8b5cf6", // Vibrant Violet for modern pop
-          secondary: "#14b8a6", // Sleek Teal/Emerald contrast
-          accent: "#ec4899", // Neon Pink for micro interactions
+          background: "#09090b", // Deep Zinc
+          surface: "#09090b", 
+          primary: "#3f3f46", // Neutral Zinc-600
+          secondary: "#27272a", // Zinc-800
+          accent: "#ffffff",
           error: "#ef4444",
           info: "#3b82f6",
           success: "#22c55e",
@@ -30,17 +30,18 @@ const vuetify = createVuetify({
   },
   defaults: {
     global: {
-      fontFamily: "Outfit, sans-serif",
+      fontFamily: "'Inter', sans-serif",
     },
     VBtn: {
-      rounded: "lg",
+      rounded: "md",
       variant: "flat",
+      class: "text-none font-weight-medium",
     },
     VCard: {
-      rounded: "xl",
+      rounded: "lg",
       elevation: 0,
-      color: "rgba(24, 24, 27, 0.7)", // Matches new surface color with transparency
-      class: "glass-panel",
+      border: "1px solid rgba(255, 255, 255, 0.1)",
+      color: "#09090b",
     },
     VDialog: {
       cardProps: {

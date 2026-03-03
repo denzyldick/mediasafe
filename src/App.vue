@@ -107,62 +107,70 @@ export default {
   <v-app>
     <v-layout>
       <v-main>
-        <v-app-bar elevation="1" v-if="current_page === 'home' && clean_install === false">
-          <v-row>
-            <v-col md="3" sm="3" lg="3">
+        <v-app-bar elevation="0" v-if="current_page === 'home' && clean_install === false" border="b" color="background">
+          <v-row class="px-4 align-center">
+            <v-col cols="auto">
               <v-menu offset-y>
                 <template v-slot:activator="{ props }">
                   <v-btn 
                     v-bind="props"
-                    :color="scanStatus === 'scanning' ? 'green' : 'grey'"
+                    variant="outlined"
+                    :color="scanStatus === 'scanning' ? 'white' : 'grey-lighten-1'"
                     :loading="scanStatus === 'scanning'"
+                    size="small"
+                    class="text-none"
                   >
-                    <v-icon>{{ scanStatus === 'scanning' ? 'mdi-reload mdi-spin' : 'mdi-magnify' }}</v-icon>
-                    &nbsp;{{ scanStatus === 'scanning' ? 'Scanning...' : 'Scan' }}
+                    <v-icon start>{{ scanStatus === 'scanning' ? 'mdi-reload mdi-spin' : 'mdi-magnify' }}</v-icon>
+                    {{ scanStatus === 'scanning' ? 'Scanning...' : 'Scan Library' }}
                   </v-btn>
                 </template>
-                <v-card min-width="300">
+                <v-card min-width="300" border class="mt-2">
                   <v-card-text>
-                    <div class="text-subtitle-2 mb-2">Scan Status</div>
-                    <v-chip 
-                      :color="scanStatus === 'scanning' ? 'green' : scanStatus === 'complete' ? 'blue' : 'grey'"
-                      size="small"
-                      class="mb-3"
-                    >
-                      {{ scanStatus === 'scanning' ? 'Scanning' : scanStatus === 'complete' ? 'Complete' : 'Idle' }}
-                    </v-chip>
-                    
-                    <div v-if="scanStatus === 'scanning'" class="mb-3">
-                      <div class="text-caption mb-1">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
-                      <v-progress-linear 
-                        :model-value="scanProgress.progress"
-                        color="green"
-                        height="6"
-                        rounded
-                      ></v-progress-linear>
-                      <div class="text-caption mt-1 text-grey">{{ scanProgress.current_directory }}</div>
+                    <div class="text-subtitle-2 mb-2 text-white">Library Status</div>
+                    <div class="d-flex align-center mb-4">
+                      <v-chip 
+                        :color="scanStatus === 'scanning' ? 'white' : scanStatus === 'complete' ? 'white' : 'grey'"
+                        size="x-small"
+                        variant="flat"
+                        class="mr-2"
+                      >
+                        {{ scanStatus === 'scanning' ? 'Active' : scanStatus === 'complete' ? 'Finished' : 'Ready' }}
+                      </v-chip>
+                      <span class="text-caption text-grey">{{ scanStatus.toUpperCase() }}</span>
                     </div>
                     
-                    <div class="text-caption text-grey">
-                      Last scan: {{ lastScanTime }}
+                    <div v-if="scanStatus === 'scanning'" class="mb-4">
+                      <div class="text-caption mb-1 text-grey">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
+                      <v-progress-linear 
+                        :model-value="scanProgress.progress"
+                        color="white"
+                        height="2"
+                        rounded
+                      ></v-progress-linear>
+                    </div>
+                    
+                    <div class="text-caption text-grey mb-4">
+                      Last update: {{ lastScanTime }}
                     </div>
                     
                     <v-btn 
                       v-if="scanStatus !== 'scanning'"
                       @click="scan()"
-                      color="primary"
+                      variant="flat"
+                      color="white"
                       block
-                      class="mt-3"
+                      class="text-none"
                     >
-                      Start Scan
+                      Refresh Now
                     </v-btn>
                   </v-card-text>
                 </v-card>
               </v-menu>
             </v-col>
-            <v-col md="1" sm="1" lg="1">
-              <v-btn color="gray">
-                <v-icon>mdi-filter</v-icon>
+            <v-spacer></v-spacer>
+            <v-col cols="auto">
+              <v-btn icon size="small" variant="text" color="grey-lighten-1">
+                <v-icon>mdi-filter-variant</v-icon>
               </v-btn>
             </v-col>
           </v-row>
@@ -183,45 +191,50 @@ export default {
     </v-layout>
     <div class="dock-container">
       <v-sheet
-        class="dock glass-panel d-flex justify-space-around align-center pa-2 rounded-xl mb-6"
+        class="dock d-flex justify-space-around align-center pa-2 border rounded-pill mb-8"
         elevation="0"
         width="100%"
-        max-width="400"
+        max-width="320"
+        color="rgba(9, 9, 11, 0.8)"
       >
         <v-btn 
           icon 
           variant="text" 
-          :color="current_page === 'home' ? 'primary' : 'grey-lighten-1'"
+          :color="current_page === 'home' ? 'white' : 'grey-darken-1'"
           @click="current_page = 'home'"
+          size="small"
         >
-          <v-icon size="large">mdi-image-multiple</v-icon>
+          <v-icon size="24">mdi-grid</v-icon>
         </v-btn>
 
         <v-btn 
           icon 
           variant="text" 
-          :color="current_page === 'location' ? 'primary' : 'grey-lighten-1'"
+          :color="current_page === 'location' ? 'white' : 'grey-darken-1'"
           @click="current_page = 'location'"
+          size="small"
         >
-          <v-icon size="large">mdi-map-marker</v-icon>
+          <v-icon size="24">mdi-map-outline</v-icon>
         </v-btn>
 
         <v-btn 
           icon 
           variant="text" 
-          :color="current_page === 'devices' ? 'primary' : 'grey-lighten-1'"
+          :color="current_page === 'devices' ? 'white' : 'grey-darken-1'"
           @click="current_page = 'devices'"
+          size="small"
         >
-          <v-icon size="large">mdi-laptop</v-icon>
+          <v-icon size="24">mdi-devices</v-icon>
         </v-btn>
 
         <v-btn 
           icon 
           variant="text" 
-          :color="current_page === 'settings' ? 'primary' : 'grey-lighten-1'"
+          :color="current_page === 'settings' ? 'white' : 'grey-darken-1'"
           @click="current_page = 'settings'"
+          size="small"
         >
-          <v-icon size="large">mdi-cog</v-icon>
+          <v-icon size="24">mdi-tune-variant</v-icon>
         </v-btn>
       </v-sheet>
     </div>

@@ -12,30 +12,34 @@
     
     <v-row>
       <v-col cols="12" sm="6" md="4" v-for="device in devices" :key="device.title">
-        <v-card class="glass-panel" height="100%">
+        <v-card variant="outlined" height="100%" class="device-card">
           <v-card-item>
             <template v-slot:prepend>
-              <v-avatar :color="device.color" variant="tonal" rounded="lg">
-                <v-icon>{{ device.icon }}</v-icon>
+              <v-avatar :color="device.color === 'blue' ? 'white' : 'grey-darken-3'" variant="flat" rounded="md" class="opacity-80">
+                <v-icon :color="device.color === 'blue' ? 'black' : 'white'">{{ device.icon }}</v-icon>
               </v-avatar>
             </template>
-            <v-card-title>{{ device.title }}</v-card-title>
-            <v-card-subtitle>{{ device.subtitle || 'Connected' }}</v-card-subtitle>
+            <v-card-title class="text-white text-subtitle-1 font-weight-bold">{{ device.title }}</v-card-title>
+            <v-card-subtitle class="text-grey text-caption">{{ device.subtitle || 'Connected' }}</v-card-subtitle>
             
             <template v-slot:append>
                <v-icon
                 v-if="device.up_to_date && !device.syncing"
-                color="success"
-                icon="mdi-check-circle"
+                color="white"
+                size="small"
+                class="opacity-50"
+                icon="mdi-check-circle-outline"
               ></v-icon>
               <v-icon
                 v-if="!device.up_to_date && !device.syncing"
-                color="warning"
-                icon="mdi-alert-circle"
+                color="grey"
+                size="small"
+                icon="mdi-alert-circle-outline"
               ></v-icon>
               <v-icon
                 v-if="device.syncing"
-                color="primary"
+                color="white"
+                size="small"
                 icon="mdi-loading"
                 class="mdi-spin"
               ></v-icon>
@@ -44,10 +48,10 @@
           
           <v-card-text>
                <div class="d-flex align-center mt-2">
-                   <div class="text-caption text-medium-emphasis">Status</div>
+                   <div class="text-caption text-grey opacity-70">Status</div>
                    <v-spacer></v-spacer>
-                   <v-chip size="x-small" :color="device.syncing ? 'primary' : device.up_to_date ? 'success' : 'warning'" variant="flat">
-                       {{ device.syncing ? 'Syncing...' : device.up_to_date ? 'Synced' : 'Attention' }}
+                   <v-chip size="x-small" :color="device.syncing ? 'white' : 'grey-darken-3'" variant="flat" class="text-none">
+                       {{ device.syncing ? 'Syncing' : device.up_to_date ? 'Up to date' : 'Update needed' }}
                    </v-chip>
                </div>
           </v-card-text>
@@ -56,6 +60,13 @@
     </v-row>
   </v-container>
 </template>
+
+<style scoped>
+.device-card {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: #09090b !important;
+}
+</style>
 
 <script>
 import { invoke } from "@tauri-apps/api/core";

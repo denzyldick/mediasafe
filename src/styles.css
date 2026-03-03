@@ -18,24 +18,8 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  /* Premium modern gradient background animated slightly */
-  background: radial-gradient(circle at top left, rgba(139, 92, 246, 0.15), transparent 40%),
-    radial-gradient(circle at bottom right, rgba(20, 184, 166, 0.1), transparent 40%);
   background-color: #09090b;
   background-attachment: fixed;
-  animation: pulse-bg 15s ease-in-out infinite alternate;
-}
-
-@keyframes pulse-bg {
-  0% {
-    background-size: 100% 100%;
-    background-position: 0% 0%;
-  }
-
-  100% {
-    background-size: 120% 120%;
-    background-position: 100% 100%;
-  }
 }
 
 .container {
@@ -79,16 +63,15 @@ h1 {
 
 input,
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   padding: 0.6em 1.2em;
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  color: #0f0f0f;
-  background-color: #ffffff;
-  transition: border-color 0.25s;
-  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+  color: #f4f4f5;
+  background-color: #18181b;
+  transition: all 0.2s ease;
 }
 
 button {
@@ -96,12 +79,12 @@ button {
 }
 
 button:hover {
-  border-color: #396cd8;
+  background-color: #27272a;
+  border-color: rgba(255, 255, 255, 0.2);
 }
 
 button:active {
-  border-color: #396cd8;
-  background-color: #e8e8e8;
+  background-color: #3f3f46;
 }
 
 input,
@@ -120,19 +103,15 @@ button {
   }
 }
 
-/* Modern Glassmorphism Utilities */
+/* Modern Minimalist Panels */
 .glass-panel {
-  background: rgba(24, 24, 27, 0.65) !important;
-  backdrop-filter: blur(24px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.08) !important;
-  box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2), 0 0 1px 0 rgba(0, 0, 0, 0.5) !important;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  background: #09090b !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  transition: all 0.2s ease;
 }
 
 .glass-panel:hover {
-  border-color: rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.3), 0 0 1px 0 rgba(0, 0, 0, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 /* Hide scrollbars for a cleaner app feel */
