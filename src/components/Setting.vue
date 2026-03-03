@@ -21,7 +21,7 @@
             <v-alert
               variant="flat"
               border="start"
-              class="mb-2 text-zinc-secondary"
+              class="mb-2 text-zinc-primary"
               style="background: rgba(255,255,255,0.01) !important; border-left: 2px solid rgba(255,255,255,0.1) !important;"
             >
               Your configuration database is located at:
