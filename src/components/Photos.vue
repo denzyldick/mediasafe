@@ -346,15 +346,13 @@ export default {
 .sticky-header {
   position: sticky;
   top: 0;
-  background: rgba(9, 9, 11, 0.9);
-  backdrop-filter: blur(8px);
+  background: transparent;
   z-index: 5;
   margin-left: -20px;
   margin-right: -20px;
   padding-left: 20px;
   padding-top: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .bulk-toolbar-container {

@@ -211,7 +211,7 @@ export default {
 
     <!-- Main Application -->
     <v-layout v-else>
-      <v-app-bar elevation="0" v-if="clean_install === false && current_page === 'home'" class="border-subtle" color="background">
+      <v-app-bar elevation="0" v-if="clean_install === false && current_page === 'home'" color="transparent">
         <v-row class="px-4 align-center no-gutters">
           <v-col cols="auto" v-if="current_page === 'home'">
             <v-menu offset-y>
