@@ -178,7 +178,10 @@ export default {
         if (entries[0].isIntersecting && !this.loading && !this.allLoaded) {
           this.list_files();
         }
-      }, { threshold: 0.1 });
+      }, { 
+        threshold: 0.01,
+        rootMargin: '400px' // Load when sentinel is within 400px of viewport
+      });
       
       const sentinel = document.getElementById('scroll-sentinel');
       if (sentinel) this.observer.observe(sentinel);
@@ -209,7 +212,7 @@ export default {
         if (this.paging.offset === 0) {
           this.images = new_images;
         } else {
-          this.images = this.images.concat(new_images);
+          this.images.push(...new_images);
         }
         
         if (!this.isPersonFilter) {

@@ -102,6 +102,7 @@ export default {
   position: relative;
   transition: all 0.2s ease;
   border: 2px solid transparent;
+  will-change: transform, border-color;
 }
 
 .in-selection-mode {
@@ -127,6 +128,7 @@ img {
   object-fit: cover;
   object-position: center;
   transition: transform 0.3s ease;
+  will-change: transform;
 }
 
 .image-container:not(.in-selection-mode):hover img {
