@@ -23,8 +23,8 @@ export default {
     },
     indexingCount: 0,
     lastScanTime: 'Never',
-    search: null,
-    query: null,
+    search: '',
+    query: '',
     objects: [],
     faces: [],
     filters: {
@@ -306,14 +306,15 @@ export default {
               prepend-inner-icon="mdi-magnify"
               variant="solo-filled"
               density="compact"
-                placeholder="Search memories..."
-                hide-details
-                flat
-                rounded="lg"
-                class="search-autocomplete flex-grow-1"
-                bg-color="rgba(255,255,255,0.03)"
-                :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%' }"
-              >
+              placeholder="Search memories..."
+              hide-details
+              flat
+              rounded="lg"
+              class="search-autocomplete flex-grow-1"
+              bg-color="rgba(0,0,0,0.05)"
+              :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%', disabled: !objects.length && !faces.length }"
+              no-data-text=""
+            >
                 <template v-slot:prepend-item>
                   <v-list-subheader v-if="!query" class="text-zinc-muted text-uppercase tracking-widest text-caption py-2">Top Suggestions</v-list-subheader>
                   <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
@@ -473,7 +474,7 @@ export default {
 
 .search-autocomplete :deep(.v-field__input) {
   font-size: 0.875rem;
-  color: #f4f4f5 !important; /* Zinc-100 */
+  color: #18181b !important; /* Dark text for white background */
 }
 
 .custom-select :deep(.v-field__input) {
