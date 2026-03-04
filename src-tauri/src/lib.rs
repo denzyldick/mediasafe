@@ -104,6 +104,53 @@ async fn check_models(app: tauri::AppHandle) -> Vec<String> {
 }
 
 #[tauri::command]
+async fn get_people(app: tauri::AppHandle) -> String {
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
+    let database = database::Database::new(&path);
+    let people = database.get_people();
+    serde_json::to_string(&people).unwrap_or("[]".to_string())
+}
+
+#[tauri::command]
+async fn get_unnamed_faces(app: tauri::AppHandle) -> String {
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
+    let database = database::Database::new(&path);
+    let faces = database.get_unnamed_faces();
+    serde_json::to_string(&faces).unwrap_or("[]".to_string())
+}
+
+#[tauri::command]
+async fn assign_name_to_face(app: tauri::AppHandle, face_id: String, name: String) -> String {
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "".to_string(),
+    };
+    if path.is_empty() { return "".to_string(); }
+    let database = database::Database::new(&path);
+    database.assign_name_to_face(&face_id, &name)
+}
+
+#[tauri::command]
+async fn get_person_photos(app: tauri::AppHandle, person_id: String) -> String {
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
+    let database = database::Database::new(&path);
+    let photos = database.get_photos_for_person(&person_id);
+    serde_json::to_string(&photos).unwrap_or("[]".to_string())
+}
+
+#[tauri::command]
 async fn is_initialized(app: tauri::AppHandle) -> bool {
     let path = match app.path().app_config_dir() {
         Ok(p) => p.to_str().unwrap_or_default().to_string(),
@@ -138,6 +185,10 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             check_models,
             is_initialized,
+            get_people,
+            get_unnamed_faces,
+            assign_name_to_face,
+            get_person_photos,
             download_models,
             get_initial_state,
             set_initial_state,

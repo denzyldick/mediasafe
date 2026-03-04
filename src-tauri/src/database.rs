@@ -76,7 +76,16 @@ impl Database {
             "CREATE TABLE IF NOT EXISTS faces (
                 photo_id STRING,
                 face_id STRING PRIMARY KEY,
-                crop_path STRING
+                crop_path STRING,
+                person_id STRING
+            );",
+            (),
+        );
+
+        let _ = conn.execute(
+            "CREATE TABLE IF NOT EXISTS people (
+                id STRING PRIMARY KEY,
+                name STRING
             );",
             (),
         );
@@ -313,12 +322,13 @@ impl Database {
 
     pub fn get_all_faces(&self) -> Vec<Face> {
         let mut faces = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path FROM faces GROUP BY face_id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id FROM faces GROUP BY face_id") {
             let iter = stmt.query_map([], |row| {
                 Ok(Face {
                     photo_id: row.get(0)?,
                     face_id: row.get(1)?,
                     crop_path: row.get(2)?,
+                    person_id: row.get(3).ok(),
                 })
             });
             if let Ok(iter) = iter {
@@ -330,6 +340,107 @@ impl Database {
             }
         }
         faces
+    }
+
+    pub fn get_people(&self) -> Vec<PersonWithFace> {
+        let mut people = Vec::new();
+        let sql = "
+            SELECT p.id, p.name, f.crop_path, f.face_id
+            FROM people p
+            LEFT JOIN faces f ON p.id = f.person_id
+            GROUP BY p.id
+        ";
+        if let Ok(mut stmt) = self.connection.prepare(sql) {
+            let iter = stmt.query_map([], |row| {
+                Ok(PersonWithFace {
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    representative_crop: row.get(2).ok(),
+                    representative_face_id: row.get(3).ok(),
+                })
+            });
+            if let Ok(iter) = iter {
+                for p in iter {
+                    if let Ok(person) = p {
+                        people.push(person);
+                    }
+                }
+            }
+        }
+        people
+    }
+
+    pub fn assign_name_to_face(&self, face_id: &str, name: &str) -> String {
+        // Check if person already exists by name
+        let mut stmt = self.connection.prepare("SELECT id FROM people WHERE name = ?1").unwrap();
+        let person_id: Option<String> = stmt.query_row([name], |row| row.get(0)).ok();
+
+        let id = match person_id {
+            Some(existing_id) => existing_id,
+            None => {
+                let new_id = uuid::Uuid::new_v4().to_string();
+                let _ = self.connection.execute("INSERT INTO people (id, name) VALUES (?1, ?2)", (&new_id, name));
+                new_id
+            }
+        };
+
+        let _ = self.connection.execute("UPDATE faces SET person_id = ?1 WHERE face_id = ?2", (&id, face_id));
+        id
+    }
+
+    pub fn get_unnamed_faces(&self) -> Vec<Face> {
+        let mut faces = Vec::new();
+        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id FROM faces WHERE person_id IS NULL") {
+            let iter = stmt.query_map([], |row| {
+                Ok(Face {
+                    photo_id: row.get(0)?,
+                    face_id: row.get(1)?,
+                    crop_path: row.get(2)?,
+                    person_id: None,
+                })
+            });
+            if let Ok(iter) = iter {
+                for f in iter {
+                    if let Ok(face) = f {
+                        faces.push(face);
+                    }
+                }
+            }
+        }
+        faces
+    }
+
+    pub fn get_photos_for_person(&self, person_id: &str) -> Vec<Photo> {
+        let mut photos = Vec::new();
+        let sql = "
+            SELECT p.id, p.location, p.encoded, p.latitude, p.longitude
+            FROM photo p
+            JOIN faces f ON p.id = f.photo_id
+            WHERE f.person_id = ?1
+            GROUP BY p.id
+        ";
+        if let Ok(mut stmt) = self.connection.prepare(sql) {
+            let iter = stmt.query_map([person_id], |row| {
+                Ok(Photo {
+                    id: row.get(0)?,
+                    location: row.get(1)?,
+                    encoded: row.get(2)?,
+                    objects: HashMap::new(),
+                    properties: HashMap::new(),
+                    latitude: row.get(3).unwrap_or(0.0),
+                    longitude: row.get(4).unwrap_or(0.0),
+                    favorite: false, // Simplified for this view
+                })
+            });
+            if let Ok(iter) = iter {
+                for p in iter {
+                    if let Ok(photo) = p {
+                        photos.push(photo);
+                    }
+                }
+            }
+        }
+        photos
     }
 
     pub(crate) fn list_directories(&self) -> Vec<String> {
@@ -378,6 +489,15 @@ pub struct Face {
     pub photo_id: String,
     pub face_id: String,
     pub crop_path: String,
+    pub person_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PersonWithFace {
+    pub id: String,
+    pub name: String,
+    pub representative_crop: Option<String>,
+    pub representative_face_id: Option<String>,
 }
 //use image::io::Reader as ImageReader;
 //use image::{DynamicImage, GenericImageView};

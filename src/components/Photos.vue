@@ -69,6 +69,10 @@ export default {
     searchQuery: {
       type: String,
       default: "",
+    },
+    isPersonFilter: {
+      type: Boolean,
+      default: false,
     }
   },
   async created() {
@@ -79,7 +83,9 @@ export default {
     this.list_files();
   },
   mounted() {
-    this.setupInfiniteScroll();
+    if (!this.isPersonFilter) {
+      this.setupInfiniteScroll();
+    }
   },
   beforeUnmount() {
     if (this.observer) {
@@ -101,16 +107,22 @@ export default {
       if (this.loading) return;
       
       this.loading = true;
-      console.log("Listing files. Offset:", this.paging.offset, "Query:", this.searchQuery);
+      console.log("Listing files. Offset:", this.paging.offset, "Query:", this.searchQuery, "PersonFilter:", this.isPersonFilter);
       
       try {
-        const response = await invoke("list_files", {
-          offset: this.paging.offset,
-          limit: this.paging.limit,
-          query: this.searchQuery ?? "",
-          scan: false,
-          favoritesOnly: this.favoritesOnly,
-        });
+        let response;
+        if (this.isPersonFilter && this.searchQuery) {
+          response = await invoke("get_person_photos", { personId: this.searchQuery });
+          this.allLoaded = true; // person filter returns all at once for now
+        } else {
+          response = await invoke("list_files", {
+            offset: this.paging.offset,
+            limit: this.paging.limit,
+            query: this.searchQuery ?? "",
+            scan: false,
+            favoritesOnly: this.favoritesOnly,
+          });
+        }
         
         const new_images = JSON.parse(response);
         
@@ -120,10 +132,12 @@ export default {
           this.images = this.images.concat(new_images);
         }
         
-        if (new_images.length < this.paging.limit) {
-          this.allLoaded = true;
-        } else {
-          this.paging.offset += this.paging.limit;
+        if (!this.isPersonFilter) {
+          if (new_images.length < this.paging.limit) {
+            this.allLoaded = true;
+          } else {
+            this.paging.offset += this.paging.limit;
+          }
         }
       } catch (err) {
         console.error("Failed to list files:", err);

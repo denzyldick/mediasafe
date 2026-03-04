@@ -404,6 +404,7 @@ pub fn start_background_worker(_app: &AppHandle, config_path: String) -> Unbound
                                                 photo_id: photo_id.clone(),
                                                 face_id,
                                                 crop_path,
+                                                person_id: None,
                                             };
                                             db.store_face(db_face);
                                         }

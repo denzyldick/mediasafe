@@ -4,12 +4,13 @@ import { listen } from "@tauri-apps/api/event";
 import DeviceList from "./components/DeviceList.vue";
 import Map from "./components/Map.vue";
 import Photos from "./components/Photos.vue";
+import People from "./components/People.vue";
 import Setting from "./components/Setting.vue";
 import Greet from "./components/Greet.vue";
 import * as path from "@tauri-apps/api/path";
 
 export default {
-  components: { DeviceList, Map, Photos, Setting, Greet },
+  components: { DeviceList, Map, Photos, People, Setting, Greet },
   data: () => ({
     clean_install: false,
     scanning: false,
@@ -265,6 +266,7 @@ export default {
         </v-app-bar>
 
         <Photos v-if="current_page === 'home'" :search-query="search" />
+        <People v-if="current_page === 'people'" />
         <Map v-if="current_page === 'location'" />
         <DeviceList v-if="current_page === 'devices'" />
         <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />
@@ -275,7 +277,7 @@ export default {
           class="dock d-flex justify-space-around align-center pa-2 border-subtle rounded-pill mb-8"
           elevation="0"
           width="100%"
-          max-width="320"
+          max-width="380"
           color="rgba(24, 24, 27, 0.8)"
         >
           <v-btn 
@@ -286,6 +288,16 @@ export default {
             size="small"
           >
             <v-icon size="24">mdi-grid</v-icon>
+          </v-btn>
+
+          <v-btn 
+            icon 
+            variant="text" 
+            :color="current_page === 'people' ? '#e4e4e7' : '#52525b'"
+            @click="current_page = 'people'"
+            size="small"
+          >
+            <v-icon size="24">mdi-account-group-outline</v-icon>
           </v-btn>
 
           <v-btn 
