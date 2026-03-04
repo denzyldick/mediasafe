@@ -1,11 +1,5 @@
 <template>
   <div style="height: 100%; width: 100%; position: relative">
-    <div style="position: absolute; top: 10px; right: 10px; z-index: 1000">
-        <v-btn @click="generateDummy" variant="outlined" color="#a1a1aa" size="small" class="mr-2 text-none border-subtle" style="background: rgba(9,9,11,0.8) !important;">
-          Generate Test Points
-        </v-btn>
-    </div>
-
     <!-- Empty State Overlay -->
     <div v-if="photos.length === 0" class="map-empty-state">
       <div class="d-flex flex-column align-center justify-center h-100 px-6 text-center animate-fade-in">
@@ -134,11 +128,6 @@ export default {
             this.viewerOpen = true;
         }
     },
-    async generateDummy() {
-        const dataDir = await path.homeDir();
-        await invoke("generate_dummy_data", { path: dataDir });
-        await this.loadHeatmapData();
-    }
   }
 };
 </script>
