@@ -29,8 +29,14 @@ impl Database {
 
         // Check if photo table needs migration by checking if latitude exists
         if conn.prepare("SELECT latitude FROM photo LIMIT 1").is_err() {
-            println!("Detected old schema. Dropping photo table to migrate...");
+            println!("Detected old photo schema. Dropping photo table to migrate...");
             let _ = conn.execute("DROP TABLE IF EXISTS photo", ());
+        }
+
+        // Check if faces table needs migration by checking if encoded exists
+        if conn.prepare("SELECT encoded FROM faces LIMIT 1").is_err() {
+            println!("Detected old faces schema. Dropping faces table to migrate...");
+            let _ = conn.execute("DROP TABLE IF EXISTS faces", ());
         }
 
         let _ = conn.execute(

@@ -133,7 +133,7 @@ impl WebRtcClient {
                                     target: "peer".to_string(),
                                 };
                                 if let Ok(msg_str) = serde_json::to_string(&msg) {
-                                    write_ice
+                                    let _ = write_ice
                                         .lock()
                                         .await
                                         .send(Message::Text(Utf8Bytes::from(msg_str)))

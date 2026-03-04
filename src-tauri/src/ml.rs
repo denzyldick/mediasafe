@@ -8,24 +8,10 @@ use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tauri::Emitter;
-use std::collections::HashMap;
 
 pub struct MlContext {
     pub tx: std::sync::Mutex<UnboundedSender<String>>,
     pub pending_count: Arc<AtomicUsize>,
-}
-
-async fn download_file(
-    url: &str,
-    path: &Path,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    if path.exists() {
-        return Ok(());
-    }
-    println!("Downloading {} to {:?}", url, path);
-    let bytes = reqwest::get(url).await?.bytes().await?;
-    fs::write(path, bytes)?;
-    Ok(())
 }
 
 pub fn start_background_worker(app: &AppHandle, config_path: String) -> (UnboundedSender<String>, Arc<AtomicUsize>) {
@@ -64,9 +50,9 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
         // Initialize ONNX Sessions
         let _ = ort::init().with_name("mediasafe").commit();
 
-        let mut clip_visual: Option<Session> = None;
-        let mut clip_text: Option<Session> = None;
-        let mut face_detector: Option<Session> = None;
+        let mut clip_visual: Option<Session>;
+        let mut clip_text: Option<Session>;
+        let mut face_detector: Option<Session>;
 
         macro_rules! load_models {
             () => {
@@ -171,7 +157,7 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
                             .map(|&x| x as i64)
                             .collect();
 
-                        if let (Ok(input_ids_arr), Ok(attention_mask_arr)) = (
+                        if let (Ok(input_ids_arr), Ok(_attention_mask_arr)) = (
                             ndarray::Array2::from_shape_vec((1, input_ids.len()), input_ids),
                             ndarray::Array2::from_shape_vec((1, attention_mask.len()), attention_mask),
                         ) {
@@ -241,9 +227,7 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
             }
 
             if !photo_loc.is_empty() && Path::new(&photo_loc).exists() {
-                if let (Some(ref mut visual_model), Some(ref mut text_model)) =
-                    (&mut clip_visual, &mut clip_text)
-                {
+                if let Some(ref mut visual_model) = clip_visual {
                     if let Ok(img) = image::open(&photo_loc) {
                         let img = img.to_rgb8();
                         let resized = image::imageops::resize(
