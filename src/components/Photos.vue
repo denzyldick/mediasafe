@@ -1,13 +1,5 @@
 <template>
   <div class="photos-container">
-    <!-- View Controls -->
-    <div class="d-flex align-center justify-end mb-6" v-if="images.length > 0">
-      <v-btn-toggle v-model="viewMode" mandatory variant="outlined" density="compact" class="border-subtle rounded-lg overflow-hidden">
-        <v-btn value="grid" size="small" icon="mdi-grid" class="text-none"></v-btn>
-        <v-btn value="monthly" size="small" icon="mdi-calendar-month" class="text-none"></v-btn>
-      </v-btn-toggle>
-    </div>
-
     <!-- Bulk Actions Toolbar -->
     <v-fade-transition>
       <div v-if="selectedIds.length > 0" class="bulk-toolbar-container">
@@ -39,24 +31,8 @@
       </div>
     </v-fade-transition>
 
-    <!-- Standard Grid View -->
-    <div v-if="images.length > 0 && viewMode === 'grid'">
-      <div class="grid">
-        <Image
-          v-for="(image, index) in images"
-          v-bind:key="image.id"
-          :path="image"
-          :selected="selectedIds.includes(image.id)"
-          :selection-mode="selectedIds.length > 0"
-          @click="openViewer(index)"
-          @select="toggleSelection"
-          @toggle-favorite="handleToggleFavorite"
-        />
-      </div>
-    </div>
-
     <!-- Monthly Grouped View -->
-    <div v-if="images.length > 0 && viewMode === 'monthly'">
+    <div v-if="images.length > 0">
       <div v-for="(group, month) in groupedImages" :key="month" class="mb-10">
         <div class="text-h6 font-weight-bold text-black mb-4 sticky-header px-2">
           {{ month }}
@@ -138,7 +114,6 @@ export default {
   data: () => ({
     loading: false,
     allLoaded: false,
-    viewMode: 'monthly', // Default to monthly gallery view
     paging: {
       offset: 0,
       limit: 50,
