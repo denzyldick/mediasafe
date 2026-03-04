@@ -78,6 +78,32 @@ async fn download_models(
 }
 
 #[tauri::command]
+async fn check_models(app: tauri::AppHandle) -> Vec<String> {
+    let app_config_dir = match app.path().app_config_dir() {
+        Ok(p) => p,
+        Err(_) => return Vec::new(),
+    };
+    let models_dir = app_config_dir.join("models");
+    let mut downloaded = Vec::new();
+
+    let clip_files = vec!["clip-vit-base-patch32-visual.onnx", "clip-vit-base-patch32-text.onnx", "tokenizer.json"];
+    let mut clip_ok = true;
+    for file in clip_files {
+        if !models_dir.join(file).exists() {
+            clip_ok = false;
+            break;
+        }
+    }
+    if clip_ok { downloaded.push("clip".to_string()); }
+
+    if models_dir.join("version-RFB-320.onnx").exists() {
+        downloaded.push("ultraface".to_string());
+    }
+
+    downloaded
+}
+
+#[tauri::command]
 async fn is_initialized(app: tauri::AppHandle) -> bool {
     let path = match app.path().app_config_dir() {
         Ok(p) => p.to_str().unwrap_or_default().to_string(),
@@ -110,6 +136,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            check_models,
             is_initialized,
             download_models,
             get_initial_state,

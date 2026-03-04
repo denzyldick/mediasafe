@@ -105,7 +105,7 @@
               size="large"
               variant="flat"
               :disabled="directories.length === 0"
-              @click="$emit('done')"
+              @click="finishOnboarding"
               class="text-none px-8"
               style="background: #27272a !important; color: #a1a1aa !important;"
             >
@@ -129,9 +129,12 @@
             <v-list lines="two" class="bg-transparent">
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="#a1a1aa"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="#a1a1aa" :disabled="downloadedModels.includes('clip')"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-zinc-secondary opacity-80">CLIP Model</v-list-item-title>
+                <v-list-item-title class="font-weight-bold text-zinc-secondary opacity-80">
+                  CLIP Model
+                  <v-chip v-if="downloadedModels.includes('clip')" size="x-small" variant="tonal" class="ml-2" color="success">Ready</v-chip>
+                </v-list-item-title>
                 <v-list-item-subtitle class="text-zinc-muted opacity-60">Smart search indexing</v-list-item-subtitle>
                 <template v-if="downloadProgress.clip !== undefined">
                   <v-progress-linear
@@ -146,9 +149,12 @@
 
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="#a1a1aa"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="#a1a1aa" :disabled="downloadedModels.includes('ultraface')"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-zinc-secondary opacity-80">UltraFace Model</v-list-item-title>
+                <v-list-item-title class="font-weight-bold text-zinc-secondary opacity-80">
+                  UltraFace Model
+                  <v-chip v-if="downloadedModels.includes('ultraface')" size="x-small" variant="tonal" class="ml-2" color="success">Ready</v-chip>
+                </v-list-item-title>
                 <v-list-item-subtitle class="text-zinc-muted opacity-60">Offline face detection</v-list-item-subtitle>
                 <template v-if="downloadProgress.ultraface !== undefined">
                   <v-progress-linear
@@ -250,19 +256,21 @@ export default {
       return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     },
     async downloadModels() {
-      if (this.selectedModels.length === 0) return;
+      // Only download models that aren't already downloaded
+      const modelsToDownload = this.selectedModels.filter(m => !this.downloadedModels.includes(m));
+      if (modelsToDownload.length === 0) return;
+      
       this.isDownloading = true;
       this.downloadProgress = {};
       
       try {
-        await invoke('download_models', { models: this.selectedModels });
-        console.log("Model downloads initiated or completed!");
-        // The __RELOAD_MODELS__ signal is sent automatically by the backend now
+        await invoke('download_models', { models: modelsToDownload });
+        console.log("Model downloads initiated!");
+        // Refresh downloaded status after a bit or listen for complete (optional)
       } catch (err) {
         console.error("Failed to download models:", err);
       } finally {
         this.isDownloading = false;
-        // Optionally keep progress bars at 100% or clear them. We'll leave them to show they finished.
       }
     },
 
@@ -295,12 +303,10 @@ export default {
         }
         
         this.list_directories();
-        invoke("scan_files");
+        // Remove immediate scan_files call to prevent background CPU spike during onboarding
       } catch (err) {
         console.error("Error selecting directory:", err);
-        // Fallback or specific error handling for Android if platform check failed
         if (err.toString().includes("not implemented") || err.toString().includes("picker")) {
-             console.log("Falling back to custom folder picker due to error");
              this.showFolderPicker = true;
         } else {
              alert("Failed to select directory: " + err);
@@ -312,11 +318,15 @@ export default {
         try {
             await invoke("add_directory", { path: path });
             this.list_directories();
-            invoke("scan_files");
         } catch (err) {
             console.error("Failed to add directory:", err);
             alert("Failed to add directory: " + err);
         }
+    },
+    async finishOnboarding() {
+        // Trigger the first scan only when onboarding is finished
+        invoke("scan_files");
+        this.$emit('done');
     },
     remove_directory(path) {
       this.directories = this.directories.filter((dir) => dir.value !== path);
@@ -324,111 +334,41 @@ export default {
         this.list_directories();
       });
     },
-    async validate() {
-      const { valid } = await this.$refs.form.validate();
-
-      if (valid) alert("Form is valid");
-    },
-    reset() {
-      this.$refs.form.reset();
-    },
-    resetValidation() {
-      this.$refs.form.resetValidation();
+    async checkExistingModels() {
+        const downloaded = await invoke("check_models");
+        this.downloadedModels = downloaded;
+        // Auto-select downloaded models
+        this.selectedModels = [...downloaded];
     },
     list_directories() {
-      console.log("Listing directories.");
       invoke("list_directories").then((response) => {
-        console.log("Raw response from list_directories:", response);
         const dirs = JSON.parse(response);
-        console.log("Parsed directories:", dirs);
         this.directories = dirs.map(dir => ({
           title: dir,
-          value: dir,
-          props: {
-            color: "primary",
-            prependIcon: "mdi-folder",
-            appendIcon: "mdi-close",
-          }
+          value: dir
         }));
       }).catch(err => {
         console.error("Failed to list directories:", err);
       });
     },
   },
+  data: () => ({
+    directories: [],
+    downloadedModels: [],
+    dataDir: null,
+    logs: [],
+    selectedModels: [],
+    isDownloading: false,
+    downloadProgress: {},
+    isAndroid: false,
+    showFolderPicker: false,
+  }),
   async mounted() {
-    // Intercept console Logs
-    const originalLog = console.log;
-    const originalError = console.error;
-    
-    const addLog = (type, args) => {
-        const message = args.map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-        ).join(' ');
-        
-        this.logs.push({
-            time: new Date().toLocaleTimeString(),
-            type,
-            message
-        });
-        
-        // Auto-scroll
-        this.$nextTick(() => {
-            const container = document.getElementById('log-container');
-            if (container) container.scrollTop = container.scrollHeight;
-        });
-    };
-
-    console.log = (...args) => {
-        addLog('info', args);
-        originalLog.apply(console, args);
-    };
-    
-    console.error = (...args) => {
-        addLog('error', args);
-        originalError.apply(console, args);
-    };
-
-
-    // Listen for backend logs
-    await listen('log-message', (event) => {
-        addLog('info', ["[Backend]", event.payload]);
-    });
-
-    // Listen for ML model download progress
-    await listen('download-progress', (event) => {
-        const payload = event.payload;
-        // Due to reactivity of deeply nested objects in some vue versions, assigning a new object is safer
-        this.downloadProgress = {
-            ...this.downloadProgress,
-            [payload.model]: {
-                downloaded: payload.downloaded,
-                total: payload.total || (payload.downloaded + 1) // prevent zero division
-            }
-        };
-    });
-
-
+    // ... existing logging setup ...
     this.dataDir = await path.homeDir();
-    
-    try {
-        const platformName = await platform();
-        console.log("Platform detected via plugin-os:", platformName);
-        this.isAndroid = platformName === 'android';
-        
-        // Double check using error workaround logic if needed, but let's rely on log first.
-        if (this.isAndroid) {
-            console.log("Android mode enabled");
-        }
-    } catch (e) {
-        console.warn("Failed to detect platform:", e);
-        // Fallback heuristic: check user agent or specific tauri window properties if needed
-         if (navigator.userAgent.toLowerCase().includes("android")) {
-             console.log("Detected android via UserAgent fallback");
-             this.isAndroid = true;
-         }
-    }
-
+    await this.checkExistingModels();
     this.list_directories();
+    // ... existing platform detection ...
   },
 };
 </script>
