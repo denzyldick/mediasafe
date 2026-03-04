@@ -1,5 +1,13 @@
 <template>
   <div class="photos-container">
+    <!-- View Controls -->
+    <div class="d-flex align-center justify-end mb-6" v-if="images.length > 0">
+      <v-btn-toggle v-model="viewMode" mandatory variant="outlined" density="compact" class="border-subtle rounded-lg overflow-hidden">
+        <v-btn value="grid" size="small" icon="mdi-grid" class="text-none"></v-btn>
+        <v-btn value="monthly" size="small" icon="mdi-calendar-month" class="text-none"></v-btn>
+      </v-btn-toggle>
+    </div>
+
     <!-- Bulk Actions Toolbar -->
     <v-fade-transition>
       <div v-if="selectedIds.length > 0" class="bulk-toolbar-container">
@@ -31,17 +39,42 @@
       </div>
     </v-fade-transition>
 
-    <div class="grid" v-if="images.length > 0">
-      <Image
-        v-for="(image, index) in images"
-        v-bind:key="image.id"
-        :path="image"
-        :selected="selectedIds.includes(image.id)"
-        :selection-mode="selectedIds.length > 0"
-        @click="openViewer(index)"
-        @select="toggleSelection"
-        @toggle-favorite="handleToggleFavorite"
-      />
+    <!-- Standard Grid View -->
+    <div v-if="images.length > 0 && viewMode === 'grid'">
+      <div class="grid">
+        <Image
+          v-for="(image, index) in images"
+          v-bind:key="image.id"
+          :path="image"
+          :selected="selectedIds.includes(image.id)"
+          :selection-mode="selectedIds.length > 0"
+          @click="openViewer(index)"
+          @select="toggleSelection"
+          @toggle-favorite="handleToggleFavorite"
+        />
+      </div>
+    </div>
+
+    <!-- Monthly Grouped View -->
+    <div v-if="images.length > 0 && viewMode === 'monthly'">
+      <div v-for="(group, month) in groupedImages" :key="month" class="mb-10">
+        <div class="text-h6 font-weight-bold text-zinc-primary mb-4 sticky-header px-2">
+          {{ month }}
+          <span class="text-caption text-zinc-muted ml-2">{{ group.length }} photos</span>
+        </div>
+        <div class="grid">
+          <Image
+            v-for="image in group"
+            v-bind:key="image.id"
+            :path="image"
+            :selected="selectedIds.includes(image.id)"
+            :selection-mode="selectedIds.length > 0"
+            @click="openViewerByPhoto(image)"
+            @select="toggleSelection"
+            @toggle-favorite="handleToggleFavorite"
+          />
+        </div>
+      </div>
     </div>
 
     <!-- Empty States -->
@@ -105,6 +138,7 @@ export default {
   data: () => ({
     loading: false,
     allLoaded: false,
+    viewMode: 'monthly', // Default to monthly gallery view
     paging: {
       offset: 0,
       limit: 50,
@@ -116,6 +150,33 @@ export default {
     favoritesOnly: false,
     observer: null,
   }),
+  computed: {
+    groupedImages() {
+      const groups = {};
+      this.images.forEach(image => {
+        let date;
+        if (image.created) {
+          // EXIF format is usually YYYY:MM:DD HH:MM:SS
+          const parts = image.created.split(' ');
+          const dateParts = parts[0].split(':');
+          if (dateParts.length === 3) {
+            date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+          } else {
+            date = new Date(image.created);
+          }
+        } else {
+          date = new Date(); // Fallback
+        }
+
+        const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
+        if (!groups[month]) {
+          groups[month] = [];
+        }
+        groups[month].push(image);
+      });
+      return groups;
+    }
+  },
   props: {
     favorites: {
       type: Boolean,
@@ -246,6 +307,12 @@ export default {
       this.currentPhotoIndex = index;
       this.viewerOpen = true;
     },
+    openViewerByPhoto(photo) {
+      const index = this.images.findIndex(p => p.id === photo.id);
+      if (index !== -1) {
+        this.openViewer(index);
+      }
+    },
   },
   watch: {
     searchQuery(val) {
@@ -272,8 +339,22 @@ export default {
 
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 4px; /* Reduced gap for a tighter gallery look */
+}
+
+.sticky-header {
+  position: sticky;
+  top: 0;
+  background: rgba(9, 9, 11, 0.9);
+  backdrop-filter: blur(8px);
+  z-index: 5;
+  margin-left: -20px;
+  margin-right: -20px;
+  padding-left: 20px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .bulk-toolbar-container {

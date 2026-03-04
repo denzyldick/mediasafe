@@ -158,8 +158,8 @@ impl Database {
 
     pub fn store_photo(&self, photo: Photo) {
         let result = self.connection.execute(
-            "INSERT INTO photo(id, location, encoded, latitude, longitude) VALUES(?1, ?2, ?3, ?4, ?5 )",
-            (&photo.id, &photo.location, &photo.encoded, &photo.latitude, &photo.longitude),
+            "INSERT INTO photo(id, location, encoded, latitude, longitude, created) VALUES(?1, ?2, ?3, ?4, ?5, ?6)",
+            (&photo.id, &photo.location, &photo.encoded, &photo.latitude, &photo.longitude, &photo.created),
         );
 
         if result.is_ok() {
@@ -214,7 +214,8 @@ impl Database {
             "SELECT 
                 p.id, p.location, p.encoded, p.latitude, p.longitude,
                 prop.value as is_fav,
-                GROUP_CONCAT(o.class || ':' || o.probability) as tags
+                GROUP_CONCAT(o.class || ':' || o.probability) as tags,
+                p.created
              FROM photo p 
              LEFT JOIN properties prop ON p.id = prop.photo_id AND prop.key = 'favorite'
              LEFT JOIN object o ON p.id = o.photo_id 
@@ -271,6 +272,7 @@ impl Database {
             id: row.get(0)?,
             location: row.get(1)?,
             encoded: row.get(2)?,
+            created: row.get(7).unwrap_or_default(),
             objects,
             properties: HashMap::new(),
             latitude: row.get(3).unwrap_or(0.0),
@@ -302,13 +304,14 @@ impl Database {
 
     pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
         let mut photos = Vec::new();
-        let sql = "SELECT id, location, encoded, latitude, longitude FROM photo WHERE latitude != 0.0 AND longitude != 0.0";
+        let sql = "SELECT id, location, encoded, latitude, longitude, created FROM photo WHERE latitude != 0.0 AND longitude != 0.0";
         if let Ok(mut stmt) = self.connection.prepare(sql) {
             let iter = stmt.query_map([], |row| {
                 Ok(Photo {
                     id: row.get(0)?,
                     location: row.get(1)?,
                     encoded: row.get(2)?,
+                    created: row.get(5).unwrap_or_default(),
                     objects: HashMap::new(),
                     properties: HashMap::new(),
                     latitude: row.get(3).unwrap_or(0.0),
@@ -430,7 +433,7 @@ impl Database {
     pub fn get_photos_for_person(&self, person_id: &str) -> Vec<Photo> {
         let mut photos = Vec::new();
         let sql = "
-            SELECT p.id, p.location, p.encoded, p.latitude, p.longitude
+            SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created
             FROM photo p
             JOIN faces f ON p.id = f.photo_id
             WHERE f.person_id = ?1
@@ -442,6 +445,7 @@ impl Database {
                     id: row.get(0)?,
                     location: row.get(1)?,
                     encoded: row.get(2)?,
+                    created: row.get(5).unwrap_or_default(),
                     objects: HashMap::new(),
                     properties: HashMap::new(),
                     latitude: row.get(3).unwrap_or(0.0),
@@ -494,6 +498,7 @@ pub struct Photo {
     pub id: String,
     pub location: String,
     pub encoded: String,
+    pub created: String,
     pub objects: HashMap<String, f64>,
     pub properties: HashMap<String, String>,
     pub latitude: f64,

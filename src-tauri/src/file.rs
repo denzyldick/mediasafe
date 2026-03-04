@@ -68,11 +68,18 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
             let mut latitude = 0.0;
             let mut longitude = 0.0;
 
+            let mut created = String::new();
+
             let properties = match Reader::new().read_from_container(&mut buff) {
                 Ok(exif) => {
                     let mut props = HashMap::new();
                     for f in exif.fields() {
                         props.insert(f.tag.to_string(), f.display_value().to_string());
+                    }
+
+                    // Extract Created Date
+                    if let Some(date_field) = exif.get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY).or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY)) {
+                        created = format!("{}", date_field.display_value());
                     }
 
                     // Extract GPS Coordinates
@@ -108,6 +115,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 id: id.clone(),
                 encoded,
                 location: path.display().to_string(),
+                created,
                 objects: HashMap::new(),
                 properties,
                 latitude,
