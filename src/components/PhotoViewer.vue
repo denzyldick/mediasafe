@@ -3,16 +3,23 @@
     <v-card rounded="0" color="black" class="fill-height" style="overflow: hidden;">
       <!-- Main Viewer Area -->
       <div class="position-relative d-flex align-center justify-center h-100"
-           v-touch="{ left: () => next(), right: () => prev() }"
            :style="{ marginRight: (showInfo && !$vuetify.display.mobile) ? '350px' : '0' }">
         
+        <div class="touch-overlay" 
+             v-touch="{ 
+               left: () => next(), 
+               right: () => prev(),
+               down: () => close()
+             }">
+        </div>
+
         <v-btn icon="mdi-close" variant="text" color="white" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
 
-        <v-btn icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
+        <v-btn v-if="!$vuetify.display.mobile" icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
 
         <img v-if="currentPhoto" :src="currentPhotoSrc" class="viewer-image" />
 
-        <v-btn icon="mdi-chevron-right" variant="text" color="white" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
+        <v-btn v-if="!$vuetify.display.mobile" icon="mdi-chevron-right" variant="text" color="white" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
         
         <!-- Toggle Info Panel Button -->
         <v-btn
@@ -244,6 +251,15 @@ export default {
 </script>
 
 <style scoped>
+.touch-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+}
+
 .viewer-image {
   width: 100%;
   height: 100%;
