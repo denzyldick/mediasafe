@@ -1,46 +1,44 @@
 <template>
   <v-dialog v-model="visible" fullscreen transition="dialog-bottom-transition">
     <v-card rounded="0" color="black" class="fill-height" style="overflow: hidden;">
-      <!-- Main Viewer Area -->
-      <div class="position-relative d-flex align-center justify-center h-100"
-           :style="{ marginRight: (showInfo && !$vuetify.display.mobile) ? '350px' : '0' }">
-        
-        <div class="touch-overlay" 
-             v-touch="{ 
-               left: () => next(), 
-               right: () => prev(),
-               down: () => close()
-             }">
-        </div>
+      <v-layout class="fill-height">
+        <!-- Main Viewer Area -->
+        <v-main class="fill-height position-relative d-flex align-center justify-center p-0">
+          <div class="touch-overlay" 
+               v-touch="{ 
+                 left: () => next(), 
+                 right: () => prev(),
+                 down: () => close()
+               }">
+          </div>
 
-        <v-btn icon="mdi-close" variant="text" color="white" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
+          <v-btn icon="mdi-close" variant="text" color="white" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
 
-        <v-btn v-if="!isMobile" icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
+          <v-btn v-if="!isMobile" icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
 
-        <img v-if="currentPhoto" :src="currentPhotoSrc" class="viewer-image" />
+          <img v-if="currentPhoto" :src="currentPhotoSrc" class="viewer-image" />
 
-        <v-btn v-if="!isMobile" icon="mdi-chevron-right" variant="text" color="white" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
-        
-        <!-- Toggle Info Panel Button -->
-        <v-btn
-          icon="mdi-information-outline"
-          variant="text"
-          :color="showInfo ? '#e4e4e7' : 'white'"
-          style="position: absolute; bottom: 20px; right: 20px; z-index: 2000"
-          @click="showInfo = !showInfo"
-        ></v-btn>
-      </div>
+          <v-btn v-if="!isMobile" icon="mdi-chevron-right" variant="text" color="white" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
+          
+          <!-- Toggle Info Panel Button -->
+          <v-btn
+            icon="mdi-information-outline"
+            variant="text"
+            :color="showInfo ? '#e4e4e7' : 'white'"
+            style="position: absolute; bottom: 20px; right: 20px; z-index: 2000"
+            @click="showInfo = !showInfo"
+          ></v-btn>
+        </v-main>
 
-      <!-- Info Drawer -->
-      <v-navigation-drawer
-        v-model="showInfo"
-        location="right"
-        width="350"
-        temporary
-        color="#09090b"
-        class="border-s border-subtle"
-        style="border-left: 1px solid rgba(255,255,255,0.1) !important;"
-      >
+        <!-- Info Drawer -->
+        <v-navigation-drawer
+          v-model="showInfo"
+          location="right"
+          width="350"
+          color="#09090b"
+          class="border-s border-subtle"
+          style="border-left: 1px solid rgba(255,255,255,0.1) !important;"
+        >
         <v-toolbar color="transparent" density="compact">
           <v-toolbar-title class="text-zinc-primary text-subtitle-1 font-weight-bold">Metadata</v-toolbar-title>
           <v-spacer></v-spacer>
@@ -122,6 +120,7 @@
           </div>
         </v-list>
       </v-navigation-drawer>
+      </v-layout>
     </v-card>
   </v-dialog>
 </template>
