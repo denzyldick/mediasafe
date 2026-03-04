@@ -23,6 +23,7 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
 
     std::thread::spawn(move || {
         println!("Background ML worker started.");
+        let _ = app_handle.emit("log-message", "Background ML worker started.");
         
         macro_rules! emit_progress {
             () => {
@@ -56,36 +57,49 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
 
         macro_rules! load_models {
             () => {
+                let _ = app_handle.emit("log-message", "Loading AI models...");
                 clip_visual = match Session::builder() {
-                    Ok(b) => b
-                        .with_optimization_level(GraphOptimizationLevel::Level1)
-                        .unwrap()
-                        .with_intra_threads(1)
-                        .unwrap()
-                        .commit_from_file(&clip_visual_path)
-                        .ok(),
+                    Ok(b) => {
+                        let s = b
+                            .with_optimization_level(GraphOptimizationLevel::Level1)
+                            .unwrap()
+                            .with_intra_threads(1)
+                            .unwrap()
+                            .commit_from_file(&clip_visual_path)
+                            .ok();
+                        if s.is_some() { let _ = app_handle.emit("log-message", "CLIP Visual model loaded."); }
+                        s
+                    },
                     Err(_) => None,
                 };
 
                 clip_text = match Session::builder() {
-                    Ok(b) => b
-                        .with_optimization_level(GraphOptimizationLevel::Level1)
-                        .unwrap()
-                        .with_intra_threads(1)
-                        .unwrap()
-                        .commit_from_file(&clip_text_path)
-                        .ok(),
+                    Ok(b) => {
+                        let s = b
+                            .with_optimization_level(GraphOptimizationLevel::Level1)
+                            .unwrap()
+                            .with_intra_threads(1)
+                            .unwrap()
+                            .commit_from_file(&clip_text_path)
+                            .ok();
+                        if s.is_some() { let _ = app_handle.emit("log-message", "CLIP Text model loaded."); }
+                        s
+                    },
                     Err(_) => None,
                 };
 
                 face_detector = match Session::builder() {
-                    Ok(b) => b
-                        .with_optimization_level(GraphOptimizationLevel::Level1)
-                        .unwrap()
-                        .with_intra_threads(1)
-                        .unwrap()
-                        .commit_from_file(&ultraface_path)
-                        .ok(),
+                    Ok(b) => {
+                        let s = b
+                            .with_optimization_level(GraphOptimizationLevel::Level1)
+                            .unwrap()
+                            .with_intra_threads(1)
+                            .unwrap()
+                            .commit_from_file(&ultraface_path)
+                            .ok();
+                        if s.is_some() { let _ = app_handle.emit("log-message", "Face Detection model loaded."); }
+                        s
+                    },
                     Err(_) => None,
                 };
             }
@@ -228,6 +242,7 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
             }
 
             println!("ML Worker processing photo: {}", photo_id);
+            let _ = app_handle.emit("log-message", format!("AI indexing: processing photo {}", photo_id));
 
             // Query DB to find the photo location
             let mut photo_loc = String::new();
@@ -299,6 +314,7 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
                                             (&photo_id, class_name, &score.to_string()),
                                         );
                                     }
+                                    let _ = app_handle.emit("log-message", format!("AI indexing: indexed {} objects for {}", similarities.len().min(5), photo_id));
                                 }
                             }
                         }
@@ -378,12 +394,13 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
 
                                                     let db_face = Face {
                                                         photo_id: photo_id.clone(),
-                                                        face_id,
+                                                        face_id: face_id.clone(),
                                                         crop_path,
                                                         encoded,
                                                         person_id: None,
                                                     };
                                                     db.store_face(db_face);
+                                                    let _ = app_handle.emit("log-message", format!("AI indexing: detected face {} in {}", face_id, photo_id));
                                                 }
                                             }
                                         }

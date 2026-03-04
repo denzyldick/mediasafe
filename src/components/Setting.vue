@@ -443,7 +443,17 @@ export default {
     maxThreads: 8,
   }),
   async mounted() {
-    // ... existing logging setup ...
+    // Listen for background logs
+    listen("log-message", (event) => {
+      const log = {
+        time: new Date().toLocaleTimeString(),
+        message: event.payload,
+        type: event.payload.toLowerCase().includes("error") ? "error" : "info"
+      };
+      this.logs.unshift(log); // Show newest logs at the top
+      if (this.logs.length > 100) this.logs.pop(); // Keep last 100 logs
+    });
+
     this.dataDir = await path.homeDir();
     await this.checkExistingModels();
     await this.loadPerformanceConfig();
