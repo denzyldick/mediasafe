@@ -8,58 +8,39 @@
         </div>
         <div class="text-subtitle-1 text-zinc-secondary">Manage and name identified people</div>
       </div>
-      <v-btn
-        prepend-icon="mdi-face-recognition"
-        variant="outlined"
-        color="#a1a1aa"
-        class="text-none border-subtle"
-        @click="showUnnamed = !showUnnamed"
-      >
-        {{ showUnnamed ? 'View Named' : 'Name New Faces' }}
-      </v-btn>
     </div>
 
-    <!-- Identified People Grid -->
-    <v-row v-if="!showUnnamed">
-      <v-col v-if="people.length === 0" cols="12" class="text-center py-12">
-        <v-icon size="64" color="#71717a" class="mb-4 opacity-20">mdi-account-group-outline</v-icon>
-        <div class="text-zinc-muted">No people identified yet.</div>
-        <v-btn variant="text" color="white" class="mt-4 text-none" @click="showUnnamed = true">
-          Identify faces from your library
-        </v-btn>
-      </v-col>
-      
+    <!-- Unified People & Faces Grid -->
+    <v-row>
+      <!-- Named People First -->
       <v-col cols="6" sm="4" md="3" lg="2" v-for="person in people" :key="person.id">
         <v-card class="border-subtle text-center pt-4 pb-2 h-100" variant="flat" @click="viewPerson(person)">
           <v-avatar size="100" class="mx-auto mb-3 border-subtle">
-            <v-img :src="getFaceImageSrc(person.representative_crop, person.representative_crop_b64)"></v-img>
+            <v-img :src="getFaceImageSrc(person.representative_crop, person.encoded)"></v-img>
           </v-avatar>
-          <v-card-title class="text-subtitle-1 font-weight-bold text-zinc-primary px-2">
+          <v-card-title class="text-subtitle-1 font-weight-bold text-zinc-primary px-2 pb-0">
             {{ person.name }}
           </v-card-title>
+          <div class="text-caption text-zinc-muted pb-2">Identified</div>
         </v-card>
       </v-col>
-    </v-row>
 
-    <!-- Unnamed Faces Grid -->
-    <v-row v-else>
-      <v-col v-if="unnamedFaces.length === 0" cols="12" class="text-center py-12">
-        <v-icon size="64" color="#71717a" class="mb-4 opacity-20">mdi-face-recognition</v-icon>
-        <div class="text-zinc-muted">All detected faces have been named.</div>
-        <v-btn variant="text" color="white" class="mt-4 text-none" @click="showUnnamed = false">
-          Back to People
-        </v-btn>
-      </v-col>
-
+      <!-- Unnamed Faces -->
       <v-col cols="6" sm="4" md="3" lg="2" v-for="face in unnamedFaces" :key="face.face_id">
         <v-card class="border-subtle h-100" variant="flat">
-          <v-img :src="getFaceImageSrc(face.crop_path, face.crop_path_b64)" aspect-ratio="1" cover></v-img>
+          <v-img :src="getFaceImageSrc(face.crop_path, face.encoded)" aspect-ratio="1" cover></v-img>
           <v-card-actions class="pa-2">
-            <v-btn block size="small" variant="tonal" color="white" class="text-none" @click="promptName(face)">
-              Name
+            <v-btn block size="small" variant="flat" color="white" class="text-none font-weight-bold" @click="promptName(face)">
+              Who is this?
             </v-btn>
           </v-card-actions>
         </v-card>
+      </v-col>
+
+      <!-- Empty State -->
+      <v-col v-if="people.length === 0 && unnamedFaces.length === 0" cols="12" class="text-center py-12">
+        <v-icon size="64" color="#71717a" class="mb-4 opacity-20">mdi-face-recognition</v-icon>
+        <div class="text-zinc-muted">No faces detected yet. Try syncing your library!</div>
       </v-col>
     </v-row>
 
