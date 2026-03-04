@@ -303,7 +303,7 @@ export default {
           </v-row>
         </v-app-bar>
 
-        <Photos v-if="current_page === 'home'" :search-query="search" />
+        <Photos v-if="current_page === 'home'" :search-query="search" @clear-search="search = null" />
         <People v-if="current_page === 'people'" />
         <Map v-if="current_page === 'location'" />
         <DeviceList v-if="current_page === 'devices'" />

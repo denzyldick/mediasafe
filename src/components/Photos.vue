@@ -1,6 +1,6 @@
 <template>
   <div class="photos-container">
-    <div class="grid">
+    <div class="grid" v-if="images.length > 0">
       <Image
         v-for="(image, index) in images"
         v-bind:key="image.id"
@@ -8,6 +8,26 @@
         @click="openViewer(index)"
         @toggle-favorite="handleToggleFavorite"
       />
+    </div>
+
+    <!-- Empty States -->
+    <div v-else-if="!loading" class="d-flex flex-column align-center justify-center py-16 text-center animate-fade-in">
+      <template v-if="searchQuery">
+        <v-icon size="64" color="#3f3f46" class="mb-4">mdi-text-search-variant</v-icon>
+        <div class="text-h6 text-zinc-secondary font-weight-bold">No results found</div>
+        <p class="text-body-2 text-zinc-muted mt-1">We couldn't find any photos matching "{{ searchQuery }}"</p>
+        <v-btn variant="text" color="white" class="mt-4 text-none" @click="$emit('clear-search')">Clear search</v-btn>
+      </template>
+      <template v-else-if="favoritesOnly">
+        <v-icon size="64" color="#3f3f46" class="mb-4">mdi-heart-outline</v-icon>
+        <div class="text-h6 text-zinc-secondary font-weight-bold">No favorites yet</div>
+        <p class="text-body-2 text-zinc-muted mt-1">Tap the heart on any photo to add it to your favorites</p>
+      </template>
+      <template v-else>
+        <v-icon size="64" color="#3f3f46" class="mb-4">mdi-image-plus-outline</v-icon>
+        <div class="text-h6 text-zinc-secondary font-weight-bold">Your library is empty</div>
+        <p class="text-body-2 text-zinc-muted mt-1">Add a folder in settings to start indexing your memories</p>
+      </template>
     </div>
 
     <!-- Sentinel for infinite scroll -->
@@ -183,6 +203,15 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 16px;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 /* Scrollbar styling for webkit */

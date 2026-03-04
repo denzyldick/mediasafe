@@ -1,7 +1,18 @@
 <template>
   <div style="height: 100%; width: 100%; position: relative">
     <div style="position: absolute; top: 10px; right: 10px; z-index: 1000">
-        <v-btn @click="generateDummy" color="secondary" size="small" class="mr-2">Generate Dummy Data</v-btn>
+        <v-btn @click="generateDummy" variant="outlined" color="#a1a1aa" size="small" class="mr-2 text-none border-subtle" style="background: rgba(9,9,11,0.8) !important;">
+          Generate Test Points
+        </v-btn>
+    </div>
+
+    <!-- Empty State Overlay -->
+    <div v-if="photos.length === 0" class="map-empty-state">
+      <div class="d-flex flex-column align-center justify-center h-100 px-6 text-center animate-fade-in">
+        <v-icon size="48" color="#3f3f46" class="mb-4">mdi-map-marker-off-outline</v-icon>
+        <div class="text-h6 text-zinc-secondary font-weight-bold">No location data found</div>
+        <p class="text-body-2 text-zinc-muted mt-1 max-w-400">Photos with EXIF GPS coordinates will automatically appear on this map after indexing.</p>
+      </div>
     </div>
     
     <l-map ref="map" v-model:zoom="zoom" :center="[0, 0]" @ready="onMapReady" :minZoom="2">
@@ -136,5 +147,31 @@ export default {
 /* Ensure map takes full height of container */
 :deep(.leaflet-container) {
     height: 100%;
+    background: #09090b;
+}
+
+.map-empty-state {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(9, 9, 11, 0.7);
+  backdrop-filter: blur(4px);
+  z-index: 1001;
+  pointer-events: none;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.max-w-400 {
+  max-width: 400px;
 }
 </style>
