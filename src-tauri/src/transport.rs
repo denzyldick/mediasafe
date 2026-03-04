@@ -145,6 +145,7 @@ impl WebRtcClient {
                 .await?;
 
             let app_handle_dc = self.app_handle.clone();
+            let dc_clone = Arc::clone(&data_channel);
             data_channel.on_open(Box::new(move || {
                 println!("Data channel opened! Ready to send files.");
                 let _ = app_handle_dc.emit("webrtc-state", "Secure Data Channel Ready");
