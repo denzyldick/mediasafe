@@ -97,7 +97,7 @@ export default {
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  background-color: #18181b;
+  background-color: #09090b;
   cursor: pointer;
   position: relative;
   transition: all 0.2s ease;
