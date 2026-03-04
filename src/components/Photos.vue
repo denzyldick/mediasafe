@@ -1,11 +1,45 @@
 <template>
   <div class="photos-container">
+    <!-- Bulk Actions Toolbar -->
+    <v-fade-transition>
+      <div v-if="selectedIds.length > 0" class="bulk-toolbar-container">
+        <v-sheet class="bulk-toolbar border-subtle d-flex align-center px-4 py-2 rounded-pill shadow-lg">
+          <v-btn icon="mdi-close" variant="text" density="comfortable" color="#a1a1aa" @click="clearSelection"></v-btn>
+          <span class="text-body-2 font-weight-bold text-zinc-primary ml-2">{{ selectedIds.length }} selected</span>
+          <v-spacer></v-spacer>
+          <v-btn
+            prepend-icon="mdi-heart"
+            variant="flat"
+            color="white"
+            size="small"
+            class="text-none mr-2"
+            @click="bulkFavorite"
+          >
+            Favorite
+          </v-btn>
+          <v-btn
+            prepend-icon="mdi-delete-outline"
+            variant="text"
+            color="error"
+            size="small"
+            class="text-none"
+            @click="bulkRemove"
+          >
+            Remove
+          </v-btn>
+        </v-sheet>
+      </div>
+    </v-fade-transition>
+
     <div class="grid" v-if="images.length > 0">
       <Image
         v-for="(image, index) in images"
         v-bind:key="image.id"
         :path="image"
+        :selected="selectedIds.includes(image.id)"
+        :selection-mode="selectedIds.length > 0"
         @click="openViewer(index)"
+        @select="toggleSelection"
         @toggle-favorite="handleToggleFavorite"
       />
     </div>
@@ -76,6 +110,7 @@ export default {
       limit: 50,
     },
     images: [],
+    selectedIds: [],
     viewerOpen: false,
     currentPhotoIndex: 0,
     favoritesOnly: false,
@@ -93,13 +128,17 @@ export default {
     isPersonFilter: {
       type: Boolean,
       default: false,
+    },
+    filters: {
+      type: Object,
+      default: () => ({
+        favoritesOnly: false,
+        dateRange: 'all',
+        folder: null,
+      })
     }
   },
   async created() {
-    // If mounted as "favorites view" via prop, set filter initially
-    if (this.favorites) {
-      this.favoritesOnly = true;
-    }
     this.list_files();
   },
   mounted() {
@@ -113,6 +152,27 @@ export default {
     }
   },
   methods: {
+    toggleSelection(id) {
+      const index = this.selectedIds.indexOf(id);
+      if (index === -1) {
+        this.selectedIds.push(id);
+      } else {
+        this.selectedIds.splice(index, 1);
+      }
+    },
+    clearSelection() {
+      this.selectedIds = [];
+    },
+    async bulkFavorite() {
+      const ids = [...this.selectedIds];
+      for (const id of ids) {
+        await this.handleToggleFavorite(id);
+      }
+      this.clearSelection();
+    },
+    async bulkRemove() {
+      this.clearSelection();
+    },
     setupInfiniteScroll() {
       this.observer = new IntersectionObserver((entries) => {
         if (entries[0].isIntersecting && !this.loading && !this.allLoaded) {
@@ -127,20 +187,20 @@ export default {
       if (this.loading) return;
       
       this.loading = true;
-      console.log("Listing files. Offset:", this.paging.offset, "Query:", this.searchQuery, "PersonFilter:", this.isPersonFilter);
+      console.log("Listing files. Offset:", this.paging.offset, "Query:", this.searchQuery, "Filters:", this.filters);
       
       try {
         let response;
         if (this.isPersonFilter && this.searchQuery) {
           response = await invoke("get_person_photos", { personId: this.searchQuery });
-          this.allLoaded = true; // person filter returns all at once for now
+          this.allLoaded = true;
         } else {
           response = await invoke("list_files", {
             offset: this.paging.offset,
             limit: this.paging.limit,
             query: this.searchQuery ?? "",
             scan: false,
-            favoritesOnly: this.favoritesOnly,
+            favoritesOnly: this.filters.favoritesOnly,
           });
         }
         
@@ -171,7 +231,7 @@ export default {
         const photo = this.images.find((p) => p.id === id);
         if (photo) {
           photo.favorite = isNowFavorite;
-          if (this.favoritesOnly && !isNowFavorite) {
+          if (this.filters.favoritesOnly && !isNowFavorite) {
             this.images = this.images.filter((p) => p.id !== id);
           }
         }
@@ -190,6 +250,14 @@ export default {
       this.allLoaded = false;
       this.list_files();
     },
+    filters: {
+      deep: true,
+      handler() {
+        this.paging.offset = 0;
+        this.allLoaded = false;
+        this.list_files();
+      }
+    }
   },
 };
 </script>
@@ -203,6 +271,24 @@ export default {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
   gap: 16px;
+}
+
+.bulk-toolbar-container {
+  position: fixed;
+  bottom: 100px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 1000;
+  padding: 0 20px;
+}
+
+.bulk-toolbar {
+  background: #18181b !important;
+  width: 100%;
+  max-width: 500px;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
 .animate-fade-in {

@@ -27,6 +27,12 @@ export default {
     query: null,
     objects: [],
     faces: [],
+    filters: {
+      favoritesOnly: false,
+      dateRange: 'all',
+      folder: null,
+    },
+    directories: [],
     current_page: "home",
     group: null,
     items: [
@@ -112,8 +118,27 @@ export default {
         }, 3000);
       }
     });
+
+    this.list_directories();
+  },
+  computed: {
+    hasActiveFilters() {
+      return this.filters.favoritesOnly || this.filters.dateRange !== 'all' || this.filters.folder;
+    }
   },
   methods: {
+    resetFilters() {
+      this.filters = {
+        favoritesOnly: false,
+        dateRange: 'all',
+        folder: null,
+      };
+    },
+    list_directories() {
+      invoke("list_directories").then((response) => {
+        this.directories = JSON.parse(response);
+      });
+    },
     generate_offer: function () {
       console.log("Generating offer.");
       this.sdp = invoke("generate_offer").then(function (response) {
@@ -296,14 +321,65 @@ export default {
             <v-spacer v-if="current_page !== 'home'"></v-spacer>
 
             <v-col cols="auto" v-if="current_page === 'home'">
-              <v-btn icon size="small" variant="text" color="#71717a">
-                <v-icon size="20">mdi-filter-variant</v-icon>
-              </v-btn>
+              <v-menu :close-on-content-click="false" offset-y>
+                <template v-slot:activator="{ props }">
+                  <v-btn icon size="small" variant="text" v-bind="props" :color="hasActiveFilters ? 'white' : '#71717a'">
+                    <v-badge :model-value="hasActiveFilters" color="white" dot>
+                      <v-icon size="20">mdi-filter-variant</v-icon>
+                    </v-badge>
+                  </v-btn>
+                </template>
+                <v-card min-width="250" border class="mt-2 border-subtle">
+                  <v-list bg-color="transparent" density="compact">
+                    <v-list-item>
+                      <v-switch
+                        v-model="filters.favoritesOnly"
+                        label="Favorites only"
+                        color="white"
+                        hide-details
+                        density="compact"
+                      ></v-switch>
+                    </v-list-item>
+                    
+                    <v-divider class="opacity-5 my-2"></v-divider>
+                    
+                    <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption">Date Range</v-list-subheader>
+                    <v-list-item class="px-2">
+                      <v-btn-toggle v-model="filters.dateRange" mandatory variant="outlined" density="compact" class="border-subtle w-100">
+                        <v-btn value="all" size="x-small" class="text-none flex-grow-1">All</v-btn>
+                        <v-btn value="month" size="x-small" class="text-none flex-grow-1">Month</v-btn>
+                        <v-btn value="year" size="x-small" class="text-none flex-grow-1">Year</v-btn>
+                      </v-btn-toggle>
+                    </v-list-item>
+
+                    <v-divider class="opacity-5 my-2"></v-divider>
+
+                    <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption">Folder</v-list-subheader>
+                    <v-list-item>
+                      <v-select
+                        v-model="filters.folder"
+                        :items="directories"
+                        placeholder="All folders"
+                        variant="solo-filled"
+                        density="compact"
+                        hide-details
+                        flat
+                        bg-color="rgba(255,255,255,0.05)"
+                        clearable
+                      ></v-select>
+                    </v-list-item>
+                  </v-list>
+                  
+                  <v-card-actions class="pa-2">
+                    <v-btn variant="text" size="x-small" color="#71717a" class="text-none" @click="resetFilters">Reset Filters</v-btn>
+                  </v-card-actions>
+                </v-card>
+              </v-menu>
             </v-col>
           </v-row>
         </v-app-bar>
 
-        <Photos v-if="current_page === 'home'" :search-query="search" @clear-search="search = null" />
+        <Photos v-if="current_page === 'home'" :search-query="search" :filters="filters" @clear-search="search = null" />
         <People v-if="current_page === 'people'" />
         <Map v-if="current_page === 'location'" />
         <DeviceList v-if="current_page === 'devices'" />

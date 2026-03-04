@@ -52,11 +52,24 @@
           </v-card-item>
           
           <v-card-text>
-               <div class="d-flex align-center mt-2">
+               <div v-if="device.syncing" class="mt-2">
+                   <div class="d-flex align-center justify-space-between mb-1">
+                       <span class="text-caption text-zinc-muted">Synchronizing...</span>
+                       <span class="text-caption text-zinc-muted font-weight-bold">{{ device.speed }}</span>
+                   </div>
+                   <v-progress-linear
+                     :model-value="device.progress"
+                     color="white"
+                     height="2"
+                     rounded
+                     class="opacity-30"
+                   ></v-progress-linear>
+               </div>
+               <div v-else class="d-flex align-center mt-2">
                    <div class="text-caption text-grey opacity-70">Status</div>
                    <v-spacer></v-spacer>
-                   <v-chip size="x-small" :color="device.syncing ? 'white' : 'grey-darken-3'" variant="flat" class="text-none">
-                       {{ device.syncing ? 'Syncing' : device.up_to_date ? 'Up to date' : 'Update needed' }}
+                   <v-chip size="x-small" :color="device.up_to_date ? 'grey-darken-3' : 'grey-darken-3'" variant="flat" class="text-none">
+                       {{ device.up_to_date ? 'Up to date' : 'Idle' }}
                    </v-chip>
                </div>
           </v-card-text>
@@ -88,6 +101,7 @@
 
 <script>
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import Connect from "./Connect.vue";
 
 export default {
@@ -96,47 +110,44 @@ export default {
     Connect,
   },
   data: () => ({
-      devices: [
-        {
-          color: "red",
-          icon: "mdi-android",
-          title: "Samsung Galaxy",
-          subtitle: "Last sync: 1 week ago",
-          up_to_date: false,
-          syncing: false,
-        },
-        {
-          color: "blue",
-          icon: "mdi-apple",
-          title: "iPhone 12",
-          subtitle: "Just now",
-          up_to_date: true,
-          syncing: false,
-        },
-        {
-          color: "yellow",
-          icon: "mdi-microsoft",
-          title: "Windows Desktop",
-          subtitle: "Syncing...",
-          up_to_date: false,
-          syncing: true,
-        },
-      ],
+      devices: [],
+      syncStates: {},
   }),
   async mounted() {
       await this.list_devices();
+      
+      // Listen for real-time sync updates
+      listen("sync-progress", (event) => {
+          const payload = event.payload;
+          this.syncStates[payload.device_id] = payload;
+          
+          // Update device in list if it exists
+          const device = this.devices.find(d => d.id === payload.device_id);
+          if (device) {
+              device.syncing = payload.status === 'syncing';
+              device.progress = payload.progress;
+              device.speed = this.formatSpeed(payload.bytes_per_second);
+          }
+      });
   },
   methods: {
+    formatSpeed(bytes) {
+        if (!bytes) return '0 B/s';
+        const k = 1024;
+        const sizes = ['B/s', 'KB/s', 'MB/s'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    },
     async list_devices() {
-      // Keep dummy data for now, append real devices if any
       const realDevicesStr = await invoke("list_devices");
       const realDevices = JSON.parse(realDevicesStr);
       
-      if (realDevices && realDevices.length > 0) {
-          // Map real devices to UI format if needed
-          // For now, simply logging them or adding to array
-          console.log("Real devices:", realDevices);
-      }
+      this.devices = (realDevices || []).map(d => ({
+          ...d,
+          syncing: false,
+          progress: 0,
+          speed: '0 B/s'
+      }));
     },
   },
 };
