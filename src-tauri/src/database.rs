@@ -207,16 +207,19 @@ impl Database {
             Err(_) => return photos,
         };
 
+        let param_offset = offset.to_string();
+        let param_limit = limit.to_string();
         let param_query = format!("%{query}%");
-        let photo_iter = if !query.is_empty() {
-            stmt.query_map([offset.to_string(), limit.to_string(), param_query], |row| {
-                self.row_to_photo(row)
-            })
+
+        let params: Vec<&dyn rusqlite::ToSql> = if !query.is_empty() {
+            vec![&param_offset, &param_limit, &param_query]
         } else {
-            stmt.query_map([offset.to_string(), limit.to_string()], |row| {
-                self.row_to_photo(row)
-            })
+            vec![&param_offset, &param_limit]
         };
+
+        let photo_iter = stmt.query_map(params.as_slice(), |row| {
+            self.row_to_photo(row)
+        });
 
         if let Ok(iter) = photo_iter {
             for p in iter {
@@ -249,7 +252,7 @@ impl Database {
             properties: HashMap::new(),
             latitude: row.get(3).unwrap_or(0.0),
             longitude: row.get(4).unwrap_or(0.0),
-            favorite: row.get::<_, Option<String>>(5).map(|v| v == "true").unwrap_or(false),
+            favorite: row.get::<_, Option<String>>(5).ok().flatten().as_deref() == Some("true"),
         })
     }
 
