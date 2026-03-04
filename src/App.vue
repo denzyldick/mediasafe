@@ -298,7 +298,7 @@ export default {
           </v-col>
 
           <!-- Global Search - Only on Photos page -->
-          <v-col class="mx-4" v-if="current_page === 'home'" style="max-width: 400px;">
+          <v-col class="mx-2 flex-grow-1" v-if="current_page === 'home'">
             <v-autocomplete
               v-model="search"
               v-model:search="query"
@@ -310,9 +310,9 @@ export default {
               hide-details
               flat
               rounded="lg"
-              class="search-autocomplete flex-grow-1"
+              class="search-autocomplete w-100"
               bg-color="rgba(0,0,0,0.05)"
-              :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%', disabled: !objects.length && !faces.length }"
+              :menu-props="{ contentClass: 'search-menu', elevation: 4, width: '100%', disabled: !objects.length && !faces.length }"
               no-data-text=""
             >
                 <template v-slot:prepend-item>
