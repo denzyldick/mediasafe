@@ -64,12 +64,35 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
 
         if let Ok(file) = File::open(path.clone()) {
             let mut buff = BufReader::new(&file);
+            let mut latitude = 0.0;
+            let mut longitude = 0.0;
+
             let properties = match Reader::new().read_from_container(&mut buff) {
                 Ok(exif) => {
                     let mut props = HashMap::new();
                     for f in exif.fields() {
                         props.insert(f.tag.to_string(), f.display_value().to_string());
                     }
+
+                    // Extract GPS Coordinates
+                    if let (Some(lat_field), Some(lat_ref)) = (exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY), exif.get_field(exif::Tag::GPSLatitudeRef, exif::In::PRIMARY)) {
+                        if let exif::Value::Rational(lat_values) = &lat_field.value {
+                            if lat_values.len() == 3 {
+                                let lat = lat_values[0].to_f64() + lat_values[1].to_f64() / 60.0 + lat_values[2].to_f64() / 3600.0;
+                                latitude = if format!("{}", lat_ref.display_value()) == "S" { -lat } else { lat };
+                            }
+                        }
+                    }
+
+                    if let (Some(lon_field), Some(lon_ref)) = (exif.get_field(exif::Tag::GPSLongitude, exif::In::PRIMARY), exif.get_field(exif::Tag::GPSLongitudeRef, exif::In::PRIMARY)) {
+                        if let exif::Value::Rational(lon_values) = &lon_field.value {
+                            if lon_values.len() == 3 {
+                                let lon = lon_values[0].to_f64() + lon_values[1].to_f64() / 60.0 + lon_values[2].to_f64() / 3600.0;
+                                longitude = if format!("{}", lon_ref.display_value()) == "W" { -lon } else { lon };
+                            }
+                        }
+                    }
+
                     props
                 }
                 Err(_) => HashMap::new(),
@@ -86,8 +109,8 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 location: path.display().to_string(),
                 objects: HashMap::new(),
                 properties,
-                latitude: 0.0,
-                longitude: 0.0,
+                latitude,
+                longitude,
                 favorite: false,
             };
 
