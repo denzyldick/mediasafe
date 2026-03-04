@@ -191,6 +191,17 @@ async fn get_indexing_status(state: tauri::State<'_, ml::MlContext>) -> Result<u
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Configure Rayon thread pool for mobile efficiency
+    let num_threads = if cfg!(any(target_os = "android", target_os = "ios")) {
+        2 // Limit to 2 threads on mobile to save battery/memory
+    } else {
+        num_cpus::get() // Use all available cores on desktop
+    };
+
+    let _ = rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build_global();
+
     tauri::Builder::default()
         .setup(|app| {
             let config_path = app
