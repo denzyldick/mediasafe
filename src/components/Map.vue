@@ -1,11 +1,18 @@
 <template>
   <div style="height: 100%; width: 100%; position: relative">
     <!-- Empty State Overlay -->
-    <div v-if="photos.length === 0" class="map-empty-state">
+    <div v-if="!loading && photos.length === 0" class="map-empty-state">
       <div class="d-flex flex-column align-center justify-center h-100 px-6 text-center animate-fade-in">
         <v-icon size="48" color="#3f3f46" class="mb-4">mdi-map-marker-off-outline</v-icon>
         <div class="text-h6 text-zinc-secondary font-weight-bold">No location data found</div>
         <p class="text-body-2 text-zinc-muted mt-1 max-w-400">Photos with EXIF GPS coordinates will automatically appear on this map after indexing.</p>
+      </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div v-if="loading" class="map-empty-state">
+      <div class="d-flex flex-column align-center justify-center h-100">
+        <v-progress-circular indeterminate color="white" size="32" width="3"></v-progress-circular>
       </div>
     </div>
     
@@ -56,6 +63,7 @@ export default {
       initialCenter: [20, 0], // Better default than [0,0]
       map: null,
       photos: [],
+      loading: true,
       heatLayer: null,
       viewerOpen: false,
       viewerPhotos: [],
@@ -117,6 +125,8 @@ export default {
             
         } catch (e) {
             console.error("Failed to load map data", e);
+        } finally {
+            this.loading = false;
         }
     },
     handleMapClick(e) {
