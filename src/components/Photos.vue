@@ -36,7 +36,6 @@
       <div v-for="(group, month) in groupedImages" :key="month" class="mb-10">
         <div class="text-h6 font-weight-bold text-black mb-4 sticky-header px-2">
           {{ month }}
-          <span class="text-caption text-grey-darken-1 ml-2">{{ group.length }} photos</span>
         </div>
         <div class="grid">
           <Image
