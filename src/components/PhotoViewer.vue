@@ -127,7 +127,7 @@
 </template>
 
 <script>
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { invoke, convertFileSrc } from '@tauri-apps/api/core';
 
 export default {
   name: "PhotoViewer",
