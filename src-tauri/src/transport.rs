@@ -67,7 +67,15 @@ impl WebRtcClient {
         let req = url_str.into_client_request()?;
 
         // Connect to WebSocket using tokio-tungstenite
-        let (ws_stream, _) = connect_async(req).await?;
+        let (ws_stream, _) = match connect_async(req).await {
+            Ok(s) => s,
+            Err(e) => {
+                let err_msg = format!("Signaling connection failed: {}", e);
+                println!("{}", err_msg);
+                let _ = self.app_handle.emit("webrtc-state", err_msg);
+                return Err(e.into());
+            }
+        };
         println!("WebSocket connected!");
         let _ = self.app_handle.emit("webrtc-state", "Connected to signaling. Waiting for peer...");
         let (write, mut read) = ws_stream.split();
