@@ -181,12 +181,21 @@ export default {
                     v-bind="props"
                     variant="outlined"
                     :color="(scanStatus === 'scanning' || indexingCount > 0) ? '#e4e4e7' : '#a1a1aa'"
-                    :loading="scanStatus === 'scanning' || indexingCount > 0"
                     size="small"
                     class="text-none border-subtle"
                     style="color: #a1a1aa !important;"
                   >
-                    <v-icon start size="18">{{ (scanStatus === 'scanning' || indexingCount > 0) ? 'mdi-reload mdi-spin' : 'mdi-sync' }}</v-icon>
+                    <template v-slot:prepend>
+                      <v-progress-circular
+                        v-if="scanStatus === 'scanning' || indexingCount > 0"
+                        indeterminate
+                        size="16"
+                        width="2"
+                        color="currentColor"
+                        class="mr-1"
+                      ></v-progress-circular>
+                      <v-icon v-else size="18">mdi-sync</v-icon>
+                    </template>
                     {{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}
                   </v-btn>
                 </template>
