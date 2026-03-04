@@ -211,103 +211,102 @@ export default {
 
     <!-- Main Application -->
     <v-layout v-else>
-      <v-main>
-        <v-app-bar elevation="0" v-if="clean_install === false" class="border-subtle" color="background">
-          <v-row class="px-4 align-center no-gutters">
-            <v-col cols="auto" v-if="current_page === 'home'">
-              <v-menu offset-y>
-                <template v-slot:activator="{ props }">
-                  <v-btn 
-                    v-bind="props"
-                    variant="outlined"
-                    :color="(scanStatus === 'scanning' || indexingCount > 0) ? '#e4e4e7' : '#a1a1aa'"
-                    size="small"
-                    class="text-none border-subtle"
-                    style="color: #a1a1aa !important;"
-                  >
-                    <template v-slot:prepend>
-                      <v-progress-circular
-                        v-if="scanStatus === 'scanning' || indexingCount > 0"
-                        indeterminate
-                        size="16"
-                        width="2"
-                        color="currentColor"
-                        class="mr-1"
-                      ></v-progress-circular>
-                      <v-icon v-else size="18">mdi-sync</v-icon>
-                    </template>
-                    {{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}
-                  </v-btn>
-                </template>
-                <v-card min-width="300" border class="mt-2 border-subtle" color="rgba(24, 24, 27, 0.8)" style="backdrop-filter: blur(16px);">
-                  <v-card-text>
-                    <div class="text-subtitle-2 mb-2 text-zinc-primary">Library Status</div>
-                    
-                    <!-- Scan Status -->
-                    <div class="d-flex align-center mb-4">
-                      <v-chip 
-                        :color="scanStatus === 'scanning' ? '#27272a' : '#18181b'"
-                        size="x-small"
-                        variant="flat"
-                        class="mr-2 text-zinc-secondary"
-                      >
-                        File Scan: {{ scanStatus === 'scanning' ? 'Active' : 'Ready' }}
-                      </v-chip>
-                    </div>
-                    
-                    <div v-if="scanStatus === 'scanning'" class="mb-4">
-                      <div class="text-caption mb-1 text-zinc-muted">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
-                      <v-progress-linear 
-                        :model-value="scanProgress.progress"
-                        color="#71717a"
-                        height="2"
-                        rounded
-                      ></v-progress-linear>
-                    </div>
-
-                    <!-- Indexing Status -->
-                    <div class="d-flex align-center mb-4">
-                      <v-chip 
-                        :color="indexingCount > 0 ? '#27272a' : '#18181b'"
-                        size="x-small"
-                        variant="flat"
-                        class="mr-2 text-zinc-secondary"
-                      >
-                        AI Indexing: {{ indexingCount > 0 ? 'Active' : 'Complete' }}
-                      </v-chip>
-                      <span v-if="indexingCount > 0" class="text-caption text-zinc-muted">{{ indexingCount }} left</span>
-                    </div>
-                    
-                    <v-divider class="my-4 opacity-5"></v-divider>
-                    
-                    <div class="text-caption text-zinc-muted mb-4">
-                      Last scan: {{ lastScanTime }}
-                    </div>
-                    
-                    <v-btn 
-                      v-if="scanStatus !== 'scanning' && indexingCount === 0"
-                      @click="scan()"
+      <v-app-bar elevation="0" v-if="clean_install === false && current_page === 'home'" class="border-subtle" color="background">
+        <v-row class="px-4 align-center no-gutters">
+          <v-col cols="auto" v-if="current_page === 'home'">
+            <v-menu offset-y>
+              <template v-slot:activator="{ props }">
+                <v-btn 
+                  v-bind="props"
+                  variant="outlined"
+                  :color="(scanStatus === 'scanning' || indexingCount > 0) ? '#e4e4e7' : '#a1a1aa'"
+                  size="small"
+                  class="text-none border-subtle"
+                  style="color: #a1a1aa !important;"
+                >
+                  <template v-slot:prepend>
+                    <v-progress-circular
+                      v-if="scanStatus === 'scanning' || indexingCount > 0"
+                      indeterminate
+                      size="16"
+                      width="2"
+                      color="currentColor"
+                      class="mr-1"
+                    ></v-progress-circular>
+                    <v-icon v-else size="18">mdi-sync</v-icon>
+                  </template>
+                  {{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}
+                </v-btn>
+              </template>
+              <v-card min-width="300" border class="mt-2 border-subtle" color="rgba(24, 24, 27, 0.8)" style="backdrop-filter: blur(16px);">
+                <v-card-text>
+                  <div class="text-subtitle-2 mb-2 text-zinc-primary">Library Status</div>
+                  
+                  <!-- Scan Status -->
+                  <div class="d-flex align-center mb-4">
+                    <v-chip 
+                      :color="scanStatus === 'scanning' ? '#27272a' : '#18181b'"
+                      size="x-small"
                       variant="flat"
-                      color="#27272a"
-                      block
-                      class="text-none text-zinc-primary"
+                      class="mr-2 text-zinc-secondary"
                     >
-                      Sync Library
-                    </v-btn>
-                  </v-card-text>
-                </v-card>
-              </v-menu>
-            </v-col>
+                      File Scan: {{ scanStatus === 'scanning' ? 'Active' : 'Ready' }}
+                    </v-chip>
+                  </div>
+                  
+                  <div v-if="scanStatus === 'scanning'" class="mb-4">
+                    <div class="text-caption mb-1 text-zinc-muted">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
+                    <v-progress-linear 
+                      :model-value="scanProgress.progress"
+                      color="#71717a"
+                      height="2"
+                      rounded
+                    ></v-progress-linear>
+                  </div>
 
-            <!-- Global Search - Only on Photos page -->
-            <v-col class="mx-4" v-if="current_page === 'home'" style="max-width: 400px;">
-              <v-autocomplete
-                v-model="search"
-                v-model:search="query"
-                :items="objects"
-                prepend-inner-icon="mdi-magnify"
-                variant="solo-filled"
-                density="compact"
+                  <!-- Indexing Status -->
+                  <div class="d-flex align-center mb-4">
+                    <v-chip 
+                      :color="indexingCount > 0 ? '#27272a' : '#18181b'"
+                      size="x-small"
+                      variant="flat"
+                      class="mr-2 text-zinc-secondary"
+                    >
+                      AI Indexing: {{ indexingCount > 0 ? 'Active' : 'Complete' }}
+                    </v-chip>
+                    <span v-if="indexingCount > 0" class="text-caption text-zinc-muted">{{ indexingCount }} left</span>
+                  </div>
+                  
+                  <v-divider class="my-4 opacity-5"></v-divider>
+                  
+                  <div class="text-caption text-zinc-muted mb-4">
+                    Last scan: {{ lastScanTime }}
+                  </div>
+                  
+                  <v-btn 
+                    v-if="scanStatus !== 'scanning' && indexingCount === 0"
+                    @click="scan()"
+                    variant="flat"
+                    color="#27272a"
+                    block
+                    class="text-none text-zinc-primary"
+                  >
+                    Sync Library
+                  </v-btn>
+                </v-card-text>
+              </v-card>
+            </v-menu>
+          </v-col>
+
+          <!-- Global Search - Only on Photos page -->
+          <v-col class="mx-4" v-if="current_page === 'home'" style="max-width: 400px;">
+            <v-autocomplete
+              v-model="search"
+              v-model:search="query"
+              :items="objects"
+              prepend-inner-icon="mdi-magnify"
+              variant="solo-filled"
+              density="compact"
                 placeholder="Search memories..."
                 hide-details
                 flat
@@ -394,12 +393,12 @@ export default {
                   </v-card-actions>
                 </v-card>
               </v-menu>
-            </v-col>
-          </v-row>
-        </v-app-bar>
-
-        <Photos v-if="current_page === 'home'" :search-query="search" :filters="filters" @clear-search="search = null" />
-        <People v-if="current_page === 'people'" />
+                      </v-col>
+                    </v-row>
+                  </v-app-bar>
+            
+                  <v-main>
+                    <Photos v-if="current_page === 'home'" :search-query="search" :filters="filters" @clear-search="search = null" />        <People v-if="current_page === 'people'" />
         <Map v-if="current_page === 'location'" />
         <DeviceList v-if="current_page === 'devices'" />
         <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />
