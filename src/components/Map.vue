@@ -16,11 +16,12 @@
       @ready="onMapReady" 
       :minZoom="2"
       :options="{ zoomControl: false, attributionControl: false }"
+      class="dark-map"
     >
       <l-tile-layer
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         layer-type="base"
-        name="OpenStreetMap"
+        name="CartoDB DarkMatter"
       ></l-tile-layer>
 
     </l-map>
@@ -145,6 +146,10 @@ export default {
 :deep(.leaflet-container) {
     height: 100%;
     background: #09090b;
+}
+
+.dark-map :deep(.leaflet-tile-pane) {
+    filter: brightness(0.6) invert(100%) contrast(90%) hue-rotate(180deg) brightness(0.9);
 }
 
 .map-empty-state {
