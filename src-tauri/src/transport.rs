@@ -18,6 +18,18 @@ use webrtc::{
     },
 };
 
+use tauri::Emitter;
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SyncProgress {
+    pub device_id: String,
+    pub status: String,
+    pub progress: f32, // 0.0 to 100.0
+    pub bytes_per_second: u64,
+    pub items_completed: u32,
+    pub items_total: u32,
+}
+
 // Use the same SignalMessage structure as the axum server
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")]
@@ -40,7 +52,10 @@ pub struct WebRtcClient {
     pub room_id: String,
     pub is_initiator: bool,
     pub signaling_url: String,
+    pub app_handle: AppHandle,
 }
+
+use tauri::AppHandle;
 
 impl WebRtcClient {
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {

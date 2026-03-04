@@ -1,10 +1,10 @@
 <template>
   <v-dialog v-model="visible" fullscreen transition="dialog-bottom-transition">
-    <v-card rounded="0" color="black" class="d-flex fill-height" style="overflow: hidden;">
-      
+    <v-card rounded="0" color="black" class="fill-height" style="overflow: hidden;">
       <!-- Main Viewer Area -->
-      <div class="flex-grow-1 position-relative d-flex align-center justify-center h-100"
-           v-touch="{ left: () => next(), right: () => prev() }">
+      <div class="position-relative d-flex align-center justify-center h-100"
+           v-touch="{ left: () => next(), right: () => prev() }"
+           :style="{ marginRight: (showInfo && !$vuetify.display.mobile) ? '350px' : '0' }">
         
         <v-btn icon="mdi-close" variant="text" color="white" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
 
@@ -18,112 +18,103 @@
         <v-btn
           icon="mdi-information-outline"
           variant="text"
-          :color="showInfo ? 'primary' : 'white'"
+          :color="showInfo ? '#e4e4e7' : 'white'"
           style="position: absolute; bottom: 20px; right: 20px; z-index: 2000"
           @click="showInfo = !showInfo"
         ></v-btn>
       </div>
 
-      <!-- Info Panel -->
-      <v-slide-x-reverse-transition>
-        <v-card
-          v-if="showInfo && currentPhoto"
-          width="350"
-          class="h-100 border-s border-subtle d-flex flex-column rounded-0"
-          color="#09090b"
-          elevation="0"
-          style="border-left: 1px solid rgba(255,255,255,0.1) !important;"
-        >
-          <v-toolbar color="transparent" density="compact">
-            <v-toolbar-title class="text-zinc-primary text-subtitle-1 font-weight-bold">Metadata</v-toolbar-title>
-            <v-spacer></v-spacer>
-            <v-btn icon="mdi-close" variant="text" size="small" color="#a1a1aa" @click="showInfo = false"></v-btn>
-          </v-toolbar>
+      <!-- Info Drawer -->
+      <v-navigation-drawer
+        v-model="showInfo"
+        location="right"
+        width="350"
+        temporary
+        color="#09090b"
+        class="border-s border-subtle"
+        style="border-left: 1px solid rgba(255,255,255,0.1) !important;"
+      >
+        <v-toolbar color="transparent" density="compact">
+          <v-toolbar-title class="text-zinc-primary text-subtitle-1 font-weight-bold">Metadata</v-toolbar-title>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" size="small" color="#a1a1aa" @click="showInfo = false"></v-btn>
+        </v-toolbar>
 
-          <v-divider class="opacity-10"></v-divider>
+        <v-divider class="opacity-10"></v-divider>
 
-          <v-card-text class="overflow-y-auto px-4 py-2">
-            <!-- File Info -->
-            <div class="mb-6">
-              <div class="text-caption text-zinc-muted mb-1 text-uppercase tracking-widest">File Details</div>
-              <div class="d-flex align-start mb-2">
-                <v-icon size="small" color="#a1a1aa" class="mr-2 mt-1">mdi-file-document-outline</v-icon>
-                <div class="text-body-2 text-zinc-secondary" style="word-break: break-all;">
-                  {{ currentPhoto.location }}
-                </div>
+        <v-list class="bg-transparent px-4">
+          <!-- File Info -->
+          <div class="mb-6 pt-4">
+            <div class="text-caption text-zinc-muted mb-1 text-uppercase tracking-widest">File Details</div>
+            <div class="d-flex align-start mb-2">
+              <v-icon size="small" color="#a1a1aa" class="mr-2 mt-1">mdi-file-document-outline</v-icon>
+              <div class="text-body-2 text-zinc-secondary" style="word-break: break-all;">
+                {{ currentPhoto.location }}
               </div>
             </div>
+          </div>
 
-            <v-divider class="opacity-10 mb-4"></v-divider>
+          <v-divider class="opacity-10 mb-4"></v-divider>
 
-            <!-- Camera / EXIF Info -->
-            <div class="mb-6" v-if="hasExif">
-              <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">Camera Settings</div>
-              
-              <v-row dense class="mb-2" v-if="exifData.make || exifData.model">
-                <v-col cols="12">
-                  <div class="d-flex align-center">
-                    <v-icon size="small" color="#a1a1aa" class="mr-2">mdi-camera</v-icon>
-                    <span class="text-body-2 text-zinc-secondary">{{ exifData.make }} {{ exifData.model }}</span>
-                  </div>
-                </v-col>
-              </v-row>
-
-              <v-row dense>
-                <v-col cols="6" v-if="exifData.date">
-                  <div class="text-caption text-zinc-muted">Date Taken</div>
-                  <div class="text-body-2 text-zinc-secondary">{{ exifData.date }}</div>
-                </v-col>
-                <v-col cols="6" v-if="exifData.dimensions">
-                  <div class="text-caption text-zinc-muted">Resolution</div>
-                  <div class="text-body-2 text-zinc-secondary">{{ exifData.dimensions }}</div>
-                </v-col>
-                <v-col cols="6" v-if="exifData.iso">
-                  <div class="text-caption text-zinc-muted">ISO</div>
-                  <div class="text-body-2 text-zinc-secondary">{{ exifData.iso }}</div>
-                </v-col>
-                <v-col cols="6" v-if="exifData.shutter">
-                  <div class="text-caption text-zinc-muted">Shutter</div>
-                  <div class="text-body-2 text-zinc-secondary">{{ exifData.shutter }}</div>
-                </v-col>
-                <v-col cols="6" v-if="exifData.aperture">
-                  <div class="text-caption text-zinc-muted">Aperture</div>
-                  <div class="text-body-2 text-zinc-secondary">{{ exifData.aperture }}</div>
-                </v-col>
-              </v-row>
+          <!-- Camera / EXIF Info -->
+          <div class="mb-6" v-if="hasExif">
+            <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">Camera Settings</div>
+            
+            <div class="d-flex align-center mb-4" v-if="exifData.make || exifData.model">
+              <v-icon size="small" color="#a1a1aa" class="mr-2">mdi-camera</v-icon>
+              <span class="text-body-2 text-zinc-secondary">{{ exifData.make }} {{ exifData.model }}</span>
             </div>
 
-            <v-divider class="opacity-10 mb-4" v-if="hasExif"></v-divider>
+            <v-row dense>
+              <v-col cols="6" v-if="exifData.date" class="mb-3">
+                <div class="text-caption text-zinc-muted">Date Taken</div>
+                <div class="text-body-2 text-zinc-secondary">{{ exifData.date }}</div>
+              </v-col>
+              <v-col cols="6" v-if="exifData.dimensions" class="mb-3">
+                <div class="text-caption text-zinc-muted">Resolution</div>
+                <div class="text-body-2 text-zinc-secondary">{{ exifData.dimensions }}</div>
+              </v-col>
+              <v-col cols="6" v-if="exifData.iso" class="mb-3">
+                <div class="text-caption text-zinc-muted">ISO</div>
+                <div class="text-body-2 text-zinc-secondary">{{ exifData.iso }}</div>
+              </v-col>
+              <v-col cols="6" v-if="exifData.shutter" class="mb-3">
+                <div class="text-caption text-zinc-muted">Shutter</div>
+                <div class="text-body-2 text-zinc-secondary">{{ exifData.shutter }}</div>
+              </v-col>
+              <v-col cols="6" v-if="exifData.aperture" class="mb-3">
+                <div class="text-caption text-zinc-muted">Aperture</div>
+                <div class="text-body-2 text-zinc-secondary">{{ exifData.aperture }}</div>
+              </v-col>
+            </v-row>
+          </div>
 
-            <!-- AI Insights -->
-            <div class="mb-6">
-              <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">AI Insights</div>
-              
-              <div v-if="aiTags.length === 0" class="text-body-2 text-zinc-muted font-italic">
-                No AI insights generated yet.
+          <v-divider class="opacity-10 mb-4" v-if="hasExif"></v-divider>
+
+          <!-- AI Insights -->
+          <div class="mb-6">
+            <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">AI Insights</div>
+            
+            <div v-if="aiTags.length === 0" class="text-body-2 text-zinc-muted font-italic">
+              No AI insights generated yet.
+            </div>
+            
+            <div v-for="tag in aiTags" :key="tag.name" class="mb-4">
+              <div class="d-flex align-center justify-space-between w-100">
+                <span class="text-body-2 text-zinc-secondary text-capitalize">{{ tag.name }}</span>
+                <span class="text-caption text-zinc-muted">{{ tag.percent }}%</span>
               </div>
-              
-              <v-list v-else bg-color="transparent" class="pa-0" density="compact">
-                <v-list-item v-for="tag in aiTags" :key="tag.name" class="px-0 min-h-0 mb-2">
-                  <div class="d-flex align-center justify-space-between w-100">
-                    <span class="text-body-2 text-zinc-secondary text-capitalize">{{ tag.name }}</span>
-                    <span class="text-caption text-zinc-muted">{{ tag.percent }}%</span>
-                  </div>
-                  <v-progress-linear
-                    :model-value="tag.percent"
-                    color="#e4e4e7"
-                    height="2"
-                    rounded
-                    class="mt-1 opacity-50"
-                  ></v-progress-linear>
-                </v-list-item>
-              </v-list>
+              <v-progress-linear
+                :model-value="tag.percent"
+                color="#e4e4e7"
+                height="2"
+                rounded
+                class="mt-1 opacity-50"
+              ></v-progress-linear>
             </div>
-
-          </v-card-text>
-        </v-card>
-      </v-slide-x-reverse-transition>
-
+          </div>
+        </v-list>
+      </v-navigation-drawer>
     </v-card>
   </v-dialog>
 </template>

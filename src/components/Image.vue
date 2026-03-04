@@ -1,7 +1,21 @@
 <template>
-  <div class="image-container">
+  <div 
+    class="image-container" 
+    :class="{ 'is-selected': selected, 'in-selection-mode': selectionMode }"
+    @click="handleClick"
+  >
     <img :src="imageSrc" loading="lazy" alt="Photo" />
+    
+    <!-- Selection Checkbox -->
+    <div v-if="selectionMode" class="selection-overlay">
+      <v-icon :color="selected ? 'white' : 'white'" size="24">
+        {{ selected ? 'mdi-checkbox-marked-circle' : 'mdi-checkbox-blank-circle-outline' }}
+      </v-icon>
+    </div>
+
+    <!-- Favorite Button (Hidden in selection mode) -->
     <v-btn
+      v-if="!selectionMode"
       icon
       variant="text"
       size="small"
@@ -11,7 +25,8 @@
     >
       <v-icon>{{ isFavorite ? 'mdi-heart' : 'mdi-heart-outline' }}</v-icon>
     </v-btn>
-    <div class="tags-container" v-if="tags.length > 0">
+
+    <div class="tags-container" v-if="tags.length > 0 && !selectionMode">
       <v-chip
         v-for="tag in tags"
         :key="tag"
@@ -31,26 +46,23 @@ import { convertFileSrc } from '@tauri-apps/api/core';
 
 export default {
   name: "Image",
-  props: ["path"],
-  emits: ['toggle-favorite'],
+  props: {
+    path: Object,
+    selected: Boolean,
+    selectionMode: Boolean
+  },
+  emits: ['toggle-favorite', 'click', 'select'],
   computed: {
     imageSrc() {
       if (!this.path || !this.path.encoded) return '';
       
       const src = this.path.encoded;
-      
-      // If it's already a data URI, return as is
       if (src.startsWith('data:image')) return src;
 
-      // Try convertFileSrc
       const converted = convertFileSrc(src);
-      
-      // If convertFileSrc returned the raw path (starts with /), manually construct asset URL
       if (converted === src && src.startsWith('/')) {
-            console.log("Manual asset URL construction for:", src);
             return `http://asset.localhost${encodeURI(src)}`;
       }
-      
       return converted;
     },
     isFavorite() {
@@ -67,20 +79,46 @@ export default {
   methods: {
       toggleFavorite() {
           this.$emit('toggle-favorite', this.path.id);
+      },
+      handleClick() {
+        if (this.selectionMode) {
+          this.$emit('select', this.path.id);
+        } else {
+          this.$emit('click');
+        }
       }
   }
 };
 </script>
 
-<style>
+<style scoped>
 .image-container {
   width: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 12px;
-  background-color: #f0f0f0;
+  border-radius: 8px;
+  background-color: #18181b;
   cursor: pointer;
   position: relative;
+  transition: all 0.2s ease;
+  border: 2px solid transparent;
+}
+
+.in-selection-mode {
+  transform: scale(0.95);
+}
+
+.is-selected {
+  border-color: #ffffff !important;
+  transform: scale(0.95);
+}
+
+.selection-overlay {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  text-shadow: 0 0 4px rgba(0,0,0,0.5);
 }
 
 img {
@@ -91,7 +129,7 @@ img {
   transition: transform 0.3s ease;
 }
 
-.image-container:hover img {
+.image-container:not(.in-selection-mode):hover img {
   transform: scale(1.05);
 }
 
@@ -100,7 +138,8 @@ img {
     top: 5px;
     right: 5px;
     z-index: 2;
-    background-color: rgba(0,0,0,0.3);
+    background-color: rgba(0,0,0,0.2);
+    backdrop-filter: blur(4px);
 }
 
 .tags-container {
