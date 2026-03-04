@@ -285,7 +285,7 @@ export default {
             </v-col>
 
             <!-- Global Search - Only on Photos page -->
-            <v-col class="mx-4" v-if="current_page === 'home'">
+            <v-col class="mx-4" v-if="current_page === 'home'" style="max-width: 400px;">
               <v-autocomplete
                 v-model="search"
                 v-model:search="query"
@@ -324,20 +324,21 @@ export default {
               <v-menu :close-on-content-click="false" offset-y>
                 <template v-slot:activator="{ props }">
                   <v-btn icon size="small" variant="text" v-bind="props" :color="hasActiveFilters ? 'white' : '#71717a'">
-                    <v-badge :model-value="hasActiveFilters" color="white" dot>
+                    <v-badge :model-value="hasActiveFilters" color="white" dot px="1">
                       <v-icon size="20">mdi-filter-variant</v-icon>
                     </v-badge>
                   </v-btn>
                 </template>
                 <v-card min-width="250" border class="mt-2 border-subtle">
-                  <v-list bg-color="transparent" density="compact">
-                    <v-list-item>
+                  <v-list bg-color="transparent" density="compact" class="px-2">
+                    <v-list-item class="px-0">
                       <v-switch
                         v-model="filters.favoritesOnly"
                         label="Favorites only"
                         color="white"
                         hide-details
                         density="compact"
+                        inset
                       ></v-switch>
                     </v-list-item>
                     
