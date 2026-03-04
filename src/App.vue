@@ -479,7 +479,7 @@ export default {
 
 .custom-select :deep(.v-field__input) {
   font-size: 0.75rem;
-  color: #a1a1aa !important;
+  color: #18181b !important;
 }
 
 .custom-select :deep(.v-chip) {
