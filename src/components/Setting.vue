@@ -145,22 +145,30 @@
                 <v-list-item-title class="text-grey-darken-4 font-weight-bold">AI Indexing Mode</v-list-item-title>
                 <v-list-item-subtitle class="text-grey-darken-1">When should the AI process your photos?</v-list-item-subtitle>
                 <template v-slot:append>
-                  <v-select
-                    v-model="performance.indexingMode"
-                    :items="[
-                      { title: 'Immediate', value: 'immediate' },
-                      { title: 'On Idle', value: 'idle' },
-                      { title: 'Manual Only', value: 'manual' }
-                    ]"
-                    variant="solo-filled"
-                    flat
-                    density="compact"
-                    hide-details
-                    bg-color="grey-lighten-4"
-                    class="custom-select font-weight-bold"
-                    width="150"
-                    @update:model-value="savePerformanceConfig"
-                  ></v-select>
+                  <v-menu offset-y>
+                    <template v-slot:activator="{ props }">
+                      <v-btn
+                        v-bind="props"
+                        color="grey-darken-4"
+                        variant="flat"
+                        class="text-none font-weight-bold"
+                        width="150"
+                        append-icon="mdi-chevron-down"
+                      >
+                        {{ performance.indexingMode }}
+                      </v-btn>
+                    </template>
+                    <v-list bg-color="white" class="border-subtle">
+                      <v-list-item 
+                        v-for="item in [{ title: 'Immediate', value: 'immediate' }, { title: 'On Idle', value: 'idle' }, { title: 'Manual Only', value: 'manual' }]"
+                        :key="item.value"
+                        @click="performance.indexingMode = item.value; savePerformanceConfig()"
+                        class="text-grey-darken-4 font-weight-bold"
+                      >
+                        <v-list-item-title>{{ item.title }}</v-list-item-title>
+                      </v-list-item>
+                    </v-list>
+                  </v-menu>
                 </template>
               </v-list-item>
             </div>
