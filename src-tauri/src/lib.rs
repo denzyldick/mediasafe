@@ -564,6 +564,7 @@ async fn generate_dummy_data(app: tauri::AppHandle) {
             id: format!("dummy_{}", i),
             location: format!("/tmp/dummy_{}.jpg", i),
             encoded: String::new(), // Empty encoded string for dummy
+            created: "2026:01:01 12:00:00".to_string(),
             objects: std::collections::HashMap::new(),
             properties: std::collections::HashMap::new(),
             latitude: lat,
