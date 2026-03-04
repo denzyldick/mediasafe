@@ -224,7 +224,7 @@ export default {
                     {{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}
                   </v-btn>
                 </template>
-                <v-card min-width="300" border class="mt-2 border-subtle">
+                <v-card min-width="300" border class="mt-2 border-subtle" color="#18181b">
                   <v-card-text>
                     <div class="text-subtitle-2 mb-2 text-zinc-primary">Library Status</div>
                     
@@ -329,7 +329,7 @@ export default {
                     </v-badge>
                   </v-btn>
                 </template>
-                <v-card min-width="250" border class="mt-2 border-subtle" color="background">
+                <v-card min-width="250" border class="mt-2 border-subtle" color="#18181b">
                   <v-list bg-color="transparent" density="compact" class="px-2">
                     <v-list-item class="px-0">
                       <v-switch
@@ -473,28 +473,27 @@ export default {
 }
 
 :global(.search-menu) {
-  background: #ffffff !important;
-  border: 1px solid #e4e4e7 !important;
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 0 0 8px 8px !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1) !important;
 }
 
 :global(.search-menu .v-list) {
   background: transparent !important;
-  color: #27272a !important; /* Zinc-800 */
+  color: #a1a1aa !important; /* Zinc-400 */
 }
 
 :global(.search-menu .v-list-item:hover) {
-  background: #f4f4f5 !important; /* Zinc-100 */
+  background: rgba(255, 255, 255, 0.05) !important;
 }
 
 :global(.search-menu .v-list-item--active) {
-  background: #e4e4e7 !important; /* Zinc-200 */
-  color: #09090b !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: #e4e4e7 !important; /* Zinc-200 */
 }
 
 :global(.search-menu .v-divider) {
-  border-color: #e4e4e7 !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
 }
 
 .dock-container {
