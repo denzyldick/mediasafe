@@ -9,7 +9,14 @@
       </div>
     </div>
     
-    <l-map ref="map" v-model:zoom="zoom" :center="[0, 0]" @ready="onMapReady" :minZoom="2">
+    <l-map 
+      ref="map" 
+      v-model:zoom="zoom" 
+      :center="initialCenter" 
+      @ready="onMapReady" 
+      :minZoom="2"
+      :options="{ zoomControl: false, attributionControl: false }"
+    >
       <l-tile-layer
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         layer-type="base"
@@ -45,6 +52,7 @@ export default {
   data() {
     return {
       zoom: 2,
+      initialCenter: [20, 0], // Better default than [0,0]
       map: null,
       photos: [],
       heatLayer: null,
@@ -99,7 +107,7 @@ export default {
                 if (bestKey) {
                     const bucket = buckets[bestKey];
                     const center = [bucket.latSum / bucket.count, bucket.lngSum / bucket.count];
-                    this.map.flyTo(center, 12);
+                    this.map.setView(center, 12);
                 }
             }
 
