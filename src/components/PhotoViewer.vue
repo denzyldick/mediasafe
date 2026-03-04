@@ -15,11 +15,11 @@
 
         <v-btn icon="mdi-close" variant="text" color="white" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
 
-        <v-btn v-if="!$vuetify.display.mobile" icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
+        <v-btn v-if="!isMobile" icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
 
         <img v-if="currentPhoto" :src="currentPhotoSrc" class="viewer-image" />
 
-        <v-btn v-if="!$vuetify.display.mobile" icon="mdi-chevron-right" variant="text" color="white" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
+        <v-btn v-if="!isMobile" icon="mdi-chevron-right" variant="text" color="white" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
         
         <!-- Toggle Info Panel Button -->
         <v-btn
@@ -146,8 +146,12 @@ export default {
   data: () => ({
     showInfo: false,
     fullPhotoB64: '',
+    os: '',
   }),
   computed: {
+    isMobile() {
+      return this.os === 'android' || this.os === 'ios';
+    },
     visible: {
       get() { return this.modelValue; },
       set(val) { this.$emit('update:modelValue', val); }
@@ -241,8 +245,13 @@ export default {
       }
     }
   },
-  mounted() {
+  async mounted() {
       window.addEventListener('keydown', this.handleKeydown);
+      try {
+        this.os = await invoke("get_os");
+      } catch (e) {
+        console.error("Failed to get OS", e);
+      }
   },
   beforeUnmount() {
       window.removeEventListener('keydown', this.handleKeydown);

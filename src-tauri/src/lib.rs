@@ -237,6 +237,7 @@ pub fn run() {
             list_files,
             scan_files,
             get_last_scan_time,
+            get_os,
             get_ip,
             get_heatmap_data,
             generate_dummy_data,
@@ -255,6 +256,11 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[tauri::command]
+async fn get_os() -> String {
+    std::env::consts::OS.to_string()
 }
 
 #[tauri::command]
