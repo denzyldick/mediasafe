@@ -224,7 +224,7 @@ export default {
                     {{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}
                   </v-btn>
                 </template>
-                <v-card min-width="300" border class="mt-2 border-subtle" color="#18181b">
+                <v-card min-width="300" border class="mt-2 border-subtle" color="rgba(24, 24, 27, 0.8)" style="backdrop-filter: blur(16px);">
                   <v-card-text>
                     <div class="text-subtitle-2 mb-2 text-zinc-primary">Library Status</div>
                     
@@ -329,7 +329,7 @@ export default {
                     </v-badge>
                   </v-btn>
                 </template>
-                <v-card min-width="250" border class="mt-2 border-subtle" color="#18181b">
+                <v-card min-width="250" border class="mt-2 border-subtle" color="rgba(24, 24, 27, 0.8)" style="backdrop-filter: blur(16px);">
                   <v-list bg-color="transparent" density="compact" class="px-2">
                     <v-list-item class="px-0">
                       <v-switch
@@ -473,7 +473,8 @@ export default {
 }
 
 :global(.search-menu) {
-  background: #18181b !important;
+  background: rgba(24, 24, 27, 0.8) !important;
+  backdrop-filter: blur(16px) !important;
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
   border-radius: 0 0 8px 8px !important;
 }
