@@ -128,7 +128,7 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                             payload,
                             target: target.clone(),
                         };
-                        relay_message(&state, &room_id, &target, msg).await;
+                        relay_message(&state, &room_id, &device_id, &target, msg).await;
                     }
                     SignalMessage::Answer { payload, target } => {
                         info!("Relaying answer from {} to {}", device_id, target);
@@ -136,7 +136,7 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                             payload,
                             target: target.clone(),
                         };
-                        relay_message(&state, &room_id, &target, msg).await;
+                        relay_message(&state, &room_id, &device_id, &target, msg).await;
                     }
                     SignalMessage::IceCandidate { payload, target } => {
                         // Very noisy, keeping as debug
@@ -145,7 +145,7 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                             payload,
                             target: target.clone(),
                         };
-                        relay_message(&state, &room_id, &target, msg).await;
+                        relay_message(&state, &room_id, &device_id, &target, msg).await;
                     }
                     _ => {}
                 }
@@ -184,10 +184,18 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
 }
 
 // Helper to blind-forward a message to a specific target device in a room
-async fn relay_message(state: &AppState, room_id: &str, target_id: &str, msg: SignalMessage) {
+async fn relay_message(state: &AppState, room_id: &str, sender_id: &str, target_id: &str, msg: SignalMessage) {
     let rooms = state.read().await;
     if let Some(room) = rooms.get(room_id) {
-        if let Some(client) = room.clients.get(target_id) {
+        if target_id == "peer" {
+            // Relay to the OTHER client in the room
+            for (id, client) in &room.clients {
+                if id != sender_id {
+                    let json = serde_json::to_string(&msg).unwrap();
+                    let _ = client.sender.send(Message::Text(json.into()));
+                }
+            }
+        } else if let Some(client) = room.clients.get(target_id) {
             let json = serde_json::to_string(&msg).unwrap();
             let _ = client.sender.send(Message::Text(json.into()));
         }

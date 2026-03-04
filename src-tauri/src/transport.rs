@@ -59,6 +59,7 @@ use tauri::AppHandle;
 
 impl WebRtcClient {
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let _ = self.app_handle.emit("webrtc-state", "Connecting to signaling...");
         // 1. Establish WebSocket Connection to Signaling Server
         let url_str = format!("{}/ws/{}", self.signaling_url, self.room_id);
         println!("Connecting to signaling server: {}", url_str);
@@ -68,6 +69,7 @@ impl WebRtcClient {
         // Connect to WebSocket using tokio-tungstenite
         let (ws_stream, _) = connect_async(req).await?;
         println!("WebSocket connected!");
+        let _ = self.app_handle.emit("webrtc-state", "Connected to signaling. Waiting for peer...");
         let (write, mut read) = ws_stream.split();
 
         let write = Arc::new(Mutex::new(write));
@@ -142,9 +144,10 @@ impl WebRtcClient {
                 .create_data_channel("file_transfer", None)
                 .await?;
 
-            let dc_clone = Arc::clone(&data_channel);
+            let app_handle_dc = self.app_handle.clone();
             data_channel.on_open(Box::new(move || {
                 println!("Data channel opened! Ready to send files.");
+                let _ = app_handle_dc.emit("webrtc-state", "Secure Data Channel Ready");
                 let dc_inner = Arc::clone(&dc_clone);
                 Box::pin(async move {
                     // TODO: Replace with dynamic file list passed from UI
@@ -154,12 +157,12 @@ impl WebRtcClient {
                     }
                 })
             }));
+            let app_handle_msg = self.app_handle.clone();
             data_channel.on_message(Box::new(
                 move |msg: webrtc::data_channel::data_channel_message::DataChannelMessage| {
-                    println!(
-                        "Sender received ack: {}",
-                        String::from_utf8_lossy(&msg.data)
-                    );
+                    let content = String::from_utf8_lossy(&msg.data);
+                    println!("Sender received ack: {}", content);
+                    let _ = app_handle_msg.emit("webrtc-state", format!("Received: {}", content));
                     Box::pin(async move {})
                 },
             ));
@@ -182,15 +185,20 @@ impl WebRtcClient {
             println!("Sent WebRTC Offer");
         } else {
             // Receiver waits for Data Channel
+            let app_handle_dc = self.app_handle.clone();
             peer_connection.on_data_channel(Box::new(move |d: Arc<webrtc::data_channel::RTCDataChannel>| {
                 println!("Data channel created by initiator!");
+                let _ = app_handle_dc.emit("webrtc-state", "Data Channel Established");
 
                 let d_clone = Arc::clone(&d);
+                let app_handle_msg = app_handle_dc.clone();
                 d.on_message(Box::new(move |msg: webrtc::data_channel::data_channel_message::DataChannelMessage| {
+                    let content = String::from_utf8_lossy(&msg.data);
                     println!("Receiver got data chunk (len: {})", msg.data.len());
+                    let _ = app_handle_msg.emit("webrtc-state", format!("Received: {}", content));
                     // If it's the transfer init signal...
                     if msg.data.starts_with(b"INIT_FILE_TRANSFER:") {
-                       println!("Begin receiving file: {}", String::from_utf8_lossy(&msg.data));
+                       println!("Begin receiving file: {}", content);
 
                        // Send ACK
                        let dc = Arc::clone(&d_clone);
@@ -209,9 +217,19 @@ impl WebRtcClient {
         }
 
         // Maintain connection state
+        let app_handle_state = self.app_handle.clone();
         peer_connection.on_peer_connection_state_change(Box::new(
             move |s: RTCPeerConnectionState| {
+                let status = match s {
+                    RTCPeerConnectionState::Connected => "Connected",
+                    RTCPeerConnectionState::Connecting => "Connecting WebRTC...",
+                    RTCPeerConnectionState::Disconnected => "Peer Disconnected",
+                    RTCPeerConnectionState::Failed => "Connection Failed",
+                    RTCPeerConnectionState::New => "Waiting for peer...",
+                    _ => "Awaiting connection...",
+                };
                 println!("Peer Connection State has changed: {}", s);
+                let _ = app_handle_state.emit("webrtc-state", status);
                 Box::pin(async move {})
             },
         ));
@@ -219,42 +237,58 @@ impl WebRtcClient {
         // 6. Handle Incoming Signaling Messages
         let pc = Arc::clone(&peer_connection);
         while let Some(msg) = read.next().await {
-            if let Ok(Message::Text(text)) = msg {
-                if let Ok(signal) = serde_json::from_str::<SignalMessage>(&text) {
-                    match signal {
-                        SignalMessage::Offer { payload, .. } => {
-                            println!("Received Offer");
-                            let sdp: RTCSessionDescription = serde_json::from_str(&payload)?;
-                            pc.set_remote_description(sdp).await?;
-                            let answer = pc.create_answer(None).await?;
-                            pc.set_local_description(answer.clone()).await?;
+            match msg {
+                Ok(Message::Text(text)) => {
+                    if let Ok(signal) = serde_json::from_str::<SignalMessage>(&text) {
+                        match signal {
+                            SignalMessage::Offer { payload, .. } => {
+                                println!("Received Offer");
+                                let sdp: RTCSessionDescription = serde_json::from_str(&payload)?;
+                                pc.set_remote_description(sdp).await?;
+                                let answer = pc.create_answer(None).await?;
+                                pc.set_local_description(answer.clone()).await?;
 
-                            let answer_msg = SignalMessage::Answer {
-                                payload: serde_json::to_string(&answer)?,
-                                target: "peer".to_string(),
-                            };
-                            write
-                                .lock()
-                                .await
-                                .send(Message::Text(Utf8Bytes::from(serde_json::to_string(
-                                    &answer_msg,
-                                )?)))
-                                .await?;
-                            println!("Sent WebRTC Answer");
+                                let answer_msg = SignalMessage::Answer {
+                                    payload: serde_json::to_string(&answer)?,
+                                    target: "peer".to_string(),
+                                };
+                                write
+                                    .lock()
+                                    .await
+                                    .send(Message::Text(Utf8Bytes::from(serde_json::to_string(
+                                        &answer_msg,
+                                    )?)))
+                                    .await?;
+                                println!("Sent WebRTC Answer");
+                            }
+                            SignalMessage::Answer { payload, .. } => {
+                                println!("Received Answer");
+                                let sdp: RTCSessionDescription = serde_json::from_str(&payload)?;
+                                pc.set_remote_description(sdp).await?;
+                            }
+                            SignalMessage::IceCandidate { payload, .. } => {
+                                println!("Received remote ICE candidate");
+                                let candidate: RTCIceCandidateInit = serde_json::from_str(&payload)?;
+                                pc.add_ice_candidate(candidate).await?;
+                            }
+                            SignalMessage::PeerDisconnected { .. } => {
+                                println!("Peer disconnected");
+                                let _ = self.app_handle.emit("webrtc-state", "Peer disconnected");
+                            }
+                            SignalMessage::Error { message } => {
+                                println!("Signaling error: {}", message);
+                                let _ = self.app_handle.emit("webrtc-state", format!("Signaling error: {}", message));
+                            }
+                            _ => {}
                         }
-                        SignalMessage::Answer { payload, .. } => {
-                            println!("Received Answer");
-                            let sdp: RTCSessionDescription = serde_json::from_str(&payload)?;
-                            pc.set_remote_description(sdp).await?;
-                        }
-                        SignalMessage::IceCandidate { payload, .. } => {
-                            println!("Received remote ICE candidate");
-                            let candidate: RTCIceCandidateInit = serde_json::from_str(&payload)?;
-                            pc.add_ice_candidate(candidate).await?;
-                        }
-                        _ => {}
                     }
                 }
+                Err(e) => {
+                    println!("WebSocket error: {}", e);
+                    let _ = self.app_handle.emit("webrtc-state", format!("WebSocket error: {}", e));
+                    break;
+                }
+                _ => {}
             }
         }
 

@@ -85,6 +85,7 @@
 
 <script>
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import QrcodeVue from 'qrcode.vue'
 
 export default {
@@ -100,11 +101,26 @@ export default {
     joinPassphrase: "",
     connectionStatus: "",
     isConnected: false,
+    unlisten: null,
   }),
   watch: {
-    dialog(val) {
+    async dialog(val) {
       if (val) {
+        this.unlisten = await listen("webrtc-state", (event) => {
+          this.connectionStatus = event.payload;
+          if (event.payload === "Connected" || event.payload === "connected") {
+            this.isConnected = true;
+          }
+          if (event.payload === "disconnected" || event.payload === "failed") {
+            this.isConnected = false;
+          }
+        });
         this.initialize();
+      } else {
+        if (this.unlisten) {
+          this.unlisten();
+          this.unlisten = null;
+        }
       }
     },
     mode(newMode) {
