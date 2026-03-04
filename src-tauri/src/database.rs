@@ -185,7 +185,13 @@ impl Database {
 
     pub fn list_objects(self, query: &str) -> Vec<String> {
         let mut objects = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT class FROM object WHERE class LIKE :query GROUP BY class") {
+        let sql = "
+            SELECT class FROM object WHERE class LIKE :query 
+            UNION 
+            SELECT value FROM properties WHERE (key LIKE '%City%' OR key LIKE '%Country%' OR key LIKE '%State%') AND value LIKE :query
+            GROUP BY 1
+        ";
+        if let Ok(mut stmt) = self.connection.prepare(sql) {
             let iter = stmt.query_map(&[(":query", &format!("%{query}%"))], |row| row.get(0));
             if let Ok(iter) = iter {
                 for item in iter {
@@ -208,7 +214,9 @@ impl Database {
         let mut photos = Vec::new();
 
         let should_filter_fav = if favorites_only { "AND is_fav IS NOT NULL" } else { "" };
-        let query_filter = if !query.is_empty() { "AND (o.class LIKE ?3 OR p.location LIKE ?3 OR p.id LIKE ?3)" } else { "" };
+        let query_filter = if !query.is_empty() { 
+            "AND (o.class LIKE ?3 OR p.location LIKE ?3 OR p.id LIKE ?3 OR p.created LIKE ?3 OR prop_loc.value LIKE ?3)" 
+        } else { "" };
 
         let sql = format!(
             "SELECT 
@@ -218,6 +226,7 @@ impl Database {
                 p.created
              FROM photo p 
              LEFT JOIN properties prop ON p.id = prop.photo_id AND prop.key = 'favorite'
+             LEFT JOIN properties prop_loc ON p.id = prop_loc.photo_id AND (prop_loc.key LIKE '%City%' OR prop_loc.key LIKE '%Country%' OR prop_loc.key LIKE '%State%')
              LEFT JOIN object o ON p.id = o.photo_id 
              WHERE 1=1 {} {}
              GROUP BY p.id
