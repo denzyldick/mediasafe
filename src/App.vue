@@ -120,6 +120,16 @@ export default {
     });
 
     this.list_directories();
+
+    // Fetch top tags for initial search suggestions
+    invoke("get_top_tags").then(response => {
+      try {
+        const parsed = JSON.parse(response);
+        this.objects = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error("Failed to parse top tags:", e);
+      }
+    });
   },
   computed: {
     hasActiveFilters() {
@@ -158,6 +168,11 @@ export default {
             this.objects = JSON.parse(response);
           }.bind(this),
         );
+      } else {
+        // Restore top tags when search is cleared
+        invoke("get_top_tags").then(response => {
+          this.objects = JSON.parse(response);
+        });
       }
     },
     getFaceImageSrc(crop_path) {
@@ -302,6 +317,7 @@ export default {
                 :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%' }"
               >
                 <template v-slot:prepend-item>
+                  <v-list-subheader v-if="!query" class="text-zinc-muted text-uppercase tracking-widest text-caption py-2">Top Suggestions</v-list-subheader>
                   <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
                     <v-avatar
                       v-for="face in faces"

@@ -162,6 +162,29 @@ async fn is_initialized(app: tauri::AppHandle) -> bool {
 }
 
 #[tauri::command]
+async fn get_top_tags(app: tauri::AppHandle) -> String {
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
+    let database = database::Database::new(&path);
+    let mut tags = Vec::new();
+    let sql = "SELECT class FROM object GROUP BY class ORDER BY COUNT(*) DESC LIMIT 5";
+    if let Ok(mut stmt) = database.connection.prepare(sql) {
+        let iter = stmt.query_map([], |row| row.get(0));
+        if let Ok(iter) = iter {
+            for item in iter {
+                if let Ok(s) = item {
+                    tags.push(s);
+                }
+            }
+        }
+    }
+    serde_json::to_string(&tags).unwrap_or("[]".to_string())
+}
+
+#[tauri::command]
 async fn get_indexing_status(state: tauri::State<'_, ml::MlContext>) -> Result<usize, String> {
     Ok(state.pending_count.load(std::sync::atomic::Ordering::SeqCst))
 }
@@ -189,6 +212,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            get_top_tags,
             get_indexing_status,
             check_models,
             is_initialized,
@@ -240,17 +264,20 @@ mod transport;
 
 #[tauri::command]
 async fn start_webrtc_session(
+    app: tauri::AppHandle,
     room_id: String,
     is_initiator: bool,
     signaling_url: String,
 ) -> Result<(), String> {
     println!("Starting WebRTC session for room_id: {}", room_id);
+    let app_handle = app.clone();
     // Spawn WebRTC connection loop in the background so Tauri remains responsive
     tauri::async_runtime::spawn(async move {
         let client = transport::WebRtcClient {
             room_id,
             is_initiator,
             signaling_url,
+            app_handle,
         };
         if let Err(e) = client.start().await {
             println!("WebRTC signaling failed: {}", e);
