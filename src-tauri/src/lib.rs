@@ -79,13 +79,11 @@ async fn download_models(
 
 #[tauri::command]
 async fn is_initialized(app: tauri::AppHandle) -> bool {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return false,
+    };
+    if path.is_empty() { return false; }
     let database = database::Database::new(&path);
     !database.list_directories().is_empty()
 }
@@ -259,13 +257,11 @@ async fn list_files(
 #[tauri::command]
 fn scan_files(app: tauri::AppHandle) {
     std::thread::spawn(move || {
-        let path = app
-            .path()
-            .app_config_dir()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
+        let path = match app.path().app_config_dir() {
+            Ok(p) => p.to_str().unwrap_or_default().to_string(),
+            Err(_) => return,
+        };
+        if path.is_empty() { return; }
 
         use std::time::SystemTime;
         use tauri::Emitter;
@@ -306,17 +302,16 @@ fn scan_files(app: tauri::AppHandle) {
         }
 
         // Save last scan timestamp
-        let database_path = app
-            .path()
-            .app_config_dir()
-            .unwrap()
-            .to_str()
-            .unwrap()
-            .to_string();
+        let database_path = match app.path().app_config_dir() {
+            Ok(p) => p.to_str().unwrap_or_default().to_string(),
+            Err(_) => return,
+        };
+        if database_path.is_empty() { return; }
+
         let database = database::Database::new(&database_path);
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs()
             .to_string();
         database.set_last_scan_time(timestamp);
@@ -342,35 +337,34 @@ async fn get_thumbnail(path: String) -> String {
 
 #[tauri::command]
 async fn list_directories(app: tauri::AppHandle) -> String {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
     let directories = directory::list_directories(&path);
-    serde_json::to_string(&directories).unwrap()
+    serde_json::to_string(&directories).unwrap_or("[]".to_string())
 }
 #[tauri::command]
-async fn remove_directory(app: tauri::AppHandle, path: String) {
+async fn remove_directory(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let config_path = app
         .path()
         .app_config_dir()
-        .unwrap()
+        .map_err(|e| e.to_string())?
         .to_str()
-        .unwrap()
+        .ok_or("Invalid config path")?
         .to_string();
     directory::remove_directory(path, &config_path);
+    Ok(())
 }
 #[tauri::command]
-async fn add_directory(app: tauri::AppHandle, path: String) {
+async fn add_directory(app: tauri::AppHandle, path: String) -> Result<(), String> {
     let config_path = app
         .path()
         .app_config_dir()
-        .unwrap()
+        .map_err(|e| e.to_string())?
         .to_str()
-        .unwrap()
+        .ok_or("Invalid config path")?
         .to_string();
     let msg = format!(
         "Command add_directory called with path: {} and config_path: {}",
@@ -380,6 +374,7 @@ async fn add_directory(app: tauri::AppHandle, path: String) {
     use tauri::Emitter;
     let _ = app.emit("log-message", msg);
     directory::add_directory(path, &config_path);
+    Ok(())
 }
 #[tauri::command]
 async fn get_initial_state(app: tauri::AppHandle) -> String {

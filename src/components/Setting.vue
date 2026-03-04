@@ -287,7 +287,7 @@ export default {
 
         for (const dir of dirs) {
           try {
-            await invoke("add_directory", { path: dir, configPath: this.dataDir });
+            await invoke("add_directory", { path: dir });
             console.log("Added directory:", dir);
           } catch (err) {
             console.error("Failed to add directory:", err);
@@ -310,7 +310,7 @@ export default {
     async onFolderSelected(path) {
         console.log("Android folder selected:", path);
         try {
-            await invoke("add_directory", { path: path, configPath: this.dataDir });
+            await invoke("add_directory", { path: path });
             this.list_directories();
             invoke("scan_files");
         } catch (err) {
@@ -320,7 +320,7 @@ export default {
     },
     remove_directory(path) {
       this.directories = this.directories.filter((dir) => dir.value !== path);
-      invoke("remove_directory", { path: path, configPath: this.dataDir }).then(() => {
+      invoke("remove_directory", { path: path }).then(() => {
         this.list_directories();
       });
     },
