@@ -127,6 +127,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                                 database.store_photo(photo);
 
                                 if let Some(state) = app.try_state::<MlContext>() {
+                                    state.pending_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                                     let _ = state.tx.lock().unwrap().send(photo_id_clone);
                                 }
                             }

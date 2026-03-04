@@ -161,6 +161,11 @@ async fn is_initialized(app: tauri::AppHandle) -> bool {
     !database.list_directories().is_empty()
 }
 
+#[tauri::command]
+async fn get_indexing_status(state: tauri::State<'_, ml::MlContext>) -> Result<usize, String> {
+    Ok(state.pending_count.load(std::sync::atomic::Ordering::SeqCst))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -172,9 +177,10 @@ pub fn run() {
                 .to_str()
                 .unwrap()
                 .to_string();
-            let tx = ml::start_background_worker(&app.handle(), config_path);
+            let (tx, pending_count) = ml::start_background_worker(&app.handle(), config_path);
             app.manage(ml::MlContext {
                 tx: std::sync::Mutex::new(tx),
+                pending_count,
             });
             Ok(())
         })
@@ -183,6 +189,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            get_indexing_status,
             check_models,
             is_initialized,
             get_people,

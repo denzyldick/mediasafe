@@ -21,6 +21,7 @@ export default {
       progress: 0,
       current_directory: ''
     },
+    indexingCount: 0,
     lastScanTime: 'Never',
     search: null,
     query: null,
@@ -58,6 +59,16 @@ export default {
         const date = new Date(timestamp * 1000);
         this.lastScanTime = date.toLocaleString();
       }
+    });
+
+    // Check initial indexing status
+    invoke("get_indexing_status").then(count => {
+      this.indexingCount = count;
+    });
+
+    // Listen for indexing progress
+    listen("indexing-progress", (event) => {
+      this.indexingCount = event.payload;
     });
 
     // Fetch faces for search
@@ -223,36 +234,46 @@ export default {
             </v-col>
 
             <v-col class="mx-4" v-if="current_page === 'home'">
-              <v-autocomplete
-                v-model="search"
-                v-model:search="query"
-                :items="objects"
-                prepend-inner-icon="mdi-magnify"
-                variant="solo-filled"
-                density="compact"
-                placeholder="Search memories..."
-                hide-details
-                flat
-                rounded="lg"
-                class="search-autocomplete"
-                bg-color="rgba(255,255,255,0.03)"
-                :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%' }"
-              >
-                <template v-slot:prepend-item>
-                  <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
-                    <v-avatar
-                      v-for="face in faces"
-                      :key="face.face_id"
-                      size="40"
-                      class="cursor-pointer face-avatar"
-                      @click="addFaceToSearch(face)"
-                    >
-                      <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
-                    </v-avatar>
+              <div class="d-flex align-center">
+                <v-autocomplete
+                  v-model="search"
+                  v-model:search="query"
+                  :items="objects"
+                  prepend-inner-icon="mdi-magnify"
+                  variant="solo-filled"
+                  density="compact"
+                  placeholder="Search memories..."
+                  hide-details
+                  flat
+                  rounded="lg"
+                  class="search-autocomplete flex-grow-1"
+                  bg-color="rgba(255,255,255,0.03)"
+                  :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%' }"
+                >
+                  <template v-slot:prepend-item>
+                    <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
+                      <v-avatar
+                        v-for="face in faces"
+                        :key="face.face_id"
+                        size="40"
+                        class="cursor-pointer face-avatar"
+                        @click="addFaceToSearch(face)"
+                      >
+                        <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
+                      </v-avatar>
+                    </div>
+                    <v-divider v-if="faces.length > 0" class="opacity-10 my-1"></v-divider>
+                  </template>
+                </v-autocomplete>
+
+                <!-- AI Indexing Status -->
+                <v-fade-transition>
+                  <div v-if="indexingCount > 0" class="ml-4 d-flex align-center">
+                    <v-icon color="#71717a" size="small" class="mdi-spin mr-2">mdi-brain</v-icon>
+                    <span class="text-caption text-zinc-muted font-weight-medium">{{ indexingCount }}</span>
                   </div>
-                  <v-divider v-if="faces.length > 0" class="opacity-10 my-1"></v-divider>
-                </template>
-              </v-autocomplete>
+                </v-fade-transition>
+              </div>
             </v-col>
             
             <v-spacer v-if="current_page !== 'home'"></v-spacer>
