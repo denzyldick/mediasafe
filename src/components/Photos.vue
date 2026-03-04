@@ -58,9 +58,9 @@
     <!-- Monthly Grouped View -->
     <div v-if="images.length > 0 && viewMode === 'monthly'">
       <div v-for="(group, month) in groupedImages" :key="month" class="mb-10">
-        <div class="text-h6 font-weight-bold text-zinc-primary mb-4 sticky-header px-2">
+        <div class="text-h6 font-weight-bold text-black mb-4 sticky-header px-2">
           {{ month }}
-          <span class="text-caption text-zinc-muted ml-2">{{ group.length }} photos</span>
+          <span class="text-caption text-grey-darken-1 ml-2">{{ group.length }} photos</span>
         </div>
         <div class="grid">
           <Image
@@ -346,7 +346,7 @@ export default {
 .sticky-header {
   position: sticky;
   top: 0;
-  background: transparent;
+  background: white;
   z-index: 5;
   margin-left: -20px;
   margin-right: -20px;

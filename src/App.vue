@@ -211,7 +211,7 @@ export default {
 
     <!-- Main Application -->
     <v-layout v-else>
-      <v-app-bar elevation="0" v-if="clean_install === false && current_page === 'home'" color="transparent">
+      <v-app-bar elevation="0" v-if="clean_install === false && current_page === 'home'" color="white" theme="light">
         <v-row class="px-4 align-center no-gutters">
           <v-col cols="auto" v-if="current_page === 'home'">
             <v-menu offset-y>
@@ -219,10 +219,9 @@ export default {
                 <v-btn 
                   v-bind="props"
                   variant="outlined"
-                  :color="(scanStatus === 'scanning' || indexingCount > 0) ? '#e4e4e7' : '#a1a1aa'"
+                  :color="(scanStatus === 'scanning' || indexingCount > 0) ? 'primary' : 'grey-darken-1'"
                   size="small"
-                  class="text-none border-subtle"
-                  style="color: #a1a1aa !important;"
+                  class="text-none"
                 >
                   <template v-slot:prepend>
                     <v-progress-circular
