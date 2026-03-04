@@ -153,9 +153,9 @@ export default {
           // Production Signaling Server
           const signalingUrl = "wss://mediasafe.denzyl.io";
           await invoke("start_webrtc_session", {
-              room_id: roomId,
-              is_initiator: true,
-              signaling_url: signalingUrl
+              roomId: roomId,
+              isInitiator: true,
+              signalingUrl: signalingUrl
           });
           this.connectionStatus = "Signaling channel requested. Awaiting WebRTC connection.";
           // TODO: Listen for WebRTC event complete to actually set isConnected = true
@@ -171,9 +171,9 @@ export default {
            const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
            const signalingUrl = "wss://mediasafe.denzyl.io";
            await invoke("start_webrtc_session", {
-              room_id: roomId,
-              is_initiator: false,
-              signaling_url: signalingUrl
+              roomId: roomId,
+              isInitiator: false,
+              signalingUrl: signalingUrl
            });
            this.connectionStatus = "Signaling channel requested. Awaiting WebRTC Receiver connection.";
         } catch(error) {
