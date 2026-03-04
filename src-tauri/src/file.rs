@@ -153,6 +153,23 @@ pub fn get_thumbnail(path: String) -> String {
     }
 }
 
+pub fn read_file_base64(path: String) -> String {
+    match fs::read(&path) {
+        Ok(bytes) => {
+            let encoded = general_purpose::STANDARD.encode(bytes);
+            let mime = match Path::new(&path).extension().and_then(|s| s.to_str()) {
+                Some("png") | Some("PNG") => "image/png",
+                _ => "image/jpeg",
+            };
+            format!("data:{};base64,{}", mime, encoded)
+        }
+        Err(e) => {
+            eprintln!("Failed to read file {}: {}", path, e);
+            String::new()
+        }
+    }
+}
+
 mod tests {
 
     #[test]

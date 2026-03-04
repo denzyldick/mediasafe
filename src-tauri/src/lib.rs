@@ -242,6 +242,7 @@ pub fn run() {
             generate_dummy_data,
             toggle_favorite,
             get_faces,
+            get_raw_photo,
             list_directories,
             add_directory,
             remove_directory,
@@ -448,6 +449,11 @@ fn scan_files(app: tauri::AppHandle) {
 }
 
 #[tauri::command]
+#[tauri::command]
+async fn get_raw_photo(path: String) -> String {
+    file::read_file_base64(path)
+}
+
 async fn get_thumbnail(path: String) -> String {
     println!("Generating thumnail for {}", path);
     file::get_thumbnail(path)

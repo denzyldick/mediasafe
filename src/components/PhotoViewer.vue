@@ -138,6 +138,7 @@ export default {
   emits: ['update:modelValue', 'update:index'],
   data: () => ({
     showInfo: false,
+    fullPhotoB64: '',
   }),
   computed: {
     visible: {
@@ -150,18 +151,8 @@ export default {
     },
     currentPhotoSrc() {
       if (!this.currentPhoto) return '';
-      // Prioritize the original location for the viewer to show full quality
-      const src = this.currentPhoto.location || this.currentPhoto.encoded;
-      
-      if (src) {
-          if (src.startsWith('data:image')) return src;
-          const converted = convertFileSrc(src);
-          if (converted === src && src.startsWith('/')) {
-                return `http://asset.localhost${encodeURIComponent(src)}`;
-          }
-          return converted;
-      }
-      return '';
+      // Use full base64 if fetched, otherwise fallback to thumbnail
+      return this.fullPhotoB64 || this.currentPhoto.encoded;
     },
     exifData() {
       if (!this.currentPhoto || !this.currentPhoto.properties) return {};
@@ -200,6 +191,18 @@ export default {
     }
   },
   methods: {
+    async fetchFullPhoto() {
+      if (this.currentPhoto && this.currentPhoto.location) {
+        try {
+          this.fullPhotoB64 = await invoke("get_raw_photo", { path: this.currentPhoto.location });
+        } catch (e) {
+          console.error("Failed to fetch full photo", e);
+          this.fullPhotoB64 = '';
+        }
+      } else {
+        this.fullPhotoB64 = '';
+      }
+    },
     close() { this.visible = false; },
     next() {
         if (this.photos.length === 0) return;
@@ -217,6 +220,18 @@ export default {
         if (e.key === 'ArrowLeft') this.prev();
         if (e.key === 'Escape') this.close();
         if (e.key === 'i') this.showInfo = !this.showInfo;
+    }
+  },
+  watch: {
+    index() {
+      this.fetchFullPhoto();
+    },
+    visible(val) {
+      if (val) {
+        this.fetchFullPhoto();
+      } else {
+        this.fullPhotoB64 = '';
+      }
     }
   },
   mounted() {
