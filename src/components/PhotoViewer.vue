@@ -150,7 +150,8 @@ export default {
     },
     currentPhotoSrc() {
       if (!this.currentPhoto) return '';
-      const src = this.currentPhoto.encoded || this.currentPhoto.location;
+      // Prioritize the original location for the viewer to show full quality
+      const src = this.currentPhoto.location || this.currentPhoto.encoded;
       
       if (src) {
           if (src.startsWith('data:image')) return src;
