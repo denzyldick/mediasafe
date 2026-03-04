@@ -159,8 +159,9 @@
                     flat
                     density="compact"
                     hide-details
-                    bg-color="rgba(255,255,255,0.1)"
-                    class="custom-select"
+                    bg-color="white"
+                    theme="light"
+                    class="custom-select rounded-lg"
                     width="150"
                     @update:model-value="savePerformanceConfig"
                   ></v-select>
