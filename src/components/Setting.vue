@@ -3,58 +3,56 @@
     <v-row justify="center">
       <v-col cols="12" md="8" lg="6">
         <div class="d-flex align-center mb-6">
-          <v-icon color="#a1a1aa" size="x-large" class="mr-3 opacity-40">mdi-cog</v-icon>
-          <h1 class="text-h4 font-weight-bold text-zinc-secondary">Settings</h1>
+          <v-icon color="white" size="x-large" class="mr-3 opacity-80">mdi-cog</v-icon>
+          <h1 class="text-h4 font-weight-bold text-white">Settings</h1>
         </div>
 
         <!-- Storage Config Card -->
-        <v-card class="mb-6 border-subtle" variant="flat" rounded="lg">
+        <v-card class="mb-6" color="white" variant="flat" rounded="lg">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="#71717a" size="large" class="opacity-50">mdi-database</v-icon>
+              <v-icon color="grey-darken-3" size="large">mdi-database</v-icon>
             </template>
-            <v-card-title class="text-h6 text-zinc-secondary">Storage Configuration</v-card-title>
-            <v-card-subtitle class="text-zinc-muted">Where your media database is stored</v-card-subtitle>
+            <v-card-title class="text-h6 text-grey-darken-4 font-weight-bold">Storage Configuration</v-card-title>
+            <v-card-subtitle class="text-grey-darken-1">Where your media database is stored</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
             <v-alert
               variant="flat"
               border="start"
-              class="mb-2 text-zinc-primary"
-              style="background: rgba(255,255,255,0.01) !important; border-left: 2px solid rgba(255,255,255,0.1) !important;"
+              color="grey-lighten-4"
+              class="mb-2 text-grey-darken-4"
+              style="border-left: 4px solid #18181b !important;"
             >
               Your configuration database is located at:
-              <div class="font-weight-medium mt-1 text-body-2 text-white">{{ dataDir }}/database.sql</div>
+              <div class="font-weight-bold mt-1 text-body-2">{{ dataDir }}/database.sql</div>
             </v-alert>
-            <div class="text-caption text-zinc-muted opacity-60">
-              This is a standard <a href="https://www.sqlite.org" class="text-decoration-none font-weight-bold text-zinc-muted opacity-80">SQLite</a> file.
-            </div>
           </v-card-text>
         </v-card>
 
         <!-- Library Config Card -->
-        <v-card variant="flat" rounded="lg" class="mb-6 border-subtle">
+        <v-card variant="flat" color="white" rounded="lg" class="mb-6">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="#71717a" size="large" class="opacity-50">mdi-image-multiple</v-icon>
+              <v-icon color="grey-darken-3" size="large">mdi-image-multiple</v-icon>
             </template>
-            <v-card-title class="text-h6 text-zinc-secondary">Media Library</v-card-title>
-            <v-card-subtitle class="text-zinc-muted">Manage folders</v-card-subtitle>
+            <v-card-title class="text-h6 text-grey-darken-4 font-weight-bold">Media Library</v-card-title>
+            <v-card-subtitle class="text-grey-darken-1">Manage folders</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
             <v-row class="align-center mb-2 mt-2">
               <v-col>
-                <div class="text-subtitle-1 font-weight-medium text-zinc-secondary">Watched Folders</div>
+                <div class="text-subtitle-1 font-weight-bold text-grey-darken-4">Watched Folders</div>
               </v-col>
               <v-col cols="auto">
                  <v-btn
-                  color="white"
+                  color="grey-darken-4"
                   prepend-icon="mdi-folder-plus"
                   variant="flat"
                   @click="select_directory"
-                  class="text-none"
+                  class="text-none font-weight-bold"
                 >
                   Add Folder
                 </v-btn>
@@ -63,15 +61,15 @@
 
             <v-expand-transition>
               <div v-if="directories.length > 0">
-                 <v-list lines="one" class="bg-transparent border-subtle rounded-lg">
+                 <v-list lines="one" class="bg-grey-lighten-4 rounded-lg">
                   <v-list-item
                     v-for="(directory, index) in directories"
                     :key="directory.value"
                     :title="directory.title"
-                    class="text-zinc-muted"
+                    class="text-grey-darken-4 font-weight-medium"
                   >
                     <template v-slot:prepend>
-                       <v-icon color="#71717a" class="opacity-30">mdi-folder</v-icon>
+                       <v-icon color="grey-darken-1">mdi-folder</v-icon>
                     </template>
                     
                     <template v-slot:append>
@@ -82,25 +80,24 @@
                         size="small"
                         @click="remove_directory(directory.value)"
                         title="Remove folder"
-                        class="opacity-30"
                       ></v-btn>
                     </template>
-                     <v-divider v-if="index < directories.length - 1" class="opacity-5"></v-divider>
+                     <v-divider v-if="index < directories.length - 1" class="opacity-10"></v-divider>
                   </v-list-item>
                 </v-list>
               </div>
-              <div v-else class="text-center py-8 text-zinc-muted border border-dashed rounded-lg opacity-30" style="border-color: rgba(255,255,255,0.05) !important;">
+              <div v-else class="text-center py-8 text-grey-darken-1 border border-dashed rounded-lg" style="border-color: rgba(0,0,0,0.1) !important;">
                 <div>No folders added yet.</div>
               </div>
             </v-expand-transition>
           </v-card-text>
           
-          <v-divider class="opacity-5"></v-divider>
+          <v-divider class="opacity-10"></v-divider>
           
           <v-card-actions class="pa-4">
              <v-spacer></v-spacer>
              <v-btn
-              color="white"
+              color="grey-darken-4"
               size="large"
               variant="flat"
               :disabled="directories.length === 0"
@@ -113,20 +110,20 @@
         </v-card>
 
         <!-- Performance Config Card -->
-        <v-card variant="flat" rounded="lg" class="mb-6 border-subtle">
+        <v-card variant="flat" color="white" rounded="lg" class="mb-6">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="#71717a" size="large" class="opacity-50">mdi-speedometer</v-icon>
+              <v-icon color="grey-darken-3" size="large">mdi-speedometer</v-icon>
             </template>
-            <v-card-title class="text-h6 text-zinc-secondary">Performance</v-card-title>
-            <v-card-subtitle class="text-zinc-muted">Adjust system resource usage</v-card-subtitle>
+            <v-card-title class="text-h6 text-grey-darken-4 font-weight-bold">Performance</v-card-title>
+            <v-card-subtitle class="text-grey-darken-1">Adjust system resource usage</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
             <div class="mb-6">
               <div class="d-flex justify-space-between align-center mb-2">
-                <div class="text-subtitle-1 font-weight-medium text-zinc-secondary">Scanning Threads</div>
-                <v-chip size="x-small" color="primary" variant="tonal">{{ performance.scanThreads }} threads</v-chip>
+                <div class="text-subtitle-1 font-weight-bold text-grey-darken-4">Scanning Threads</div>
+                <v-chip size="x-small" color="grey-darken-4" variant="flat" class="font-weight-bold text-white">{{ performance.scanThreads }} threads</v-chip>
               </div>
               <v-slider
                 v-model="performance.scanThreads"
@@ -135,18 +132,18 @@
                 :step="1"
                 thumb-label
                 hide-details
-                color="#71717a"
+                color="grey-darken-4"
                 @update:model-value="savePerformanceConfig"
               ></v-slider>
-              <div class="text-caption text-zinc-muted mt-1">Number of parallel threads used for initial file scanning and thumbnail generation. Lower this if your system feels sluggish during scanning.</div>
+              <div class="text-caption text-grey-darken-1 mt-1">Number of parallel threads used for initial file scanning and thumbnail generation.</div>
             </div>
 
-            <v-divider class="my-4 opacity-5"></v-divider>
+            <v-divider class="my-4 opacity-10"></v-divider>
 
             <div>
               <v-list-item class="px-0">
-                <v-list-item-title class="text-zinc-secondary font-weight-medium">AI Indexing Mode</v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-muted">When should the AI process your photos?</v-list-item-subtitle>
+                <v-list-item-title class="text-grey-darken-4 font-weight-bold">AI Indexing Mode</v-list-item-title>
+                <v-list-item-subtitle class="text-grey-darken-1">When should the AI process your photos?</v-list-item-subtitle>
                 <template v-slot:append>
                   <v-select
                     v-model="performance.indexingMode"
@@ -159,9 +156,8 @@
                     flat
                     density="compact"
                     hide-details
-                    bg-color="white"
-                    theme="light"
-                    class="custom-select rounded-lg"
+                    bg-color="grey-lighten-4"
+                    class="custom-select font-weight-bold"
                     width="150"
                     @update:model-value="savePerformanceConfig"
                   ></v-select>
@@ -171,32 +167,31 @@
           </v-card-text>
         </v-card>
         
-        
         <!-- AI Models Config Card -->
-        <v-card variant="flat" rounded="lg" class="mb-6 border-subtle">
+        <v-card variant="flat" color="white" rounded="lg" class="mb-6">
           <v-card-item>
             <template v-slot:prepend>
-              <v-icon color="#71717a" size="large" class="opacity-50">mdi-brain</v-icon>
+              <v-icon color="grey-darken-3" size="large">mdi-brain</v-icon>
             </template>
-            <v-card-title class="text-h6 text-zinc-secondary">AI Models</v-card-title>
-            <v-card-subtitle class="text-zinc-muted">Offline detection & search</v-card-subtitle>
+            <v-card-title class="text-h6 text-grey-darken-4 font-weight-bold">AI Models</v-card-title>
+            <v-card-subtitle class="text-grey-darken-1">Offline detection & search</v-card-subtitle>
           </v-card-item>
 
           <v-card-text>
             <v-list lines="two" class="bg-transparent">
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="#a1a1aa" :disabled="downloadedModels.includes('clip')"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="grey-darken-4" :disabled="downloadedModels.includes('clip')"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-zinc-secondary opacity-80">
+                <v-list-item-title class="font-weight-bold text-grey-darken-4">
                   CLIP Model
-                  <v-chip v-if="downloadedModels.includes('clip')" size="x-small" variant="tonal" class="ml-2" color="success">Ready</v-chip>
+                  <v-chip v-if="downloadedModels.includes('clip')" size="x-small" variant="flat" class="ml-2" color="success">Ready</v-chip>
                 </v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-muted opacity-60">Smart search indexing</v-list-item-subtitle>
+                <v-list-item-subtitle class="text-grey-darken-1">Smart search indexing</v-list-item-subtitle>
                 <template v-if="downloadProgress.clip !== undefined">
                   <v-progress-linear
                     :model-value="(downloadProgress.clip.downloaded / downloadProgress.clip.total) * 100"
-                    color="#71717a"
+                    color="grey-darken-4"
                     height="2"
                     rounded
                     class="mt-2"
@@ -206,17 +201,17 @@
 
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="#a1a1aa" :disabled="downloadedModels.includes('ultraface')"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="grey-darken-4" :disabled="downloadedModels.includes('ultraface')"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-zinc-secondary opacity-80">
+                <v-list-item-title class="font-weight-bold text-grey-darken-4">
                   UltraFace Model
-                  <v-chip v-if="downloadedModels.includes('ultraface')" size="x-small" variant="tonal" class="ml-2" color="success">Ready</v-chip>
+                  <v-chip v-if="downloadedModels.includes('ultraface')" size="x-small" variant="flat" class="ml-2" color="success">Ready</v-chip>
                 </v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-muted opacity-60">Offline face detection</v-list-item-subtitle>
+                <v-list-item-subtitle class="text-grey-darken-1">Offline face detection</v-list-item-subtitle>
                 <template v-if="downloadProgress.ultraface !== undefined">
                   <v-progress-linear
                     :model-value="(downloadProgress.ultraface.downloaded / downloadProgress.ultraface.total) * 100"
-                    color="#71717a"
+                    color="grey-darken-4"
                     height="2"
                     rounded
                     class="mt-2"
@@ -226,12 +221,12 @@
             </v-list>
           </v-card-text>
           
-          <v-divider class="opacity-5"></v-divider>
+          <v-divider class="opacity-10"></v-divider>
           
           <v-card-actions class="pa-4">
              <v-spacer></v-spacer>
              <v-btn
-              color="white"
+              color="grey-darken-4"
               variant="flat"
               :disabled="selectedModels.length === 0 || isDownloading"
               :loading="isDownloading"
@@ -243,6 +238,36 @@
             </v-btn>
           </v-card-actions>
         </v-card>
+
+        <!-- Debug Logs Expansion Panel -->
+        <v-expansion-panels class="mb-6">
+          <v-expansion-panel title="Debug Logs" bg-color="white" class="text-grey-darken-4 font-weight-bold">
+            <template v-slot:text>
+               <v-sheet
+                 color="grey-lighten-4"
+                 class="pa-2 overflow-y-auto"
+                 rounded
+                 height="300"
+                 id="log-container"
+               >
+                 <div v-for="(log, i) in logs" :key="i" class="text-caption text-mono font-weight-medium" style="font-family: monospace; white-space: pre-wrap; word-break: break-all; color: #18181b;">
+                   <span :class="log.type === 'error' ? 'text-red-darken-2' : 'text-grey-darken-3'">
+                     [{{ log.time }}] {{ log.message }}
+                   </span>
+                 </div>
+               </v-sheet>
+               <v-btn size="small" variant="text" color="grey-darken-1" class="mt-2 text-none font-weight-bold" @click="logs = []">Clear Logs</v-btn>
+            </template>
+          </v-expansion-panel>
+        </v-expansion-panels>
+      </v-col>
+    </v-row>
+    <FolderPicker
+        v-model="showFolderPicker"
+        @select="onFolderSelected"
+    />
+  </v-container>
+</template>
 
         <!-- Debug Logs Expansion Panel -->
         <v-expansion-panels class="mb-6">
