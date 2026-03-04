@@ -307,14 +307,14 @@ export default {
 </script>
 <style scoped>
 .photos-container {
-  padding: 20px;
+  padding: 10px;
   height: 100%;
 }
 
 .grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 4px; /* Reduced gap for a tighter gallery look */
+  gap: 2px; /* Minimum gap for maximum seamlessness */
 }
 
 .sticky-header {
@@ -322,9 +322,9 @@ export default {
   top: 0;
   background: white;
   z-index: 5;
-  margin-left: -20px;
-  margin-right: -20px;
-  padding-left: 20px;
+  margin-left: -10px;
+  margin-right: -10px;
+  padding-left: 10px;
   padding-top: 12px;
   padding-bottom: 12px;
 }
