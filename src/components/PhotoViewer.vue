@@ -37,7 +37,7 @@
           width="350"
           color="#09090b"
           class="border-s border-subtle"
-          style="border-left: 1px solid rgba(255,255,255,0.1) !important;"
+          style="border-left: 1px solid rgba(255,255,255,0.1) !important; z-index: 3000 !important;"
         >
         <v-toolbar color="transparent" density="compact">
           <v-toolbar-title class="text-zinc-primary text-subtitle-1 font-weight-bold">Metadata</v-toolbar-title>
