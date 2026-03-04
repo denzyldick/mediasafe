@@ -205,15 +205,13 @@ fn is_local_network_ip(ip: Ipv4Addr) -> bool {
 // Device discovery is now handled passively via passing the 4-word mnemonic or QR code.
 #[tauri::command]
 async fn list_objects(app: tauri::AppHandle, query: String) -> String {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
     let database = database::Database::new(&path);
-    serde_json::to_string(&database.list_objects(&query)).unwrap()
+    serde_json::to_string(&database.list_objects(&query)).unwrap_or("[]".to_string())
 }
 
 use serde::{Deserialize, Serialize};
@@ -241,17 +239,15 @@ async fn list_files(
         // Note: scan_files now requires app handle, so we skip it here
         // The frontend will call scan_files directly
     }
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
     let database = database::Database::new(&path);
     let photos = database.list_photos(&query, offset, limit, favorites_only);
     println!("{} photos retrieved", photos.len());
-    serde_json::to_string(&photos).unwrap()
+    serde_json::to_string(&photos).unwrap_or("[]".to_string())
 }
 
 #[tauri::command]
@@ -378,28 +374,27 @@ async fn add_directory(app: tauri::AppHandle, path: String) -> Result<(), String
 }
 #[tauri::command]
 async fn get_initial_state(app: tauri::AppHandle) -> String {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "{}".to_string(),
+    };
+    if path.is_empty() { return "{}".to_string(); }
     let database = database::Database::new(&path);
     let state = database.get_state();
-    serde_json::to_string(&state).unwrap()
+    serde_json::to_string(&state).unwrap_or("{}".to_string())
 }
 
 #[tauri::command]
 async fn set_initial_state(app: tauri::AppHandle, state: String) {
-    let state = from_str(&state).unwrap();
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let state = match from_str::<HashMap<String, String>>(&state) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return,
+    };
+    if path.is_empty() { return; }
 
     let database = database::Database::new(&path);
     database.set_state(state);
@@ -407,28 +402,24 @@ async fn set_initial_state(app: tauri::AppHandle, state: String) {
 
 #[tauri::command]
 async fn get_heatmap_data(app: tauri::AppHandle) -> String {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
     let database = database::Database::new(&path);
     let photos = database.get_all_photos_with_location();
-    serde_json::to_string(&photos).unwrap()
+    serde_json::to_string(&photos).unwrap_or("[]".to_string())
 }
 
 #[tauri::command]
 async fn generate_dummy_data(app: tauri::AppHandle) {
     use rand::Rng;
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return,
+    };
+    if path.is_empty() { return; }
     let database = database::Database::new(&path);
     let mut rng = rand::thread_rng();
 
@@ -456,27 +447,23 @@ async fn generate_dummy_data(app: tauri::AppHandle) {
 
 #[tauri::command]
 async fn toggle_favorite(app: tauri::AppHandle, id: String) -> bool {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return false,
+    };
+    if path.is_empty() { return false; }
     let database = database::Database::new(&path);
     database.toggle_favorite(&id)
 }
 
 #[tauri::command]
 async fn get_faces(app: tauri::AppHandle) -> String {
-    let path = app
-        .path()
-        .app_config_dir()
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return "[]".to_string(),
+    };
+    if path.is_empty() { return "[]".to_string(); }
     let database = database::Database::new(&path);
     let faces = database.get_all_faces();
-    serde_json::to_string(&faces).unwrap()
+    serde_json::to_string(&faces).unwrap_or("[]".to_string())
 }
