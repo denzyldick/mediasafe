@@ -149,7 +149,7 @@ export default {
 }
 
 .dark-map :deep(.leaflet-tile-pane) {
-    filter: brightness(0.6) invert(100%) contrast(90%) hue-rotate(180deg) brightness(0.9);
+    filter: brightness(1.1) contrast(1.1);
 }
 
 .map-empty-state {
