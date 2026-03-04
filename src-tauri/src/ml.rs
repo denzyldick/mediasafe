@@ -211,6 +211,22 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
                 continue;
             }
 
+            // Check indexing mode
+            let state = db.get_state();
+            let mode = state.get("indexing_mode").map(|s| s.as_str()).unwrap_or("immediate");
+            
+            if mode == "manual" {
+                // In manual mode, we just discard everything unless it's a special trigger
+                // For now, let's just skip processing.
+                let _ = pending_count_clone.fetch_sub(1, Ordering::SeqCst);
+                continue;
+            }
+
+            if mode == "idle" {
+                // If in idle mode, sleep a bit between each photo to reduce sustained CPU load
+                std::thread::sleep(std::time::Duration::from_millis(500));
+            }
+
             println!("ML Worker processing photo: {}", photo_id);
 
             // Query DB to find the photo location

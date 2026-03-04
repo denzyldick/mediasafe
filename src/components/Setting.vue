@@ -113,6 +113,64 @@
             </v-btn>
           </v-card-actions>
         </v-card>
+
+        <!-- Performance Config Card -->
+        <v-card variant="flat" rounded="lg" class="mb-6 border-subtle">
+          <v-card-item>
+            <template v-slot:prepend>
+              <v-icon color="#71717a" size="large" class="opacity-50">mdi-speedometer</v-icon>
+            </template>
+            <v-card-title class="text-h6 text-zinc-secondary">Performance</v-card-title>
+            <v-card-subtitle class="text-zinc-muted">Adjust system resource usage</v-card-subtitle>
+          </v-card-item>
+
+          <v-card-text>
+            <div class="mb-6">
+              <div class="d-flex justify-space-between align-center mb-2">
+                <div class="text-subtitle-1 font-weight-medium text-zinc-secondary">Scanning Threads</div>
+                <v-chip size="x-small" color="primary" variant="tonal">{{ performance.scanThreads }} threads</v-chip>
+              </div>
+              <v-slider
+                v-model="performance.scanThreads"
+                :min="1"
+                :max="maxThreads"
+                :step="1"
+                thumb-label
+                hide-details
+                color="#71717a"
+                @update:model-value="savePerformanceConfig"
+              ></v-slider>
+              <div class="text-caption text-zinc-muted mt-1">Number of parallel threads used for initial file scanning and thumbnail generation. Lower this if your system feels sluggish during scanning.</div>
+            </div>
+
+            <v-divider class="my-4 opacity-5"></v-divider>
+
+            <div>
+              <v-list-item class="px-0">
+                <v-list-item-title class="text-zinc-secondary font-weight-medium">AI Indexing Mode</v-list-item-title>
+                <v-list-item-subtitle class="text-zinc-muted">When should the AI process your photos?</v-list-item-subtitle>
+                <template v-slot:append>
+                  <v-select
+                    v-model="performance.indexingMode"
+                    :items="[
+                      { title: 'Immediate', value: 'immediate' },
+                      { title: 'On Idle', value: 'idle' },
+                      { title: 'Manual Only', value: 'manual' }
+                    ]"
+                    variant="solo-filled"
+                    flat
+                    density="compact"
+                    hide-details
+                    bg-color="rgba(255,255,255,0.05)"
+                    class="custom-select"
+                    width="150"
+                    @update:model-value="savePerformanceConfig"
+                  ></v-select>
+                </template>
+              </v-list-item>
+            </div>
+          </v-card-text>
+        </v-card>
         
         
         <!-- AI Models Config Card -->
@@ -351,6 +409,25 @@ export default {
         console.error("Failed to list directories:", err);
       });
     },
+    async savePerformanceConfig() {
+      try {
+        await invoke("save_config", { key: "scan_threads", value: this.performance.scanThreads.toString() });
+        await invoke("save_config", { key: "indexing_mode", value: this.performance.indexingMode });
+      } catch (err) {
+        console.error("Failed to save performance config:", err);
+      }
+    },
+    async loadPerformanceConfig() {
+      try {
+        const threads = await invoke("get_config", { key: "scan_threads" });
+        if (threads) this.performance.scanThreads = parseInt(threads);
+        
+        const mode = await invoke("get_config", { key: "indexing_mode" });
+        if (mode) this.performance.indexingMode = mode;
+      } catch (err) {
+        console.error("Failed to load performance config:", err);
+      }
+    }
   },
   data: () => ({
     directories: [],
@@ -362,11 +439,17 @@ export default {
     downloadProgress: {},
     isAndroid: false,
     showFolderPicker: false,
+    performance: {
+      scanThreads: 4,
+      indexingMode: 'immediate'
+    },
+    maxThreads: 8,
   }),
   async mounted() {
     // ... existing logging setup ...
     this.dataDir = await path.homeDir();
     await this.checkExistingModels();
+    await this.loadPerformanceConfig();
     this.list_directories();
     // ... existing platform detection ...
   },

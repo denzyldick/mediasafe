@@ -26,7 +26,16 @@ fn emit_log(app: &tauri::AppHandle, message: String) {
 /// This is will scan a folder recursively and store all the images in the database.
 pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     let database = database::Database::new(path);
-    emit_log(app, format!("Scanning all files in: {}", directory));
+    
+    // Load thread config
+    let config = database.get_state();
+    let num_threads: usize = config.get("scan_threads")
+        .and_then(|s| s.parse().ok())
+        .unwrap_or_else(|| {
+            if cfg!(any(target_os = "android", target_os = "ios")) { 2 } else { 4 }
+        });
+
+    emit_log(app, format!("Scanning with {} threads in: {}", num_threads, directory));
     
     // Collect all valid image paths first
     let mut image_paths = Vec::new();
@@ -48,92 +57,97 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     let database = Arc::new(Mutex::new(database));
     let app_handle = Arc::new(app.clone());
 
+    // Create a local thread pool for this scan to avoid blocking the global one if requested
+    let pool = rayon::ThreadPoolBuilder::new().num_threads(num_threads).build().unwrap();
+
     use rayon::prelude::*;
-    image_paths.into_par_iter().for_each(|path| {
-        let db = database.lock().unwrap();
-        let path_str = path.display().to_string();
-        if db.path_exists(&path_str) {
-            return;
-        }
-        drop(db);
-
-        let id: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(7)
-            .map(char::from)
-            .collect();
-
-        if let Ok(file) = File::open(path.clone()) {
-            let mut buff = BufReader::new(&file);
-            let mut latitude = 0.0;
-            let mut longitude = 0.0;
-
-            let mut created = String::new();
-
-            let properties = match Reader::new().read_from_container(&mut buff) {
-                Ok(exif) => {
-                    let mut props = HashMap::new();
-                    for f in exif.fields() {
-                        props.insert(f.tag.to_string(), f.display_value().to_string());
-                    }
-
-                    // Extract Created Date
-                    if let Some(date_field) = exif.get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY).or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY)) {
-                        created = format!("{}", date_field.display_value());
-                    }
-
-                    // Extract GPS Coordinates
-                    if let (Some(lat_field), Some(lat_ref)) = (exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY), exif.get_field(exif::Tag::GPSLatitudeRef, exif::In::PRIMARY)) {
-                        if let exif::Value::Rational(lat_values) = &lat_field.value {
-                            if lat_values.len() == 3 {
-                                let lat = lat_values[0].to_f64() + lat_values[1].to_f64() / 60.0 + lat_values[2].to_f64() / 3600.0;
-                                latitude = if format!("{}", lat_ref.display_value()) == "S" { -lat } else { lat };
-                            }
-                        }
-                    }
-
-                    if let (Some(lon_field), Some(lon_ref)) = (exif.get_field(exif::Tag::GPSLongitude, exif::In::PRIMARY), exif.get_field(exif::Tag::GPSLongitudeRef, exif::In::PRIMARY)) {
-                        if let exif::Value::Rational(lon_values) = &lon_field.value {
-                            if lon_values.len() == 3 {
-                                let lon = lon_values[0].to_f64() + lon_values[1].to_f64() / 60.0 + lon_values[2].to_f64() / 3600.0;
-                                longitude = if format!("{}", lon_ref.display_value()) == "W" { -lon } else { lon };
-                            }
-                        }
-                    }
-
-                    props
-                }
-                Err(_) => HashMap::new(),
-            };
-
-            let encoded = match generate_thumbnail_base64(path.to_str().unwrap(), 400) {
-                Ok(b64) => b64,
-                Err(_) => String::new(),
-            };
-
-            let photo = database::Photo {
-                id: id.clone(),
-                encoded,
-                location: path.display().to_string(),
-                created,
-                objects: HashMap::new(),
-                properties,
-                latitude,
-                longitude,
-                favorite: false,
-            };
-
+    pool.install(|| {
+        image_paths.into_par_iter().for_each(|path| {
             let db = database.lock().unwrap();
-            db.store_photo(photo.clone());
+            let path_str = path.display().to_string();
+            if db.path_exists(&path_str) {
+                return;
+            }
             drop(db);
 
-            let _ = app_handle.emit("photo-scanned", photo);
+            let id: String = rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(7)
+                .map(char::from)
+                .collect();
 
-            if let Some(state) = app_handle.try_state::<MlContext>() {
-                state.pending_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                let _ = state.tx.lock().unwrap().send(id);
+            if let Ok(file) = File::open(path.clone()) {
+                let mut buff = BufReader::new(&file);
+                let mut latitude = 0.0;
+                let mut longitude = 0.0;
+
+                let mut created = String::new();
+
+                let properties = match Reader::new().read_from_container(&mut buff) {
+                    Ok(exif) => {
+                        let mut props = HashMap::new();
+                        for f in exif.fields() {
+                            props.insert(f.tag.to_string(), f.display_value().to_string());
+                        }
+
+                        // Extract Created Date
+                        if let Some(date_field) = exif.get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY).or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY)) {
+                            created = format!("{}", date_field.display_value());
+                        }
+
+                        // Extract GPS Coordinates
+                        if let (Some(lat_field), Some(lat_ref)) = (exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY), exif.get_field(exif::Tag::GPSLatitudeRef, exif::In::PRIMARY)) {
+                            if let exif::Value::Rational(lat_values) = &lat_field.value {
+                                if lat_values.len() == 3 {
+                                    let lat = lat_values[0].to_f64() + lat_values[1].to_f64() / 60.0 + lat_values[2].to_f64() / 3600.0;
+                                    latitude = if format!("{}", lat_ref.display_value()) == "S" { -lat } else { lat };
+                                }
+                            }
+                        }
+
+                        if let (Some(lon_field), Some(lon_ref)) = (exif.get_field(exif::Tag::GPSLongitude, exif::In::PRIMARY), exif.get_field(exif::Tag::GPSLongitudeRef, exif::In::PRIMARY)) {
+                            if let exif::Value::Rational(lon_values) = &lon_field.value {
+                                if lon_values.len() == 3 {
+                                    let lon = lon_values[0].to_f64() + lon_values[1].to_f64() / 60.0 + lon_values[2].to_f64() / 3600.0;
+                                    longitude = if format!("{}", lon_ref.display_value()) == "W" { -lon } else { lon };
+                                }
+                            }
+                        }
+
+                        props
+                    }
+                    Err(_) => HashMap::new(),
+                };
+
+                let encoded = match generate_thumbnail_base64(path.to_str().unwrap(), 400) {
+                    Ok(b64) => b64,
+                    Err(_) => String::new(),
+                };
+
+                let photo = database::Photo {
+                    id: id.clone(),
+                    encoded,
+                    location: path.display().to_string(),
+                    created,
+                    objects: HashMap::new(),
+                    properties,
+                    latitude,
+                    longitude,
+                    favorite: false,
+                };
+
+                let db = database.lock().unwrap();
+                db.store_photo(photo.clone());
+                drop(db);
+
+                let _ = app_handle.emit("photo-scanned", photo);
+
+                if let Some(state) = app_handle.try_state::<MlContext>() {
+                    state.pending_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    let _ = state.tx.lock().unwrap().send(id);
+                }
             }
-        }
+        });
     });
 
     emit_log(app, "Done scanning all photos".to_string());

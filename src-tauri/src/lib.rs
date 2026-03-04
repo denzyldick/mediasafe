@@ -240,6 +240,8 @@ pub fn run() {
             get_os,
             get_ip,
             get_heatmap_data,
+            save_config,
+            get_config,
             generate_dummy_data,
             toggle_favorite,
             get_faces,
@@ -261,6 +263,31 @@ pub fn run() {
 #[tauri::command]
 async fn get_os() -> String {
     std::env::consts::OS.to_string()
+}
+
+#[tauri::command]
+async fn save_config(app: tauri::AppHandle, key: String, value: String) {
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return,
+    };
+    if path.is_empty() { return; }
+    let database = database::Database::new(&path);
+    let mut map = std::collections::HashMap::new();
+    map.insert(key, value);
+    database.set_state(map);
+}
+
+#[tauri::command]
+async fn get_config(app: tauri::AppHandle, key: String) -> Option<String> {
+    let path = match app.path().app_config_dir() {
+        Ok(p) => p.to_str().unwrap_or_default().to_string(),
+        Err(_) => return None,
+    };
+    if path.is_empty() { return None; }
+    let database = database::Database::new(&path);
+    let state = database.get_state();
+    state.get(&key).cloned()
 }
 
 #[tauri::command]
