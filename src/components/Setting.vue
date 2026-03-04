@@ -50,12 +50,11 @@
               </v-col>
               <v-col cols="auto">
                  <v-btn
-                  color="#a1a1aa"
+                  color="white"
                   prepend-icon="mdi-folder-plus"
-                  variant="outlined"
+                  variant="flat"
                   @click="select_directory"
-                  class="text-none border-subtle opacity-70"
-                  style="color: #a1a1aa !important;"
+                  class="text-none"
                 >
                   Add Folder
                 </v-btn>
@@ -101,13 +100,12 @@
           <v-card-actions class="pa-4">
              <v-spacer></v-spacer>
              <v-btn
-              color="#a1a1aa"
+              color="white"
               size="large"
               variant="flat"
               :disabled="directories.length === 0"
               @click="finishOnboarding"
-              class="text-none px-8"
-              style="background: #27272a !important; color: #a1a1aa !important;"
+              class="text-none px-8 font-weight-bold"
             >
               Continue
             </v-btn>
@@ -161,7 +159,7 @@
                     flat
                     density="compact"
                     hide-details
-                    bg-color="rgba(255,255,255,0.05)"
+                    bg-color="rgba(255,255,255,0.1)"
                     class="custom-select"
                     width="150"
                     @update:model-value="savePerformanceConfig"
@@ -232,14 +230,13 @@
           <v-card-actions class="pa-4">
              <v-spacer></v-spacer>
              <v-btn
-              color="#a1a1aa"
-              variant="outlined"
+              color="white"
+              variant="flat"
               :disabled="selectedModels.length === 0 || isDownloading"
               :loading="isDownloading"
               @click="downloadModels"
               prepend-icon="mdi-download"
-              class="text-none border-subtle opacity-70"
-              style="color: #a1a1aa !important;"
+              class="text-none font-weight-bold"
             >
               Download
             </v-btn>
