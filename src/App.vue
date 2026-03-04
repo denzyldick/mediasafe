@@ -180,28 +180,30 @@ export default {
                   <v-btn 
                     v-bind="props"
                     variant="outlined"
-                    color="#a1a1aa"
-                    :loading="scanStatus === 'scanning'"
+                    :color="(scanStatus === 'scanning' || indexingCount > 0) ? '#e4e4e7' : '#a1a1aa'"
+                    :loading="scanStatus === 'scanning' || indexingCount > 0"
                     size="small"
                     class="text-none border-subtle"
                     style="color: #a1a1aa !important;"
                   >
-                    <v-icon size="18">{{ scanStatus === 'scanning' ? 'mdi-reload mdi-spin' : 'mdi-sync' }}</v-icon>
+                    <v-icon start size="18">{{ (scanStatus === 'scanning' || indexingCount > 0) ? 'mdi-reload mdi-spin' : 'mdi-sync' }}</v-icon>
+                    {{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}
                   </v-btn>
                 </template>
                 <v-card min-width="300" border class="mt-2 border-subtle">
                   <v-card-text>
                     <div class="text-subtitle-2 mb-2 text-zinc-primary">Library Status</div>
+                    
+                    <!-- Scan Status -->
                     <div class="d-flex align-center mb-4">
                       <v-chip 
-                        color="#27272a"
+                        :color="scanStatus === 'scanning' ? '#27272a' : '#18181b'"
                         size="x-small"
                         variant="flat"
                         class="mr-2 text-zinc-secondary"
                       >
-                        {{ scanStatus === 'scanning' ? 'Active' : scanStatus === 'complete' ? 'Finished' : 'Ready' }}
+                        File Scan: {{ scanStatus === 'scanning' ? 'Active' : 'Ready' }}
                       </v-chip>
-                      <span class="text-caption text-zinc-muted">{{ scanStatus.toUpperCase() }}</span>
                     </div>
                     
                     <div v-if="scanStatus === 'scanning'" class="mb-4">
@@ -213,67 +215,73 @@ export default {
                         rounded
                       ></v-progress-linear>
                     </div>
+
+                    <!-- Indexing Status -->
+                    <div class="d-flex align-center mb-4">
+                      <v-chip 
+                        :color="indexingCount > 0 ? '#27272a' : '#18181b'"
+                        size="x-small"
+                        variant="flat"
+                        class="mr-2 text-zinc-secondary"
+                      >
+                        AI Indexing: {{ indexingCount > 0 ? 'Active' : 'Complete' }}
+                      </v-chip>
+                      <span v-if="indexingCount > 0" class="text-caption text-zinc-muted">{{ indexingCount }} left</span>
+                    </div>
+                    
+                    <v-divider class="my-4 opacity-5"></v-divider>
                     
                     <div class="text-caption text-zinc-muted mb-4">
-                      Last update: {{ lastScanTime }}
+                      Last scan: {{ lastScanTime }}
                     </div>
                     
                     <v-btn 
-                      v-if="scanStatus !== 'scanning'"
+                      v-if="scanStatus !== 'scanning' && indexingCount === 0"
                       @click="scan()"
                       variant="flat"
                       color="#27272a"
                       block
                       class="text-none text-zinc-primary"
                     >
-                      Refresh Now
+                      Sync Library
                     </v-btn>
                   </v-card-text>
                 </v-card>
               </v-menu>
             </v-col>
 
+            <!-- Global Search - Only on Photos page -->
             <v-col class="mx-4" v-if="current_page === 'home'">
-              <div class="d-flex align-center">
-                <v-autocomplete
-                  v-model="search"
-                  v-model:search="query"
-                  :items="objects"
-                  prepend-inner-icon="mdi-magnify"
-                  variant="solo-filled"
-                  density="compact"
-                  placeholder="Search memories..."
-                  hide-details
-                  flat
-                  rounded="lg"
-                  class="search-autocomplete flex-grow-1"
-                  bg-color="rgba(255,255,255,0.03)"
-                  :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%' }"
-                >
-                  <template v-slot:prepend-item>
-                    <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
-                      <v-avatar
-                        v-for="face in faces"
-                        :key="face.face_id"
-                        size="40"
-                        class="cursor-pointer face-avatar"
-                        @click="addFaceToSearch(face)"
-                      >
-                        <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
-                      </v-avatar>
-                    </div>
-                    <v-divider v-if="faces.length > 0" class="opacity-10 my-1"></v-divider>
-                  </template>
-                </v-autocomplete>
-
-                <!-- AI Indexing Status -->
-                <v-fade-transition>
-                  <div v-if="indexingCount > 0" class="ml-4 d-flex align-center">
-                    <v-icon color="#71717a" size="small" class="mdi-spin mr-2">mdi-brain</v-icon>
-                    <span class="text-caption text-zinc-muted font-weight-medium">{{ indexingCount }}</span>
+              <v-autocomplete
+                v-model="search"
+                v-model:search="query"
+                :items="objects"
+                prepend-inner-icon="mdi-magnify"
+                variant="solo-filled"
+                density="compact"
+                placeholder="Search memories..."
+                hide-details
+                flat
+                rounded="lg"
+                class="search-autocomplete flex-grow-1"
+                bg-color="rgba(255,255,255,0.03)"
+                :menu-props="{ contentClass: 'search-menu', elevation: 4, maxWidth: '100%' }"
+              >
+                <template v-slot:prepend-item>
+                  <div v-if="faces.length > 0" class="faces-scroller pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
+                    <v-avatar
+                      v-for="face in faces"
+                      :key="face.face_id"
+                      size="40"
+                      class="cursor-pointer face-avatar"
+                      @click="addFaceToSearch(face)"
+                    >
+                      <v-img :src="getFaceImageSrc(face.crop_path)"></v-img>
+                    </v-avatar>
                   </div>
-                </v-fade-transition>
-              </div>
+                  <v-divider v-if="faces.length > 0" class="opacity-10 my-1"></v-divider>
+                </template>
+              </v-autocomplete>
             </v-col>
             
             <v-spacer v-if="current_page !== 'home'"></v-spacer>
@@ -293,7 +301,7 @@ export default {
         <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />
       </v-main>
 
-      <div class="dock-container">
+      <div class="dock-container" v-if="!clean_install">
         <v-sheet
           class="dock d-flex justify-space-around align-center pa-2 border-subtle rounded-pill mb-8"
           elevation="0"
