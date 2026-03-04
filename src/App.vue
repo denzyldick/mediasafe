@@ -329,34 +329,35 @@ export default {
                     </v-badge>
                   </v-btn>
                 </template>
-                <v-card min-width="250" border class="mt-2 border-subtle">
+                <v-card min-width="250" border class="mt-2 border-subtle" color="background">
                   <v-list bg-color="transparent" density="compact" class="px-2">
                     <v-list-item class="px-0">
                       <v-switch
                         v-model="filters.favoritesOnly"
                         label="Favorites only"
-                        color="white"
+                        color="#e4e4e7"
                         hide-details
                         density="compact"
                         inset
+                        class="text-zinc-secondary"
                       ></v-switch>
                     </v-list-item>
                     
                     <v-divider class="opacity-5 my-2"></v-divider>
                     
-                    <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption">Date Range</v-list-subheader>
-                    <v-list-item class="px-2">
-                      <v-btn-toggle v-model="filters.dateRange" mandatory variant="outlined" density="compact" class="border-subtle w-100">
-                        <v-btn value="all" size="x-small" class="text-none flex-grow-1">All</v-btn>
-                        <v-btn value="month" size="x-small" class="text-none flex-grow-1">Month</v-btn>
-                        <v-btn value="year" size="x-small" class="text-none flex-grow-1">Year</v-btn>
+                    <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption px-0">Date Range</v-list-subheader>
+                    <v-list-item class="px-0">
+                      <v-btn-toggle v-model="filters.dateRange" mandatory variant="outlined" density="compact" class="border-subtle w-100" color="#e4e4e7">
+                        <v-btn value="all" size="x-small" class="text-none flex-grow-1 text-zinc-secondary">All</v-btn>
+                        <v-btn value="month" size="x-small" class="text-none flex-grow-1 text-zinc-secondary">Month</v-btn>
+                        <v-btn value="year" size="x-small" class="text-none flex-grow-1 text-zinc-secondary">Year</v-btn>
                       </v-btn-toggle>
                     </v-list-item>
 
                     <v-divider class="opacity-5 my-2"></v-divider>
 
-                    <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption">Folder</v-list-subheader>
-                    <v-list-item>
+                    <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption px-0">Folder</v-list-subheader>
+                    <v-list-item class="px-0">
                       <v-select
                         v-model="filters.folder"
                         :items="directories"
@@ -367,6 +368,7 @@ export default {
                         flat
                         bg-color="rgba(255,255,255,0.05)"
                         clearable
+                        class="text-zinc-secondary custom-select"
                       ></v-select>
                     </v-list-item>
                   </v-list>
@@ -458,6 +460,16 @@ export default {
 .search-autocomplete :deep(.v-field__input) {
   font-size: 0.875rem;
   color: #f4f4f5 !important; /* Zinc-100 */
+}
+
+.custom-select :deep(.v-field__input) {
+  font-size: 0.75rem;
+  color: #a1a1aa !important;
+}
+
+.custom-select :deep(.v-chip) {
+  background: #27272a !important;
+  color: #e4e4e7 !important;
 }
 
 :global(.search-menu) {
