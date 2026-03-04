@@ -268,36 +268,6 @@
     />
   </v-container>
 </template>
-
-        <!-- Debug Logs Expansion Panel -->
-        <v-expansion-panels class="mb-6">
-          <v-expansion-panel title="Debug Logs">
-            <template v-slot:text>
-               <v-sheet
-                 color="grey-darken-4"
-                 class="pa-2 overflow-y-auto"
-                 rounded
-                 height="300"
-                 id="log-container"
-               >
-                 <div v-for="(log, i) in logs" :key="i" class="text-caption text-mono font-weight-light" style="font-family: monospace; white-space: pre-wrap; word-break: break-all;">
-                   <span :class="log.type === 'error' ? 'text-red-accent-2' : 'text-grey-lighten-2'">
-                     [{{ log.time }}] {{ log.message }}
-                   </span>
-                 </div>
-               </v-sheet>
-               <v-btn size="small" variant="text" color="grey" class="mt-2" @click="logs = []">Clear Logs</v-btn>
-            </template>
-          </v-expansion-panel>
-        </v-expansion-panels>
-      </v-col>
-    </v-row>
-    <FolderPicker
-        v-model="showFolderPicker"
-        @select="onFolderSelected"
-    />
-  </v-container>
-</template>
 <script>
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
