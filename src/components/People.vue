@@ -25,12 +25,24 @@
         </v-card>
       </v-col>
 
-      <!-- Unnamed Faces -->
-      <v-col cols="6" sm="4" md="3" lg="2" v-for="face in unnamedFaces" :key="face.face_id">
+      <!-- Unnamed Faces (Grouped by Visual Similarity) -->
+      <v-col cols="6" sm="4" md="3" lg="2" v-for="group in groupedUnnamedFaces" :key="group.representative.face_id">
         <v-card class="border-subtle h-100" variant="flat">
-          <v-img :src="getFaceImageSrc(face.crop_path, face.encoded)" aspect-ratio="1" cover></v-img>
+          <div class="position-relative">
+            <v-img :src="getFaceImageSrc(group.representative.crop_path, group.representative.encoded)" aspect-ratio="1" cover></v-img>
+            <v-chip
+              v-if="group.faces.length > 1"
+              size="x-small"
+              color="white"
+              variant="flat"
+              class="position-absolute font-weight-bold"
+              style="top: 8px; right: 8px; z-index: 2;"
+            >
+              {{ group.faces.length }}
+            </v-chip>
+          </div>
           <v-card-actions class="pa-2">
-            <v-btn block size="small" variant="flat" color="white" class="text-none font-weight-bold" @click="promptName(face)">
+            <v-btn block size="small" variant="flat" color="white" class="text-none font-weight-bold" @click="promptName(group)">
               Who is this?
             </v-btn>
           </v-card-actions>
@@ -103,9 +115,48 @@ export default {
     nameDialog: false,
     galleryDialog: false,
     activeFace: null,
+    activeGroup: null,
     activePerson: null,
     newName: "",
   }),
+  computed: {
+    groupedUnnamedFaces() {
+      if (this.unnamedFaces.length === 0) return [];
+      
+      const groups = [];
+      const SIMILARITY_THRESHOLD = 0.85; // Adjust based on testing
+
+      this.unnamedFaces.forEach(face => {
+        if (!face.embedding || face.embedding.length === 0) {
+          groups.push({ representative: face, faces: [face] });
+          return;
+        }
+
+        let addedToGroup = false;
+        for (const group of groups) {
+          if (!group.representative.embedding) continue;
+          
+          // Cosine Similarity
+          let dotProduct = 0;
+          for (let i = 0; i < face.embedding.length; i++) {
+            dotProduct += face.embedding[i] * group.representative.embedding[i];
+          }
+
+          if (dotProduct > SIMILARITY_THRESHOLD) {
+            group.faces.push(face);
+            addedToGroup = true;
+            break;
+          }
+        }
+
+        if (!addedToGroup) {
+          groups.push({ representative: face, faces: [face] });
+        }
+      });
+
+      return groups;
+    }
+  },
   async mounted() {
     this.fetchData();
   },
@@ -121,20 +172,26 @@ export default {
       if (encoded) return encoded;
       return '';
     },
-    promptName(face) {
-      this.activeFace = face;
+    promptName(group) {
+      this.activeGroup = group;
+      this.activeFace = group.representative;
       this.newName = "";
       this.nameDialog = true;
     },
     async saveName() {
-      if (!this.newName || !this.activeFace) return;
+      if (!this.newName || !this.activeGroup) return;
       
-      await invoke("assign_name_to_face", { 
-        faceId: this.activeFace.face_id, 
-        name: this.newName 
-      });
+      const promises = this.activeGroup.faces.map(face => 
+        invoke("assign_name_to_face", { 
+          faceId: face.face_id, 
+          name: this.newName 
+        })
+      );
+
+      await Promise.all(promises);
       
       this.nameDialog = false;
+      this.activeGroup = null;
       this.fetchData();
     },
     viewPerson(person) {

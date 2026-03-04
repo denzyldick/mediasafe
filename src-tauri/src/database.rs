@@ -84,6 +84,7 @@ impl Database {
                 face_id STRING PRIMARY KEY,
                 crop_path STRING,
                 encoded STRING,
+                embedding BLOB,
                 person_id STRING
             );",
             (),
@@ -340,22 +341,29 @@ impl Database {
     }
 
     pub fn store_face(&self, face: Face) {
+        let embedding_bytes: Vec<u8> = face.embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
         let _ = self.connection.execute(
-            "INSERT INTO faces(photo_id, face_id, crop_path, encoded) VALUES(?1, ?2, ?3, ?4)",
-            (&face.photo_id, &face.face_id, &face.crop_path, &face.encoded),
+            "INSERT INTO faces(photo_id, face_id, crop_path, encoded, embedding) VALUES(?1, ?2, ?3, ?4, ?5)",
+            (&face.photo_id, &face.face_id, &face.crop_path, &face.encoded, &embedding_bytes),
         );
     }
 
     pub fn get_all_faces(&self) -> Vec<Face> {
         let mut faces = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id, encoded FROM faces GROUP BY face_id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id, encoded, embedding FROM faces GROUP BY face_id") {
             let iter = stmt.query_map([], |row| {
+                let embedding_bytes: Vec<u8> = row.get(5)?;
+                let embedding: Vec<f32> = embedding_bytes.chunks_exact(4)
+                    .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                    .collect();
+
                 Ok(Face {
                     photo_id: row.get(0)?,
                     face_id: row.get(1)?,
                     crop_path: row.get(2)?,
                     person_id: row.get(3).ok(),
                     encoded: row.get(4).unwrap_or_default(),
+                    embedding,
                 })
             });
             if let Ok(iter) = iter {
@@ -372,19 +380,26 @@ impl Database {
     pub fn get_people(&self) -> Vec<PersonWithFace> {
         let mut people = Vec::new();
         let sql = "
-            SELECT p.id, p.name, f.crop_path, f.face_id, f.encoded
+            SELECT p.id, p.name, f.crop_path, f.face_id, f.encoded, f.embedding
             FROM people p
             LEFT JOIN faces f ON p.id = f.person_id
             GROUP BY p.id
         ";
         if let Ok(mut stmt) = self.connection.prepare(sql) {
             let iter = stmt.query_map([], |row| {
+                let embedding: Option<Vec<f32>> = row.get::<_, Option<Vec<u8>>>(5).ok().flatten().map(|bytes| {
+                    bytes.chunks_exact(4)
+                        .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                        .collect()
+                });
+
                 Ok(PersonWithFace {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     representative_crop: row.get(2).ok(),
                     representative_face_id: row.get(3).ok(),
                     encoded: row.get(4).ok(),
+                    embedding,
                 })
             });
             if let Ok(iter) = iter {
@@ -418,14 +433,20 @@ impl Database {
 
     pub fn get_unnamed_faces(&self) -> Vec<Face> {
         let mut faces = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id, encoded FROM faces WHERE person_id IS NULL") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id, encoded, embedding FROM faces WHERE person_id IS NULL") {
             let iter = stmt.query_map([], |row| {
+                let embedding_bytes: Vec<u8> = row.get(5).unwrap_or_default();
+                let embedding: Vec<f32> = embedding_bytes.chunks_exact(4)
+                    .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                    .collect();
+
                 Ok(Face {
                     photo_id: row.get(0)?,
                     face_id: row.get(1)?,
                     crop_path: row.get(2)?,
                     person_id: None,
                     encoded: row.get(4).unwrap_or_default(),
+                    embedding,
                 })
             });
             if let Ok(iter) = iter {
@@ -521,6 +542,7 @@ pub struct Face {
     pub face_id: String,
     pub crop_path: String,
     pub encoded: String,
+    pub embedding: Vec<f32>,
     pub person_id: Option<String>,
 }
 
@@ -531,6 +553,7 @@ pub struct PersonWithFace {
     pub representative_crop: Option<String>,
     pub representative_face_id: Option<String>,
     pub encoded: Option<String>,
+    pub embedding: Option<Vec<f32>>,
 }
 //use image::io::Reader as ImageReader;
 //use image::{DynamicImage, GenericImageView};

@@ -386,6 +386,35 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
                                                 let face_id = format!("{}_face_{}_{}", photo_id, xmin, ymin);
                                                 let crop_path = format!("{}/{}.jpg", faces_dir, face_id);
                                                 if face_crop.save(&crop_path).is_ok() {
+                                                    // Generate Face Embedding using CLIP
+                                                    let mut face_embedding = Vec::new();
+                                                    if let Some(ref mut visual_model) = clip_visual {
+                                                        let face_resized = image::imageops::resize(
+                                                            &face_crop,
+                                                            224,
+                                                            224,
+                                                            image::imageops::FilterType::Triangle,
+                                                        );
+                                                        let mut face_input = Array4::<f32>::zeros((1, 3, 224, 224));
+                                                        for (x, y, pixel) in face_resized.enumerate_pixels() {
+                                                            face_input[[0, 0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.48145466) / 0.26862954;
+                                                            face_input[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.45782750) / 0.26130258;
+                                                            face_input[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.40821073) / 0.27577711;
+                                                        }
+                                                        if let Ok(face_tensor) = ort::value::Value::from_array(face_input) {
+                                                            if let Ok(outputs) = visual_model.run(ort::inputs!["pixel_values" => &face_tensor]) {
+                                                                if let Ok((_shape, emb_tensor)) = outputs[0].try_extract_tensor::<f32>() {
+                                                                    face_embedding = vec![0.0; 512];
+                                                                    face_embedding.copy_from_slice(emb_tensor);
+                                                                    
+                                                                    // Normalize
+                                                                    let norm: f32 = face_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+                                                                    for v in face_embedding.iter_mut() { *v /= norm; }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+
                                                     use base64::{engine::general_purpose, Engine as _};
                                                     use std::io::Cursor;
                                                     let mut buffer = Cursor::new(Vec::new());
@@ -397,6 +426,7 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
                                                         face_id: face_id.clone(),
                                                         crop_path,
                                                         encoded,
+                                                        embedding: face_embedding,
                                                         person_id: None,
                                                     };
                                                     db.store_face(db_face);
