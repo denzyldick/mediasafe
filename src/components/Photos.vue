@@ -104,6 +104,7 @@
 </template>
 <script>
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import Image from "./Image.vue";
 import PhotoViewer from "./PhotoViewer.vue";
 
@@ -123,6 +124,7 @@ export default {
     currentPhotoIndex: 0,
     favoritesOnly: false,
     observer: null,
+    unlistenPhoto: null,
   }),
   computed: {
     groupedImages() {
@@ -175,6 +177,28 @@ export default {
   },
   async created() {
     this.list_files();
+
+    // Listen for real-time photo additions during scanning
+    this.unlistenPhoto = await listen("photo-scanned", (event) => {
+      const newPhoto = event.payload;
+      
+      // Check if photo matches current favorites filter
+      if (this.filters.favoritesOnly && !newPhoto.favorite) return;
+      
+      // Basic search match check (on ID or location)
+      if (this.searchQuery && !newPhoto.location.toLowerCase().includes(this.searchQuery.toLowerCase())) return;
+
+      // Add to list if not already there
+      if (!this.images.find(p => p.id === newPhoto.id)) {
+        this.images.unshift(newPhoto);
+        // Sort to maintain order
+        this.images.sort((a, b) => {
+          if (!a.created) return 1;
+          if (!b.created) return -1;
+          return b.created.localeCompare(a.created);
+        });
+      }
+    });
   },
   mounted() {
     if (!this.isPersonFilter) {
@@ -184,6 +208,9 @@ export default {
   beforeUnmount() {
     if (this.observer) {
       this.observer.disconnect();
+    }
+    if (this.unlistenPhoto) {
+      this.unlistenPhoto();
     }
   },
   methods: {

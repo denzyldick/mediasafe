@@ -312,7 +312,7 @@ export default {
               rounded="lg"
               class="search-autocomplete w-100"
               bg-color="rgba(0,0,0,0.05)"
-              :menu-props="{ contentClass: 'search-menu', elevation: 4, width: '100%', disabled: !objects.length && !faces.length }"
+              :menu-props="{ contentClass: 'search-menu', elevation: 4, disabled: !objects.length && !faces.length }"
               no-data-text=""
             >
                 <template v-slot:prepend-item>
