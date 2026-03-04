@@ -10,7 +10,7 @@
 
         <v-btn icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
 
-        <img v-if="currentPhoto" :src="currentPhotoSrc" style="max-width: 90%; max-height: 90%; object-fit: contain" />
+        <img v-if="currentPhoto" :src="currentPhotoSrc" class="viewer-image" />
 
         <v-btn icon="mdi-chevron-right" variant="text" color="white" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
         
@@ -244,6 +244,15 @@ export default {
 </script>
 
 <style scoped>
+.viewer-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: opacity 0.2s ease-in-out;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
 .tracking-widest {
   letter-spacing: 0.1em;
 }
