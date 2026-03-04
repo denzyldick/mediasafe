@@ -161,7 +161,7 @@ export default {
           // TODO: Listen for WebRTC event complete to actually set isConnected = true
       } catch (error) {
           console.error("WebRTC Error", error);
-          this.connectionStatus = "Error connecting to Signaling server.";
+          this.connectionStatus = "Error connecting: " + error;
       }
     },
     async joinWebRTC() {
@@ -178,7 +178,7 @@ export default {
            this.connectionStatus = "Signaling channel requested. Awaiting WebRTC Receiver connection.";
         } catch(error) {
            console.error("WebRTC Join Error", error);
-           this.connectionStatus = "Error joining via Signaling server.";
+           this.connectionStatus = "Error joining: " + error;
         }
     }
   },
