@@ -2,7 +2,7 @@
   <v-dialog v-model="visible" fullscreen transition="dialog-bottom-transition">
     <v-card rounded="0" color="black" class="fill-height" style="overflow: hidden;">
       <!-- Main Viewer Area -->
-      <div class="position-relative d-flex align-center justify-center h-100 pa-10"
+      <div class="position-relative d-flex align-center justify-center h-100"
            v-touch="{ left: () => next(), right: () => prev() }"
            :style="{ marginRight: (showInfo && !$vuetify.display.mobile) ? '350px' : '0' }">
         
@@ -245,8 +245,8 @@ export default {
 
 <style scoped>
 .viewer-image {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   transition: opacity 0.2s ease-in-out;
   user-select: none;
