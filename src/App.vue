@@ -61,7 +61,15 @@ export default {
 
     // Fetch faces for search
     invoke("get_faces").then(response => {
-      this.faces = JSON.parse(response);
+      try {
+        const parsed = JSON.parse(response);
+        this.faces = Array.isArray(parsed) ? parsed : [];
+      } catch (e) {
+        console.error("Failed to parse faces:", e);
+        this.faces = [];
+      }
+    }).catch(err => {
+      console.error("Failed to get faces:", err);
     });
     
     // Auto-scan disabled on load per user request
