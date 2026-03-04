@@ -41,8 +41,6 @@
         >
         <v-toolbar color="transparent" density="compact">
           <v-toolbar-title class="text-zinc-primary text-subtitle-1 font-weight-bold">Metadata</v-toolbar-title>
-          <v-spacer></v-spacer>
-          <v-btn icon="mdi-close" variant="text" size="small" color="#a1a1aa" @click="showInfo = false"></v-btn>
         </v-toolbar>
 
         <v-divider class="opacity-10"></v-divider>
