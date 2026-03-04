@@ -2,7 +2,10 @@
   <v-container class="pa-6">
     <div class="d-flex align-center justify-space-between mb-8">
       <div>
-        <h1 class="text-h4 font-weight-bold text-zinc-primary mb-1">Devices</h1>
+        <div class="d-flex align-center mb-1">
+          <v-icon color="#a1a1aa" size="28" class="mr-3">mdi-devices</v-icon>
+          <h1 class="text-h4 font-weight-bold text-zinc-primary">Devices</h1>
+        </div>
         <div class="text-subtitle-1 text-zinc-secondary">Manage your connected devices</div>
       </div>
       <Connect />
