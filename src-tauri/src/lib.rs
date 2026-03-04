@@ -169,7 +169,7 @@ async fn get_top_tags(app: tauri::AppHandle) -> String {
     };
     if path.is_empty() { return "[]".to_string(); }
     let database = database::Database::new(&path);
-    let mut tags = Vec::new();
+    let mut tags: Vec<String> = Vec::new();
     let sql = "SELECT class FROM object GROUP BY class ORDER BY COUNT(*) DESC LIMIT 5";
     if let Ok(mut stmt) = database.connection.prepare(sql) {
         let iter = stmt.query_map([], |row| row.get(0));

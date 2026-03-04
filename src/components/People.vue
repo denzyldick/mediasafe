@@ -29,7 +29,7 @@
       <v-col cols="6" sm="4" md="3" lg="2" v-for="person in people" :key="person.id">
         <v-card class="border-subtle text-center pt-4 pb-2 h-100" variant="flat" @click="viewPerson(person)">
           <v-avatar size="100" class="mx-auto mb-3 border-subtle">
-            <v-img :src="getFaceImageSrc(person.representative_crop)"></v-img>
+            <v-img :src="getFaceImageSrc(person.representative_crop, person.representative_crop_b64)"></v-img>
           </v-avatar>
           <v-card-title class="text-subtitle-1 font-weight-bold text-zinc-primary px-2">
             {{ person.name }}
@@ -50,7 +50,7 @@
 
       <v-col cols="6" sm="4" md="3" lg="2" v-for="face in unnamedFaces" :key="face.face_id">
         <v-card class="border-subtle h-100" variant="flat">
-          <v-img :src="getFaceImageSrc(face.crop_path)" aspect-ratio="1" cover></v-img>
+          <v-img :src="getFaceImageSrc(face.crop_path, face.crop_path_b64)" aspect-ratio="1" cover></v-img>
           <v-card-actions class="pa-2">
             <v-btn block size="small" variant="tonal" color="white" class="text-none" @click="promptName(face)">
               Name
@@ -66,7 +66,7 @@
         <v-card-title class="text-zinc-primary px-0">Who is this?</v-card-title>
         <v-card-text class="px-0">
           <v-avatar size="120" class="mx-auto d-block mb-6 border-subtle">
-            <v-img v-if="activeFace" :src="getFaceImageSrc(activeFace.crop_path)"></v-img>
+            <v-img v-if="activeFace" :src="getFaceImageSrc(activeFace.crop_path, activeFace.crop_path_b64)"></v-img>
           </v-avatar>
           <v-text-field
             v-model="newName"
@@ -133,13 +133,9 @@ export default {
       const unnamedStr = await invoke("get_unnamed_faces");
       this.unnamedFaces = JSON.parse(unnamedStr);
     },
-    getFaceImageSrc(crop_path) {
-      if (!crop_path) return '';
-      const converted = convertFileSrc(crop_path);
-      if (converted === crop_path && crop_path.startsWith('/')) {
-         return `http://asset.localhost${encodeURI(crop_path)}`;
-      }
-      return converted;
+    getFaceImageSrc(crop_path, encoded) {
+      if (encoded) return encoded;
+      return '';
     },
     promptName(face) {
       this.activeFace = face;

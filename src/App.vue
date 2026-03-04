@@ -179,7 +179,7 @@ export default {
       if (!crop_path) return '';
       const converted = convertFileSrc(crop_path);
       if (converted === crop_path && crop_path.startsWith('/')) {
-         return `http://asset.localhost${encodeURI(crop_path)}`;
+         return `http://asset.localhost${encodeURIComponent(crop_path)}`;
       }
       return converted;
     },

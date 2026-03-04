@@ -61,7 +61,7 @@ export default {
 
       const converted = convertFileSrc(src);
       if (converted === src && src.startsWith('/')) {
-            return `http://asset.localhost${encodeURI(src)}`;
+            return `http://asset.localhost${encodeURIComponent(src)}`;
       }
       return converted;
     },

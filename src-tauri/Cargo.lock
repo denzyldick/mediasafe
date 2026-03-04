@@ -3963,6 +3963,7 @@ dependencies = [
  "ort",
  "oxipng",
  "rand 0.8.5",
+ "rayon",
  "reqwest",
  "rusqlite",
  "rustc-serialize",

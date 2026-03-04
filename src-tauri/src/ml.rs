@@ -254,17 +254,10 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
                         );
 
                         let mut input_img = Array4::<f32>::zeros((1, 3, 224, 224));
-                        for y in 0..224 {
-                            for x in 0..224 {
-                                let pixel = resized.get_pixel(x as u32, y as u32);
-                                // CLIP ImageNet Normalization
-                                let r = (pixel[0] as f32 / 255.0 - 0.48145466) / 0.26862954;
-                                let g = (pixel[1] as f32 / 255.0 - 0.45782750) / 0.26130258;
-                                let b = (pixel[2] as f32 / 255.0 - 0.40821073) / 0.27577711;
-                                input_img[[0, 0, y, x]] = r;
-                                input_img[[0, 1, y, x]] = g;
-                                input_img[[0, 2, y, x]] = b;
-                            }
+                        for (x, y, pixel) in resized.enumerate_pixels() {
+                            input_img[[0, 0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.48145466) / 0.26862954;
+                            input_img[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.45782750) / 0.26130258;
+                            input_img[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.40821073) / 0.27577711;
                         }
 
                         if let Ok(img_tensor) = ort::value::Value::from_array(input_img) {
@@ -325,13 +318,10 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
                         );
 
                         let mut input = Array4::<f32>::zeros((1, 3, 240, 320));
-                        for y in 0..240 {
-                            for x in 0..320 {
-                                let pixel = resized.get_pixel(x as u32, y as u32);
-                                input[[0, 0, y, x]] = (pixel[0] as f32 - 127.0) / 128.0;
-                                input[[0, 1, y, x]] = (pixel[1] as f32 - 127.0) / 128.0;
-                                input[[0, 2, y, x]] = (pixel[2] as f32 - 127.0) / 128.0;
-                            }
+                        for (x, y, pixel) in resized.enumerate_pixels() {
+                            input[[0, 0, y as usize, x as usize]] = (pixel[0] as f32 - 127.0) / 128.0;
+                            input[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 - 127.0) / 128.0;
+                            input[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 - 127.0) / 128.0;
                         }
 
                         if let Ok(input_tensor) = ort::value::Value::from_array(input) {
@@ -380,10 +370,17 @@ pub fn start_background_worker(app: &AppHandle, config_path: String) -> (Unbound
                                                 let face_id = format!("{}_face_{}_{}", photo_id, xmin, ymin);
                                                 let crop_path = format!("{}/{}.jpg", faces_dir, face_id);
                                                 if face_crop.save(&crop_path).is_ok() {
+                                                    use base64::{engine::general_purpose, Engine as _};
+                                                    use std::io::Cursor;
+                                                    let mut buffer = Cursor::new(Vec::new());
+                                                    let _ = face_crop.write_to(&mut buffer, image::ImageOutputFormat::Jpeg(80));
+                                                    let encoded = format!("data:image/jpeg;base64,{}", general_purpose::STANDARD.encode(buffer.get_ref()));
+
                                                     let db_face = Face {
                                                         photo_id: photo_id.clone(),
                                                         face_id,
                                                         crop_path,
+                                                        encoded,
                                                         person_id: None,
                                                     };
                                                     db.store_face(db_face);

@@ -77,6 +77,7 @@ impl Database {
                 photo_id STRING,
                 face_id STRING PRIMARY KEY,
                 crop_path STRING,
+                encoded STRING,
                 person_id STRING
             );",
             (),
@@ -97,6 +98,13 @@ impl Database {
                 );",
             (),
         );
+
+        // Add indices for performance
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_object_photo_id ON object(photo_id)", ());
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_object_class ON object(class)", ());
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_faces_photo_id ON faces(photo_id)", ());
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_faces_person_id ON faces(person_id)", ());
+
         Self { connection: conn }
     }
 
@@ -315,20 +323,21 @@ impl Database {
 
     pub fn store_face(&self, face: Face) {
         let _ = self.connection.execute(
-            "INSERT INTO faces(photo_id, face_id, crop_path) VALUES(?1, ?2, ?3)",
-            (&face.photo_id, &face.face_id, &face.crop_path),
+            "INSERT INTO faces(photo_id, face_id, crop_path, encoded) VALUES(?1, ?2, ?3, ?4)",
+            (&face.photo_id, &face.face_id, &face.crop_path, &face.encoded),
         );
     }
 
     pub fn get_all_faces(&self) -> Vec<Face> {
         let mut faces = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id FROM faces GROUP BY face_id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id, encoded FROM faces GROUP BY face_id") {
             let iter = stmt.query_map([], |row| {
                 Ok(Face {
                     photo_id: row.get(0)?,
                     face_id: row.get(1)?,
                     crop_path: row.get(2)?,
                     person_id: row.get(3).ok(),
+                    encoded: row.get(4).unwrap_or_default(),
                 })
             });
             if let Ok(iter) = iter {
@@ -345,7 +354,7 @@ impl Database {
     pub fn get_people(&self) -> Vec<PersonWithFace> {
         let mut people = Vec::new();
         let sql = "
-            SELECT p.id, p.name, f.crop_path, f.face_id
+            SELECT p.id, p.name, f.crop_path, f.face_id, f.encoded
             FROM people p
             LEFT JOIN faces f ON p.id = f.person_id
             GROUP BY p.id
@@ -357,6 +366,7 @@ impl Database {
                     name: row.get(1)?,
                     representative_crop: row.get(2).ok(),
                     representative_face_id: row.get(3).ok(),
+                    encoded: row.get(4).ok(),
                 })
             });
             if let Ok(iter) = iter {
@@ -390,13 +400,14 @@ impl Database {
 
     pub fn get_unnamed_faces(&self) -> Vec<Face> {
         let mut faces = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id FROM faces WHERE person_id IS NULL") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id, encoded FROM faces WHERE person_id IS NULL") {
             let iter = stmt.query_map([], |row| {
                 Ok(Face {
                     photo_id: row.get(0)?,
                     face_id: row.get(1)?,
                     crop_path: row.get(2)?,
                     person_id: None,
+                    encoded: row.get(4).unwrap_or_default(),
                 })
             });
             if let Ok(iter) = iter {
@@ -489,6 +500,7 @@ pub struct Face {
     pub photo_id: String,
     pub face_id: String,
     pub crop_path: String,
+    pub encoded: String,
     pub person_id: Option<String>,
 }
 
@@ -498,6 +510,7 @@ pub struct PersonWithFace {
     pub name: String,
     pub representative_crop: Option<String>,
     pub representative_face_id: Option<String>,
+    pub encoded: Option<String>,
 }
 //use image::io::Reader as ImageReader;
 //use image::{DynamicImage, GenericImageView};

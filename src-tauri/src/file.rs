@@ -26,118 +26,82 @@ fn emit_log(app: &tauri::AppHandle, message: String) {
 pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     let database = database::Database::new(path);
     emit_log(app, format!("Scanning all files in: {}", directory));
+    
+    // Collect all valid image paths first
+    let mut image_paths = Vec::new();
     for entry in WalkDir::new(directory).follow_links(false) {
-        let entry = match entry {
-            Ok(e) => e,
-            Err(e) => {
-                emit_log(app, format!("Error reading entry: {}", e));
-                continue;
-            }
-        };
-
-        let path = entry.path();
-        emit_log(app, format!("Checking file: {:?}", path));
-        let metadata = match fs::metadata(&path) {
-            Ok(m) => m,
-            Err(e) => {
-                emit_log(app, format!("Error getting metadata for {:?}: {}", path, e));
-                continue;
-            }
-        };
-
-        let file_name = match path.file_name() {
-            Some(f) => String::from(f.to_str().unwrap_or("")),
-            None => String::from(""),
-        };
-        if (file_name != "." || !file_name.is_empty()) && metadata.is_file() {
+        if let Ok(entry) = entry {
+            let path = entry.path();
             if let Some(extension) = path.extension() {
-                emit_log(app, format!("Extension: {:?}", extension));
-                if extension == "png"
-                    || extension == "jpg"
-                    || extension == "jpeg"
-                    || extension == "JPG"
-                    || extension == "PNG"
-                {
-                    match fs::canonicalize(path) {
-                        Ok(path) => {
-                            let path_str = path.display().to_string();
-                            if database.path_exists(&path_str) {
-                                emit_log(app, format!("Skipping duplicate: {}", path_str));
-                                continue;
-                            }
-
-                            let id: String = rand::thread_rng()
-                                .sample_iter(&Alphanumeric)
-                                .take(7)
-                                .map(char::from)
-                                .collect();
-
-                            if let Ok(file) = File::open(path.clone()) {
-                                let mut buff = BufReader::new(&file);
-                                let propeties = match Reader::new().read_from_container(&mut buff) {
-                                    Ok(exif) => {
-                                        let mut props = HashMap::new();
-                                        for f in exif.fields() {
-                                            // println!("{}", f.tag); // Skip excessive tag logging
-                                            props.insert(
-                                                f.tag.to_string(),
-                                                f.display_value().to_string(),
-                                            );
-                                        }
-                                        dbg!(&props);
-                                        props
-                                    }
-                                    Err(_err) => HashMap::new(),
-                                };
-
-                                let encoded =
-                                    match generate_thumbnail_base64(path.to_str().unwrap(), 400) {
-                                        Ok(b64) => b64,
-                                        Err(e) => {
-                                            emit_log(
-                                                app,
-                                                format!(
-                                                    "Failed to generate thumbnail for {}: {}",
-                                                    path.display(),
-                                                    e
-                                                ),
-                                            );
-                                            // Fallback to empty string or maybe the path if critical,
-                                            // but user requested base64. Let's return empty string for encoded
-                                            // so it doesn't try to load invalid base64.
-                                            // Actually, if we return empty, no image shows.
-                                            // Let's fallback to path to be safe?
-                                            // User said "You shouldn't show use the path".
-                                            // So let's store empty string if it fails.
-                                            String::new()
-                                        }
-                                    };
-
-                                let photo_id_clone = id.clone();
-                                let photo = database::Photo {
-                                    id,
-                                    encoded,
-                                    location: path.display().to_string(),
-                                    objects: HashMap::new(),
-                                    properties: propeties,
-                                    latitude: 0.0,
-                                    longitude: 0.0,
-                                    favorite: false,
-                                };
-                                database.store_photo(photo);
-
-                                if let Some(state) = app.try_state::<MlContext>() {
-                                    state.pending_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                                    let _ = state.tx.lock().unwrap().send(photo_id_clone);
-                                }
-                            }
-                        }
-                        Err(_err) => {}
+                let ext = extension.to_string_lossy().to_lowercase();
+                if ext == "png" || ext == "jpg" || ext == "jpeg" {
+                    if let Ok(path) = fs::canonicalize(path) {
+                        image_paths.push(path);
                     }
                 }
             }
         }
     }
+
+    use std::sync::{Arc, Mutex};
+    let database = Arc::new(Mutex::new(database));
+    let app_handle = Arc::new(app.clone());
+
+    use rayon::prelude::*;
+    image_paths.into_par_iter().for_each(|path| {
+        let db = database.lock().unwrap();
+        let path_str = path.display().to_string();
+        if db.path_exists(&path_str) {
+            return;
+        }
+        drop(db);
+
+        let id: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(7)
+            .map(char::from)
+            .collect();
+
+        if let Ok(file) = File::open(path.clone()) {
+            let mut buff = BufReader::new(&file);
+            let properties = match Reader::new().read_from_container(&mut buff) {
+                Ok(exif) => {
+                    let mut props = HashMap::new();
+                    for f in exif.fields() {
+                        props.insert(f.tag.to_string(), f.display_value().to_string());
+                    }
+                    props
+                }
+                Err(_) => HashMap::new(),
+            };
+
+            let encoded = match generate_thumbnail_base64(path.to_str().unwrap(), 400) {
+                Ok(b64) => b64,
+                Err(_) => String::new(),
+            };
+
+            let photo = database::Photo {
+                id: id.clone(),
+                encoded,
+                location: path.display().to_string(),
+                objects: HashMap::new(),
+                properties,
+                latitude: 0.0,
+                longitude: 0.0,
+                favorite: false,
+            };
+
+            let db = database.lock().unwrap();
+            db.store_photo(photo);
+            drop(db);
+
+            if let Some(state) = app_handle.try_state::<MlContext>() {
+                state.pending_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let _ = state.tx.lock().unwrap().send(id);
+            }
+        }
+    });
+
     emit_log(app, "Done scanning all photos".to_string());
 }
 
@@ -155,11 +119,15 @@ fn generate_thumbnail_base64(
     let encoded = general_purpose::STANDARD.encode(buffer.get_ref());
     Ok(format!("data:image/jpeg;base64,{}", encoded))
 }
-// This will return the file path for the image
+// This will return the base64 encoded thumbnail for the image
 pub fn get_thumbnail(path: String) -> String {
-    // For now, just return the original path
-    // In the future, we could generate and cache actual thumbnails
-    path
+    match generate_thumbnail_base64(&path, 400) {
+        Ok(b64) => b64,
+        Err(e) => {
+            eprintln!("Failed to generate thumbnail for {}: {}", path, e);
+            String::new()
+        }
+    }
 }
 
 mod tests {

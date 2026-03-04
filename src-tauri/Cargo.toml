@@ -62,6 +62,7 @@ tokio-tungstenite = "0.28.0"
 futures-util = "0.3.32"
 url = "2.5.8"
 uuid = { version = "1.21.0", features = ["v4"] }
+rayon = "1.10.0"
 
 [target.'cfg(target_os = "android")'.dependencies]
 ort = { version = "2.0.0-rc.11", features = ["ndarray", "load-dynamic"] }
