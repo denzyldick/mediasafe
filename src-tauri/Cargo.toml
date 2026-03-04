@@ -58,7 +58,7 @@ tokenizers = "0.19.1"
 bip39 = { version = "2.2.2", features = ["std"] }
 sha2 = "0.10.9"
 hex = "0.4.3"
-tokio-tungstenite = "0.28.0"
+tokio-tungstenite = { version = "0.28.0", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3.32"
 url = "2.5.8"
 uuid = { version = "1.21.0", features = ["v4"] }
