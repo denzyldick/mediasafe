@@ -20,6 +20,7 @@
       variant="text"
       size="small"
       class="favorite-btn"
+      :class="{ 'is-fav': isFavorite }"
       :color="isFavorite ? 'red' : 'white'"
       @click.stop="toggleFavorite"
     >
@@ -141,6 +142,13 @@ img {
     z-index: 2;
     background-color: rgba(0,0,0,0.2);
     backdrop-filter: blur(4px);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.image-container:hover .favorite-btn,
+.favorite-btn.is-fav {
+    opacity: 1;
 }
 
 .tags-container {
