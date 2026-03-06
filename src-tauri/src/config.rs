@@ -15,7 +15,7 @@ struct Folder {
 }
 impl Config {
     pub fn init(data_directory: &str) -> Option<Config> {
-        let file = fs::read_to_string(format!("{}/mediasafe.yaml", data_directory));
+        let file = fs::read_to_string(format!("{}/siegu.yaml", data_directory));
 
         if let Ok(config) = file {
             let docs = YamlLoader::load_from_str(&config).unwrap();
@@ -61,16 +61,16 @@ mod tests {
     #[test]
     fn new() {
         let temp_dir = std::env::temp_dir();
-        let config_path = temp_dir.join("mediasafe.yaml");
+        let config_path = temp_dir.join("siegu.yaml");
         let mut file = std::fs::File::create(&config_path).unwrap();
         writeln!(
             file,
-            "database: mediasafe.db\nport: '8080'\nip: 127.0.0.1\ngpu: false\nfolders:\n  - path: /tmp\n    name: tmp"
+            "database: siegu.db\nport: '8080'\nip: 127.0.0.1\ngpu: false\nfolders:\n  - path: /tmp\n    name: tmp"
         )
         .unwrap();
 
         let config = Config::init(temp_dir.to_str().unwrap()).unwrap();
-        assert_eq!(config.database, "mediasafe.db");
+        assert_eq!(config.database, "siegu.db");
         assert_eq!(config.port, "8080");
 
         std::fs::remove_file(config_path).unwrap();

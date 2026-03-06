@@ -1,129 +1,92 @@
 <template>
-  <v-container class="pb-16" fluid>
+  <v-container class="pb-16" fluid style="background-color: #fafafa !important;">
     <v-row justify="center">
       <v-col cols="12" md="8" lg="6">
-        <div class="d-flex align-center mb-6">
-          <v-icon color="white" size="x-large" class="mr-3 opacity-80">mdi-cog</v-icon>
-          <h1 class="text-h4 font-weight-bold text-white">Settings</h1>
+        <div class="d-flex align-center justify-space-between mb-8">
+          <div>
+            <div class="d-flex align-center mb-1">
+              <v-icon color="#18181b" size="28" class="mr-3">mdi-cog-outline</v-icon>
+              <h1 class="text-h4 font-weight-bold text-zinc-primary">Settings</h1>
+            </div>
+            <div class="text-subtitle-1 text-zinc-secondary">Configure your library and AI preferences</div>
+          </div>
         </div>
 
-        <!-- Storage Config Card -->
-        <v-card class="mb-6" color="white" variant="flat" rounded="lg">
-          <v-card-item>
+        <!-- Authorized Folders Card -->
+        <v-card variant="flat" color="#ffffff" rounded="xl" class="mb-6 overflow-hidden border-subtle">
+          <v-card-item class="bg-zinc-100">
             <template v-slot:prepend>
-              <v-icon color="grey-darken-3" size="large">mdi-database</v-icon>
+              <v-icon color="#18181b" size="large">mdi-folder-lock</v-icon>
             </template>
-            <v-card-title class="text-h6 text-grey-darken-4 font-weight-bold">Storage Configuration</v-card-title>
-            <v-card-subtitle class="text-grey-darken-1">Where your media database is stored</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Authorized Folders</v-card-title>
+            <v-card-subtitle class="text-zinc-secondary">Manage folders Siegu is allowed to scan</v-card-subtitle>
+            <template v-slot:append>
+              <v-btn
+                prepend-icon="mdi-plus"
+                variant="flat"
+                @click="select_directory"
+                class="text-none font-weight-bold siegu-btn"
+              >
+                Add Folder
+              </v-btn>
+            </template>
           </v-card-item>
 
-          <v-card-text>
-            <v-alert
-              variant="flat"
-              border="start"
-              color="grey-lighten-4"
-              class="mb-2 text-grey-darken-4"
-              style="border-left: 4px solid #18181b !important;"
-            >
-              Your configuration database is located at:
-              <div class="font-weight-bold mt-1 text-body-2">{{ dataDir }}/database.sql</div>
-            </v-alert>
-          </v-card-text>
-        </v-card>
-
-        <!-- Library Config Card -->
-        <v-card variant="flat" color="white" rounded="lg" class="mb-6">
-          <v-card-item>
-            <template v-slot:prepend>
-              <v-icon color="grey-darken-3" size="large">mdi-image-multiple</v-icon>
-            </template>
-            <v-card-title class="text-h6 text-grey-darken-4 font-weight-bold">Media Library</v-card-title>
-            <v-card-subtitle class="text-grey-darken-1">Manage folders</v-card-subtitle>
-          </v-card-item>
-
-          <v-card-text>
-            <v-row class="align-center mb-2 mt-2">
-              <v-col>
-                <div class="text-subtitle-1 font-weight-bold text-grey-darken-4">Watched Folders</div>
-              </v-col>
-              <v-col cols="auto">
-                 <v-btn
-                  color="grey-darken-4"
-                  prepend-icon="mdi-folder-plus"
-                  variant="flat"
-                  @click="select_directory"
-                  class="text-none font-weight-bold"
-                >
-                  Add Folder
-                </v-btn>
-              </v-col>
-            </v-row>
-
+          <v-card-text class="pt-4">
             <v-expand-transition>
               <div v-if="directories.length > 0">
-                 <v-list lines="one" class="bg-grey-lighten-4 rounded-lg">
+                <v-list bg-color="transparent">
                   <v-list-item
                     v-for="(directory, index) in directories"
                     :key="directory.value"
-                    :title="directory.title"
-                    class="text-grey-darken-4 font-weight-medium"
+                    class="px-0"
                   >
                     <template v-slot:prepend>
-                       <v-icon color="grey-darken-1">mdi-folder</v-icon>
+                      <v-icon color="#71717a" class="mr-2">mdi-folder</v-icon>
                     </template>
-                    
+                    <v-list-item-title class="text-zinc-primary font-weight-medium">{{ directory.title }}</v-list-item-title>
+                    <v-list-item-subtitle class="text-zinc-muted text-caption">{{ directory.value }}</v-list-item-subtitle>
                     <template v-slot:append>
-                      <v-btn
-                        icon="mdi-delete"
-                        variant="text"
-                        color="error"
-                        size="small"
-                        @click="remove_directory(directory.value)"
-                        title="Remove folder"
-                      ></v-btn>
+                      <v-menu>
+                        <template v-slot:activator="{ props }">
+                          <v-btn icon="mdi-dots-vertical" variant="text" size="small" color="#71717a" v-bind="props"></v-btn>
+                        </template>
+                        <v-list size="small" class="siegu-list">
+                          <v-list-item @click="remove_directory(directory.value)">
+                            <v-list-item-title>Remove Folder Reference</v-list-item-title>
+                          </v-list-item>
+                          <v-list-item @click="remove_directory_full(directory.value)" color="error">
+                            <v-list-item-title>Wipe Local Data & Remove</v-list-item-title>
+                          </v-list-item>
+                        </v-list>
+                      </v-menu>
                     </template>
-                     <v-divider v-if="index < directories.length - 1" class="opacity-10"></v-divider>
+                     <v-divider v-if="index < directories.length - 1" class="border-subtle"></v-divider>
                   </v-list-item>
                 </v-list>
               </div>
-              <div v-else class="text-center py-8 text-grey-darken-1 border border-dashed rounded-lg" style="border-color: rgba(0,0,0,0.1) !important;">
+              <div v-else class="text-center py-8 text-zinc-muted border border-dashed rounded-lg border-subtle">
                 <div>No folders added yet.</div>
               </div>
             </v-expand-transition>
           </v-card-text>
-          
-          <v-divider class="opacity-10"></v-divider>
-          
-          <v-card-actions class="pa-4">
-             <v-spacer></v-spacer>
-             <v-btn
-              color="grey-darken-4"
-              size="large"
-              variant="flat"
-              :disabled="directories.length === 0"
-              @click="finishOnboarding"
-              class="text-none px-8 font-weight-bold"
-            >
-              Continue
-            </v-btn>
-          </v-card-actions>
         </v-card>
 
         <!-- Performance Config Card -->
-        <v-card variant="flat" color="white" rounded="lg" class="mb-6">
-          <v-card-item>
+        <v-card variant="flat" color="#ffffff" rounded="xl" class="mb-6 border-subtle">
+          <v-card-item class="bg-zinc-100">
             <template v-slot:prepend>
-              <v-icon color="grey-darken-3" size="large">mdi-speedometer</v-icon>
+              <v-icon color="#18181b" size="large">mdi-speedometer</v-icon>
             </template>
-            <v-card-title class="text-h6 text-grey-darken-4 font-weight-bold">Performance</v-card-title>
-            <v-card-subtitle class="text-grey-darken-1">Adjust system resource usage</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Performance</v-card-title>
+            <v-card-subtitle class="text-zinc-secondary">Adjust system resource usage</v-card-subtitle>
           </v-card-item>
 
-          <v-card-text>
-            <div class="mb-6">
+          <v-card-text class="pt-6">
+            <div class="mb-6 px-2">
               <div class="d-flex justify-space-between align-center mb-2">
-                <div class="text-subtitle-1 font-weight-bold text-grey-darken-4">Scanning Threads</div>
-                <v-chip size="x-small" color="grey-darken-4" variant="flat" class="font-weight-bold text-white">{{ performance.scanThreads }} threads</v-chip>
+                <div class="text-subtitle-1 font-weight-bold text-zinc-primary">Scanning Threads</div>
+                <v-chip size="x-small" color="#f4f4f5" variant="flat" class="font-weight-bold text-zinc-primary border-subtle">{{ performance.scanThreads }} threads</v-chip>
               </div>
               <v-slider
                 v-model="performance.scanThreads"
@@ -132,40 +95,34 @@
                 :step="1"
                 thumb-label
                 hide-details
-                color="grey-darken-4"
+                color="#18181b"
+                track-color="#f4f4f5"
                 @update:model-value="savePerformanceConfig"
               ></v-slider>
-              <div class="text-caption text-grey-darken-1 mt-1">Number of parallel threads used for initial file scanning and thumbnail generation.</div>
             </div>
 
-            <v-divider class="my-4 opacity-10"></v-divider>
+            <v-divider class="my-4 border-subtle"></v-divider>
 
             <div>
               <v-list-item class="px-0">
-                <v-list-item-title class="text-grey-darken-4 font-weight-bold">AI Indexing Mode</v-list-item-title>
-                <v-list-item-subtitle class="text-grey-darken-1">When should the AI process your photos?</v-list-item-subtitle>
+                <v-list-item-title class="text-zinc-primary font-weight-bold">AI Indexing Mode</v-list-item-title>
+                <v-list-item-subtitle class="text-zinc-secondary">When should the AI process your photos?</v-list-item-subtitle>
                 <template v-slot:append>
                   <v-menu offset-y>
                     <template v-slot:activator="{ props }">
                       <v-btn
-                        v-bind="props"
-                        color="grey-darken-4"
                         variant="flat"
-                        class="text-none font-weight-bold"
-                        width="150"
+                        color="#f4f4f5"
+                        class="text-none font-weight-bold text-zinc-primary border-subtle"
+                        v-bind="props"
                         append-icon="mdi-chevron-down"
                       >
-                        {{ performance.indexingMode }}
+                        {{ getModeLabel(performance.indexingMode) }}
                       </v-btn>
                     </template>
-                    <v-list bg-color="white" class="border-subtle">
-                      <v-list-item 
-                        v-for="item in [{ title: 'Immediate', value: 'immediate' }, { title: 'On Idle', value: 'idle' }, { title: 'Manual Only', value: 'manual' }]"
-                        :key="item.value"
-                        @click="performance.indexingMode = item.value; savePerformanceConfig()"
-                        class="text-grey-darken-4 font-weight-bold"
-                      >
-                        <v-list-item-title>{{ item.title }}</v-list-item-title>
+                    <v-list class="siegu-list">
+                      <v-list-item v-for="mode in indexingModes" :key="mode.value" @click="setIndexingMode(mode.value)">
+                        <v-list-item-title :class="{'font-weight-bold text-black': performance.indexingMode === mode.value}">{{ mode.title }}</v-list-item-title>
                       </v-list-item>
                     </v-list>
                   </v-menu>
@@ -174,97 +131,134 @@
             </div>
           </v-card-text>
         </v-card>
-        
-        <!-- AI Models Config Card -->
-        <v-card variant="flat" color="white" rounded="lg" class="mb-6">
-          <v-card-item>
+
+        <!-- AI Models Section -->
+        <v-card variant="flat" color="#ffffff" rounded="xl" class="mb-6 overflow-hidden border-subtle">
+          <v-card-item class="bg-zinc-100">
             <template v-slot:prepend>
-              <v-icon color="grey-darken-3" size="large">mdi-brain</v-icon>
+              <v-icon color="#18181b" size="large">mdi-robot-outline</v-icon>
             </template>
-            <v-card-title class="text-h6 text-grey-darken-4 font-weight-bold">AI Models</v-card-title>
-            <v-card-subtitle class="text-grey-darken-1">Offline detection & search</v-card-subtitle>
+            <v-card-title class="text-h6 text-zinc-primary font-weight-bold">AI Models</v-card-title>
+            <v-card-subtitle class="text-zinc-secondary">Download and manage local AI processing engines</v-card-subtitle>
           </v-card-item>
 
-          <v-card-text>
+          <v-card-text class="pt-4">
             <v-list lines="two" class="bg-transparent">
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="grey-darken-4" :disabled="downloadedModels.includes('clip')"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0" color="#18181b"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-grey-darken-4">
+                <v-list-item-title class="font-weight-bold text-zinc-primary">
                   CLIP Model
                   <v-chip v-if="downloadedModels.includes('clip')" size="x-small" variant="flat" class="ml-2" color="success">Ready</v-chip>
                 </v-list-item-title>
-                <v-list-item-subtitle class="text-grey-darken-1">Smart search indexing</v-list-item-subtitle>
-                <template v-if="downloadProgress.clip !== undefined">
+                <v-list-item-subtitle class="text-zinc-secondary">Semantic search and content classification (350MB)</v-list-item-subtitle>
+                <div v-if="downloadProgress.clip" class="mt-2 px-2">
                   <v-progress-linear
-                    :model-value="(downloadProgress.clip.downloaded / downloadProgress.clip.total) * 100"
-                    color="grey-darken-4"
-                    height="2"
+                    :model-value="getProgress('clip')"
+                    color="#18181b"
+                    bg-color="#f4f4f5"
+                    height="8"
                     rounded
-                    class="mt-2"
                   ></v-progress-linear>
-                </template>
+                  <div class="text-caption text-zinc-muted mt-1">
+                    {{ formatBytes(downloadProgress.clip.downloaded) }} / {{ formatBytes(downloadProgress.clip.total) }}
+                  </div>
+                </div>
               </v-list-item>
 
               <v-list-item class="px-0">
                 <template v-slot:prepend>
-                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="grey-darken-4" :disabled="downloadedModels.includes('ultraface')"></v-checkbox>
+                  <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0" color="#18181b"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-grey-darken-4">
+                <v-list-item-title class="font-weight-bold text-zinc-primary">
                   UltraFace Model
                   <v-chip v-if="downloadedModels.includes('ultraface')" size="x-small" variant="flat" class="ml-2" color="success">Ready</v-chip>
                 </v-list-item-title>
-                <v-list-item-subtitle class="text-grey-darken-1">Offline face detection</v-list-item-subtitle>
-                <template v-if="downloadProgress.ultraface !== undefined">
+                <v-list-item-subtitle class="text-zinc-secondary">Fast local face detection and grouping (2MB)</v-list-item-subtitle>
+                <div v-if="downloadProgress.ultraface" class="mt-2 px-2">
                   <v-progress-linear
-                    :model-value="(downloadProgress.ultraface.downloaded / downloadProgress.ultraface.total) * 100"
-                    color="grey-darken-4"
-                    height="2"
+                    :model-value="getProgress('ultraface')"
+                    color="#18181b"
+                    bg-color="#f4f4f5"
+                    height="8"
                     rounded
-                    class="mt-2"
                   ></v-progress-linear>
-                </template>
+                  <div class="text-caption text-zinc-muted mt-1">
+                    {{ formatBytes(downloadProgress.ultraface.downloaded) }} / {{ formatBytes(downloadProgress.ultraface.total) }}
+                  </div>
+                </div>
               </v-list-item>
             </v-list>
           </v-card-text>
           
-          <v-divider class="opacity-10"></v-divider>
-          
-          <v-card-actions class="pa-4">
+          <v-card-actions class="pa-4 bg-zinc-100">
              <v-spacer></v-spacer>
              <v-btn
-              color="grey-darken-4"
               variant="flat"
               :disabled="selectedModels.length === 0 || isDownloading"
               :loading="isDownloading"
-              @click="downloadModels"
+              @click="downloadModels(true)"
               prepend-icon="mdi-download"
-              class="text-none font-weight-bold"
+              class="text-none font-weight-bold siegu-btn"
             >
-              Download
+              {{ downloadedModels.length === 2 ? 'Update Models' : 'Download Models' }}
             </v-btn>
           </v-card-actions>
         </v-card>
 
+        <!-- Maintenance Section -->
+        <v-card variant="flat" color="#ffffff" rounded="xl" class="mb-6 border-subtle overflow-hidden">
+          <v-card-item class="bg-zinc-100">
+            <template v-slot:prepend>
+              <v-icon color="#18181b" size="large">mdi-wrench-outline</v-icon>
+            </template>
+            <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Maintenance</v-card-title>
+            <v-card-subtitle class="text-zinc-secondary">Optimize and manage system state</v-card-subtitle>
+          </v-card-item>
+          
+          <v-card-text class="pt-2">
+            <v-list lines="two" class="bg-transparent">
+              <v-list-item class="px-0">
+                <v-list-item-title class="font-weight-bold text-zinc-primary">Background Sync</v-list-item-title>
+                <v-list-item-subtitle class="text-zinc-secondary">Allow syncing when app is in background</v-list-item-subtitle>
+                <template v-slot:append>
+                  <v-switch v-model="bgSync" hide-details color="#18181b" inset density="compact"></v-switch>
+                </template>
+              </v-list-item>
+
+              <v-list-item class="px-0">
+                <v-list-item-title class="font-weight-bold text-zinc-primary">Cleanup Database</v-list-item-title>
+                <v-list-item-subtitle class="text-zinc-secondary">Optimize storage and remove orphaned entries</v-list-item-subtitle>
+                <template v-slot:append>
+                  <v-btn size="small" variant="outlined" color="#18181b" @click="cleanupDb" :loading="isCleaning" class="siegu-btn-outline">Run</v-btn>
+                </template>
+              </v-list-item>
+            </v-list>
+          </v-card-text>
+        </v-card>
+
         <!-- Debug Logs Expansion Panel -->
-        <v-expansion-panels class="mb-6">
-          <v-expansion-panel title="Debug Logs" bg-color="white" class="text-grey-darken-4 font-weight-bold">
+        <v-expansion-panels class="mb-6 siegu-expansion">
+          <v-expansion-panel bg-color="#ffffff" class="text-zinc-primary font-weight-bold border-subtle">
+            <template v-slot:title>
+              <div class="d-flex align-center justify-space-between w-100">
+                <span>Debug Logs</span>
+                <v-btn size="x-small" variant="text" color="error" @click.stop="clearLogs" class="text-none">Clear History</v-btn>
+              </div>
+            </template>
             <template v-slot:text>
                <v-sheet
-                 color="grey-lighten-4"
-                 class="pa-2 overflow-y-auto"
-                 rounded
-                 height="300"
-                 id="log-container"
-               >
-                 <div v-for="(log, i) in logs" :key="i" class="text-caption text-mono font-weight-medium" style="font-family: monospace; white-space: pre-wrap; word-break: break-all; color: #18181b;">
-                   <span :class="log.type === 'error' ? 'text-red-darken-2' : 'text-grey-darken-3'">
-                     [{{ log.time }}] {{ log.message }}
-                   </span>
-                 </div>
-               </v-sheet>
-               <v-btn size="small" variant="text" color="grey-darken-1" class="mt-2 text-none font-weight-bold" @click="logs = []">Clear Logs</v-btn>
+                color="#f4f4f5"
+                class="pa-4 rounded-lg overflow-y-auto border-subtle"
+                max-height="400"
+                style="font-family: monospace; font-size: 12px;"
+              >
+                <div v-for="(log, i) in logs" :key="i" :class="log.type === 'error' ? 'text-error' : 'text-zinc-secondary'" class="mb-1">
+                  <span class="text-zinc-muted">[{{ log.time }}]</span> {{ log.message }}
+                </div>
+                <div v-if="logs.length === 0" class="text-zinc-muted text-center py-4">No logs recorded yet.</div>
+              </v-sheet>
             </template>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -276,175 +270,42 @@
     />
   </v-container>
 </template>
+
 <script>
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
-import * as path from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
+import { homeDir } from "@tauri-apps/api/path";
 import { platform } from "@tauri-apps/plugin-os";
+import { listen } from "@tauri-apps/api/event";
 import FolderPicker from "./FolderPicker.vue";
+
 export default {
-  components: {
-    FolderPicker
-  },
+  name: "Setting",
+  components: { FolderPicker },
   data: () => ({
     directories: [],
-    dataDir: null,
-    logs: [],
-    name: "",
-    nameRules: [
-      (v) => !!v || "Path is required",
-      (v) => (v && v.length <= 10) || "Name must be 10 characters or less",
-    ],
-    select: null,
-    items: ["Gpu", "Cpu"],
-    checkbox: false,
     showFolderPicker: false,
-    selectedModels: [],
-    isDownloading: false,
-    downloadProgress: {},
     isAndroid: false,
-  }),
-
-  methods: {
-    formatBytes(bytes) {
-      if (bytes === 0) return '0 B';
-      const k = 1024;
-      const sizes = ['B', 'KB', 'MB', 'GB'];
-      const i = Math.floor(Math.log(bytes) / Math.log(k));
-      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    },
-    async downloadModels() {
-      // Only download models that aren't already downloaded
-      const modelsToDownload = this.selectedModels.filter(m => !this.downloadedModels.includes(m));
-      if (modelsToDownload.length === 0) return;
-      
-      this.isDownloading = true;
-      this.downloadProgress = {};
-      
-      try {
-        await invoke('download_models', { models: modelsToDownload });
-        console.log("Model downloads initiated!");
-        // Refresh downloaded status after a bit or listen for complete (optional)
-      } catch (err) {
-        console.error("Failed to download models:", err);
-      } finally {
-        this.isDownloading = false;
-      }
-    },
-
-    async select_directory() {
-      if (this.isAndroid) {
-        this.showFolderPicker = true;
-        return;
-      }
-
-      try {
-        const selection = await open({
-          multiple: true,
-          directory: true,
-        });
-
-        if (selection === null) {
-          console.log("No directory selected");
-          return;
-        }
-
-        const dirs = Array.isArray(selection) ? selection : [selection];
-
-        for (const dir of dirs) {
-          try {
-            await invoke("add_directory", { path: dir });
-            console.log("Added directory:", dir);
-          } catch (err) {
-            console.error("Failed to add directory:", err);
-          }
-        }
-        
-        this.list_directories();
-        // Remove immediate scan_files call to prevent background CPU spike during onboarding
-      } catch (err) {
-        console.error("Error selecting directory:", err);
-        if (err.toString().includes("not implemented") || err.toString().includes("picker")) {
-             this.showFolderPicker = true;
-        } else {
-             alert("Failed to select directory: " + err);
-        }
-      }
-    },
-    async onFolderSelected(path) {
-        console.log("Android folder selected:", path);
-        try {
-            await invoke("add_directory", { path: path });
-            this.list_directories();
-        } catch (err) {
-            console.error("Failed to add directory:", err);
-            alert("Failed to add directory: " + err);
-        }
-    },
-    async finishOnboarding() {
-        // Trigger the first scan only when onboarding is finished
-        invoke("scan_files");
-        this.$emit('done');
-    },
-    remove_directory(path) {
-      this.directories = this.directories.filter((dir) => dir.value !== path);
-      invoke("remove_directory", { path: path }).then(() => {
-        this.list_directories();
-      });
-    },
-    async checkExistingModels() {
-        const downloaded = await invoke("check_models");
-        this.downloadedModels = downloaded;
-        // Auto-select downloaded models
-        this.selectedModels = [...downloaded];
-    },
-    list_directories() {
-      invoke("list_directories").then((response) => {
-        const dirs = JSON.parse(response);
-        this.directories = dirs.map(dir => ({
-          title: dir,
-          value: dir
-        }));
-      }).catch(err => {
-        console.error("Failed to list directories:", err);
-      });
-    },
-    async savePerformanceConfig() {
-      try {
-        await invoke("save_config", { key: "scan_threads", value: this.performance.scanThreads.toString() });
-        await invoke("save_config", { key: "indexing_mode", value: this.performance.indexingMode });
-      } catch (err) {
-        console.error("Failed to save performance config:", err);
-      }
-    },
-    async loadPerformanceConfig() {
-      try {
-        const threads = await invoke("get_config", { key: "scan_threads" });
-        if (threads) this.performance.scanThreads = parseInt(threads);
-        
-        const mode = await invoke("get_config", { key: "indexing_mode" });
-        if (mode) this.performance.indexingMode = mode;
-      } catch (err) {
-        console.error("Failed to load performance config:", err);
-      }
-    }
-  },
-  data: () => ({
-    directories: [],
+    dataDir: "",
+    configDir: "",
+    checkResults: "",
+    isDownloading: false,
+    isCleaning: false,
+    bgSync: false,
     downloadedModels: [],
-    dataDir: null,
-    logs: [],
     selectedModels: [],
-    isDownloading: false,
     downloadProgress: {},
-    isAndroid: false,
-    showFolderPicker: false,
+    logs: [],
     performance: {
       scanThreads: 4,
-      indexingMode: 'immediate'
+      indexingMode: "immediate",
     },
     maxThreads: 8,
+    indexingModes: [
+      { title: "Immediate", value: "immediate" },
+      { title: "Idle Only", value: "idle" },
+      { title: "Manual Only", value: "manual" },
+    ],
   }),
   async mounted() {
     // Listen for background logs
@@ -454,15 +315,196 @@ export default {
         message: event.payload,
         type: event.payload.toLowerCase().includes("error") ? "error" : "info"
       };
-      this.logs.unshift(log); // Show newest logs at the top
-      if (this.logs.length > 100) this.logs.pop(); // Keep last 100 logs
+      this.logs.unshift(log);
+      if (this.logs.length > 100) this.logs.pop();
     });
 
-    this.dataDir = await path.homeDir();
+    listen("download-progress", (event) => {
+        const { model, downloaded, total } = event.payload;
+        this.downloadProgress = { ...this.downloadProgress, [model]: { downloaded, total } };
+    });
+
+    listen("download-complete", () => {
+        this.isDownloading = false;
+        this.checkExistingModels();
+    });
+
+    this.dataDir = await homeDir();
+    this.isAndroid = (await platform()) === 'android';
     await this.checkExistingModels();
     await this.loadPerformanceConfig();
+    
+    const bgSyncVal = await invoke("get_config", { key: "bg_sync" });
+    this.bgSync = bgSyncVal === "true";
+    
+    // Fetch persistent logs
+    this.fetchLogs();
+    
     this.list_directories();
-    // ... existing platform detection ...
   },
+  methods: {
+    async fetchLogs() {
+      try {
+        const logsStr = await invoke("get_logs", { limit: 100 });
+        const parsed = JSON.parse(logsStr);
+        this.logs = parsed.map(l => ({
+          time: new Date(l.timestamp).toLocaleTimeString(),
+          message: l.message,
+          type: l.level === 'error' ? 'error' : 'info'
+        }));
+      } catch (err) {
+        console.error("Failed to fetch logs:", err);
+      }
+    },
+    async clearLogs() {
+      await invoke("clear_logs");
+      this.logs = [];
+    },
+    getModeLabel(val) {
+      return this.indexingModes.find(m => m.value === val)?.title || val;
+    },
+    async loadPerformanceConfig() {
+      const threads = await invoke("get_config", { key: "scan_threads" });
+      if (threads) this.performance.scanThreads = parseInt(threads);
+      
+      const mode = await invoke("get_config", { key: "indexing_mode" });
+      if (mode) this.performance.indexingMode = mode;
+    },
+    async savePerformanceConfig() {
+      await invoke("save_config", { key: "scan_threads", value: this.performance.scanThreads.toString() });
+    },
+    async setIndexingMode(mode) {
+      this.performance.indexingMode = mode;
+      await invoke("save_config", { key: "indexing_mode", value: mode });
+    },
+    async checkExistingModels() {
+        const downloaded = await invoke("check_models");
+        this.downloadedModels = downloaded;
+        this.checkResults = JSON.stringify(downloaded);
+        this.selectedModels = ["clip", "ultraface"];
+        if (downloaded.length < 2 && !this.isDownloading) {
+            this.downloadModels(false);
+        }
+    },
+    getProgress(model) {
+      const progress = this.downloadProgress[model];
+      if (!progress || !progress.total) return 0;
+      return (progress.downloaded / progress.total) * 100;
+    },
+    formatBytes(bytes) {
+      if (!bytes) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    },
+    async downloadModels(forceUpdate = false) {
+      let modelsToDownload = this.selectedModels;
+      if (!forceUpdate) {
+        modelsToDownload = ["clip", "ultraface"].filter(m => !this.downloadedModels.includes(m));
+      }
+      if (modelsToDownload.length === 0) return;
+      this.isDownloading = true;
+      this.downloadProgress = {};
+      try {
+        await invoke('download_models', { models: modelsToDownload });
+      } catch (err) {
+        this.isDownloading = false;
+      }
+    },
+    async cleanupDb() {
+      this.isCleaning = true;
+      await invoke("cleanup_database");
+      this.isCleaning = false;
+    },
+    async remove_directory_full(path) {
+      if (confirm("This will remove the folder AND delete all indexed AI data associated with it. Files on disk will NOT be touched. Continue?")) {
+        await invoke("remove_directory_full", { path });
+        this.list_directories();
+      }
+    },
+    async select_directory() {
+      if (this.isAndroid) {
+        this.showFolderPicker = true;
+        return;
+      }
+      try {
+        const selection = await open({ multiple: true, directory: true });
+        if (Array.isArray(selection)) {
+          for (const path of selection) { await invoke("add_directory", { path }); }
+        } else if (selection) {
+          await invoke("add_directory", { path: selection });
+        }
+        this.list_directories();
+      } catch (err) {}
+    },
+    list_directories() {
+      invoke("list_directories").then((response) => {
+        const dirs = JSON.parse(response);
+        this.directories = dirs.map(dir => ({ title: dir.split('/').pop() || dir, value: dir }));
+      });
+    },
+    remove_directory(path) {
+      invoke("remove_directory", { path }).then(() => { this.list_directories(); });
+    },
+    onFolderSelected(path) {
+      invoke("add_directory", { path }).then(() => {
+        this.list_directories();
+      });
+    }
+  },
+  watch: {
+    bgSync(val) {
+      invoke("save_config", { key: "bg_sync", value: val.toString() });
+    }
+  }
 };
 </script>
+
+<style scoped>
+.siegu-btn {
+  background: #18181b !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px !important;
+  color: #ffffff !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.siegu-btn:hover {
+  background: #27272a !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+  transform: translateY(-1px);
+}
+
+.siegu-btn-outline {
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 8px !important;
+  color: #18181b !important;
+}
+
+.siegu-btn-outline:hover {
+  background: #f4f4f5 !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+}
+
+.bg-zinc-100 {
+  background-color: #f4f4f5 !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.siegu-list {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px !important;
+}
+
+.siegu-expansion :deep(.v-expansion-panel-title) {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.siegu-field :deep(.v-field) {
+  background: #f4f4f5 !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px !important;
+}
+</style>

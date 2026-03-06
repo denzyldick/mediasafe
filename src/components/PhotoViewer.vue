@@ -1,9 +1,9 @@
 <template>
   <v-dialog v-model="visible" fullscreen transition="dialog-bottom-transition">
-    <v-card rounded="0" color="black" class="fill-height" style="overflow: hidden;">
+    <v-card rounded="0" color="#fafafa" class="fill-height" style="overflow: hidden;">
       <v-layout class="fill-height">
         <!-- Main Viewer Area -->
-        <v-main class="fill-height position-relative d-flex align-center justify-center p-0">
+        <v-main class="fill-height position-relative d-flex align-center justify-center p-0" style="background-color: #fafafa !important;">
           <div class="touch-overlay" 
                v-touch="{ 
                  left: () => next(), 
@@ -12,19 +12,20 @@
                }">
           </div>
 
-          <v-btn icon="mdi-close" variant="text" color="white" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
+          <v-btn icon="mdi-close" variant="text" color="#18181b" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
 
-          <v-btn v-if="!isMobile" icon="mdi-chevron-left" variant="text" color="white" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
+          <v-btn v-if="!isMobile" icon="mdi-chevron-left" variant="text" color="#18181b" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
 
-          <img v-if="currentPhoto" :src="currentPhotoSrc" class="viewer-image" />
+          <img v-if="currentPhoto && !isVideo" :src="currentPhotoSrc" class="viewer-image" />
+          <video v-if="currentPhoto && isVideo" :src="currentVideoSrc" class="viewer-image" controls autoplay style="z-index: 10; position: relative;"></video>
 
-          <v-btn v-if="!isMobile" icon="mdi-chevron-right" variant="text" color="white" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
+          <v-btn v-if="!isMobile" icon="mdi-chevron-right" variant="text" color="#18181b" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
           
           <!-- Toggle Info Panel Button -->
           <v-btn
             icon="mdi-information-outline"
             variant="text"
-            :color="showInfo ? '#e4e4e7' : 'white'"
+            :color="showInfo ? '#18181b' : '#71717a'"
             style="position: absolute; bottom: 20px; right: 20px; z-index: 2000"
             @click="showInfo = !showInfo"
           ></v-btn>
@@ -35,36 +36,36 @@
           v-model="showInfo"
           location="right"
           width="350"
-          color="#09090b"
+          color="#ffffff"
           class="border-s border-subtle"
-          style="border-left: 1px solid rgba(255,255,255,0.1) !important; z-index: 3000 !important;"
+          style="border-left: 1px solid rgba(0,0,0,0.05) !important; z-index: 3000 !important;"
         >
         <v-toolbar color="transparent" density="compact">
           <v-toolbar-title class="text-zinc-primary text-subtitle-1 font-weight-bold">Metadata</v-toolbar-title>
         </v-toolbar>
 
-        <v-divider class="opacity-10"></v-divider>
+        <v-divider class="opacity-5"></v-divider>
 
         <v-list class="bg-transparent px-4">
           <!-- File Info -->
           <div class="mb-6 pt-4">
             <div class="text-caption text-zinc-muted mb-1 text-uppercase tracking-widest">File Details</div>
             <div class="d-flex align-start mb-2">
-              <v-icon size="small" color="#a1a1aa" class="mr-2 mt-1">mdi-file-document-outline</v-icon>
+              <v-icon size="small" color="#71717a" class="mr-2 mt-1">mdi-file-document-outline</v-icon>
               <div class="text-body-2 text-zinc-secondary" style="word-break: break-all;">
                 {{ currentPhoto.location }}
               </div>
             </div>
           </div>
 
-          <v-divider class="opacity-10 mb-4"></v-divider>
+          <v-divider class="opacity-5 mb-4"></v-divider>
 
           <!-- Camera / EXIF Info -->
           <div class="mb-6" v-if="hasExif">
             <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">Camera Settings</div>
             
             <div class="d-flex align-center mb-4" v-if="exifData.make || exifData.model">
-              <v-icon size="small" color="#a1a1aa" class="mr-2">mdi-camera</v-icon>
+              <v-icon size="small" color="#71717a" class="mr-2">mdi-camera</v-icon>
               <span class="text-body-2 text-zinc-secondary">{{ exifData.make }} {{ exifData.model }}</span>
             </div>
 
@@ -92,7 +93,7 @@
             </v-row>
           </div>
 
-          <v-divider class="opacity-10 mb-4" v-if="hasExif"></v-divider>
+          <v-divider class="opacity-5 mb-4" v-if="hasExif"></v-divider>
 
           <!-- AI Insights -->
           <div class="mb-6">
@@ -109,10 +110,10 @@
               </div>
               <v-progress-linear
                 :model-value="tag.percent"
-                color="#e4e4e7"
+                color="#18181b"
                 height="2"
                 rounded
-                class="mt-1 opacity-50"
+                class="mt-1 opacity-10"
               ></v-progress-linear>
             </div>
           </div>
@@ -157,6 +158,30 @@ export default {
       if (!this.photos || this.photos.length === 0) return null;
       return this.photos[this.index];
     },
+    isVideo() {
+      if (!this.currentPhoto) return false;
+      const ext = this.currentPhoto.location.split('.').pop().toLowerCase();
+      return ["mp4", "mkv", "mov", "avi", "webm"].includes(ext);
+    },
+    currentVideoSrc() {
+      if (!this.currentPhoto) return '';
+      const src = this.currentPhoto.location;
+      
+      const converted = convertFileSrc(src);
+      if (converted.startsWith('http') || converted.startsWith('asset:') || converted.startsWith('tauri:')) {
+          return converted;
+      }
+
+      // If it looks like a raw file path (starts with / or has a drive letter), use the manual prefix
+      if (src.startsWith('/') || /^[a-zA-Z]:\\/.test(src)) {
+          // In Tauri v2, the asset protocol is usually https://asset.localhost/
+          // Ensure it has exactly one slash after localhost regardless of OS
+          const path = src.startsWith('/') ? src : '/' + src.replace(/\\/g, '/');
+          return `https://asset.localhost${path}`;
+      }
+      
+      return converted;
+    },
     currentPhotoSrc() {
       if (!this.currentPhoto) return '';
       // Use full base64 if fetched, otherwise fallback to thumbnail
@@ -200,7 +225,7 @@ export default {
   },
   methods: {
     async fetchFullPhoto() {
-      if (this.currentPhoto && this.currentPhoto.location) {
+      if (this.currentPhoto && this.currentPhoto.location && !this.isVideo) {
         try {
           this.fullPhotoB64 = await invoke("get_raw_photo", { path: this.currentPhoto.location });
         } catch (e) {

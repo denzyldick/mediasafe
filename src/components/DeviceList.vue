@@ -1,9 +1,9 @@
 <template>
-  <v-container class="pa-6">
+  <v-container class="pa-6" style="background-color: #fafafa !important;">
     <div class="d-flex align-center justify-space-between mb-8">
       <div>
         <div class="d-flex align-center mb-1">
-          <v-icon color="#a1a1aa" size="28" class="mr-3">mdi-devices</v-icon>
+          <v-icon color="#18181b" size="28" class="mr-3">mdi-devices</v-icon>
           <h1 class="text-h4 font-weight-bold text-zinc-primary">Devices</h1>
         </div>
         <div class="text-subtitle-1 text-zinc-secondary">Manage your connected devices</div>
@@ -13,40 +13,40 @@
 
     <!-- Empty State -->
     <div v-if="devices.length === 0" class="d-flex flex-column align-center justify-center py-16 text-center animate-fade-in">
-      <v-icon size="64" color="#3f3f46" class="mb-4">mdi-laptop-off</v-icon>
+      <v-icon size="64" color="#d4d4d8" class="mb-4">mdi-laptop-off</v-icon>
       <div class="text-h6 text-zinc-secondary font-weight-bold">No connected devices</div>
       <p class="text-body-2 text-zinc-muted mt-1 max-w-400 mx-auto">Link your mobile devices or other computers to sync and access your media library from anywhere.</p>
     </div>
     
     <v-row v-else>
       <v-col cols="12" sm="6" md="4" v-for="device in devices" :key="device.title">
-        <v-card variant="outlined" height="100%" class="device-card">
-          <v-card-item>
+        <v-card variant="flat" height="100%" class="device-card border-subtle ga-2" rounded="xl" color="#ffffff">
+          <v-card-item class="py-4">
             <template v-slot:prepend>
-              <v-avatar :color="device.color === 'blue' ? 'white' : 'grey-darken-3'" variant="flat" rounded="md" class="opacity-80">
-                <v-icon :color="device.color === 'blue' ? 'black' : 'white'">{{ device.icon }}</v-icon>
+              <v-avatar color="#f4f4f5" variant="flat" rounded="lg" class="border-subtle">
+                <v-icon color="#18181b">{{ device.icon }}</v-icon>
               </v-avatar>
             </template>
-            <v-card-title class="text-white text-subtitle-1 font-weight-bold">{{ device.title }}</v-card-title>
-            <v-card-subtitle class="text-grey text-caption">{{ device.subtitle || 'Connected' }}</v-card-subtitle>
+            <v-card-title class="text-zinc-primary text-subtitle-1 font-weight-bold">{{ device.title }}</v-card-title>
+            <v-card-subtitle class="text-zinc-secondary text-caption">{{ device.subtitle || 'Connected' }}</v-card-subtitle>
             
             <template v-slot:append>
                <v-icon
                 v-if="device.up_to_date && !device.syncing"
-                color="white"
+                color="#18181b"
                 size="small"
                 class="opacity-50"
                 icon="mdi-check-circle-outline"
               ></v-icon>
               <v-icon
                 v-if="!device.up_to_date && !device.syncing"
-                color="grey"
+                color="#71717a"
                 size="small"
                 icon="mdi-alert-circle-outline"
               ></v-icon>
               <v-icon
                 v-if="device.syncing"
-                color="white"
+                color="#18181b"
                 size="small"
                 icon="mdi-loading"
                 class="mdi-spin"
@@ -54,7 +54,7 @@
             </template>
           </v-card-item>
           
-          <v-card-text>
+          <v-card-text class="pt-0">
                <div v-if="device.syncing" class="mt-2">
                    <div class="d-flex align-center justify-space-between mb-1">
                        <span class="text-caption text-zinc-muted">Synchronizing...</span>
@@ -62,16 +62,17 @@
                    </div>
                    <v-progress-linear
                      :model-value="device.progress"
-                     color="white"
-                     height="2"
+                     color="#18181b"
+                     height="4"
                      rounded
-                     class="opacity-30"
+                     bg-color="#f4f4f5"
+                     bg-opacity="1"
                    ></v-progress-linear>
                </div>
                <div v-else class="d-flex align-center mt-2">
-                   <div class="text-caption text-grey opacity-70">Status</div>
+                   <div class="text-caption text-zinc-muted">Status</div>
                    <v-spacer></v-spacer>
-                   <v-chip size="x-small" :color="device.up_to_date ? 'grey-darken-3' : 'grey-darken-3'" variant="flat" class="text-none">
+                   <v-chip size="x-small" color="#f4f4f5" variant="flat" class="text-none border-subtle text-zinc-secondary">
                        {{ device.up_to_date ? 'Up to date' : 'Idle' }}
                    </v-chip>
                </div>
@@ -84,8 +85,15 @@
 
 <style scoped>
 .device-card {
-  border-color: rgba(255, 255, 255, 0.1) !important;
-  background: #09090b !important;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.device-card:hover {
+  background: #ffffff !important;
+  transform: translateY(-2px);
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05) !important;
 }
 
 .animate-fade-in {
@@ -142,15 +150,19 @@ export default {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     },
     async list_devices() {
-      const realDevicesStr = await invoke("list_devices");
-      const realDevices = JSON.parse(realDevicesStr);
-      
-      this.devices = (realDevices || []).map(d => ({
-          ...d,
-          syncing: false,
-          progress: 0,
-          speed: '0 B/s'
-      }));
+      try {
+        const realDevicesStr = await invoke("list_devices");
+        const realDevices = JSON.parse(realDevicesStr);
+        
+        this.devices = (realDevices || []).map(d => ({
+            ...d,
+            syncing: false,
+            progress: 0,
+            speed: '0 B/s'
+        }));
+      } catch (err) {
+        console.error("Failed to list devices:", err);
+      }
     },
   },
 };

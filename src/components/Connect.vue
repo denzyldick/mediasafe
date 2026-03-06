@@ -4,22 +4,21 @@
       <v-btn
         prepend-icon="mdi-plus"
         v-bind="props"
-        variant="outlined"
-        color="#a1a1aa"
-        class="text-none border-subtle"
+        variant="flat"
+        class="text-none siegu-btn"
       >
         Add Device
       </v-btn>
     </template>
     
-    <v-card class="border-subtle pa-6 text-center" color="background" min-width="350" max-width="400">
+    <v-card class="border-subtle pa-6 text-center" color="#000000" rounded="xl" min-width="350" max-width="400">
       <div class="text-h5 font-weight-bold text-zinc-primary mb-2">Link Device</div>
       <div class="text-body-2 text-zinc-muted mb-6">
         Sync your library across your own hardware.
       </div>
 
       <div class="d-flex justify-center mb-6 mt-2">
-         <v-btn-toggle v-model="mode" color="#e4e4e7" mandatory variant="outlined" divided class="border-subtle">
+         <v-btn-toggle v-model="mode" color="white" mandatory variant="outlined" divided class="border-subtle siegu-toggle">
             <v-btn value="host" class="text-none">Host</v-btn>
             <v-btn value="join" class="text-none">Join</v-btn>
          </v-btn-toggle>
@@ -36,7 +35,7 @@
         <v-chip
           v-for="(word, index) in passphrase"
           :key="index"
-          color="#27272a"
+          color="#18181b"
           variant="flat"
           class="font-weight-medium mx-1 text-zinc-secondary border-subtle"
           size="small"
@@ -45,18 +44,20 @@
         </v-chip>
       </div>
 
-      <div class="d-flex justify-center mb-6 flex-column" v-if="mode === 'join'">
+      <div class="d-flex justify-center mb-6 flex-column ga-4" v-if="mode === 'join'">
          <v-text-field
            v-model="joinPassphrase"
            placeholder="Enter 4-word phrase"
            variant="solo-filled"
-           bg-color="rgba(255,255,255,0.03)"
+           bg-color="#18181b"
            density="comfortable"
            hide-details
-           class="mb-4 text-center"
+           flat
+           rounded="lg"
+           class="text-center siegu-field"
            @keyup.enter="joinWebRTC"
          ></v-text-field>
-         <v-btn color="white" variant="flat" @click="joinWebRTC" class="text-none" block>Link Device</v-btn>
+         <v-btn variant="flat" @click="joinWebRTC" class="text-none siegu-btn" block>Link Device</v-btn>
       </div>
 
       <div class="text-caption text-zinc-muted mb-1 text-center py-2" v-if="connectionStatus">
@@ -65,10 +66,10 @@
          {{ connectionStatus }}
       </div>
 
-      <v-divider class="opacity-5 my-4"></v-divider>
+      <v-divider class="opacity-10 my-4"></v-divider>
 
       <v-card-actions class="justify-center">
-        <v-btn color="#71717a" variant="text" class="text-none" @click="dialog = false">Cancel</v-btn>
+        <v-btn color="#a1a1aa" variant="text" class="text-none" @click="dialog = false">Cancel</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -80,6 +81,43 @@
 }
 .tracking-widest {
   letter-spacing: 0.1em;
+}
+
+.siegu-btn {
+  background: #18181b !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 12px !important;
+  color: #ffffff !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.siegu-btn:hover {
+  background: #27272a !important;
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  transform: translateY(-1px);
+}
+
+.siegu-toggle {
+  background: #18181b !important;
+  border-radius: 12px !important;
+}
+
+.siegu-toggle .v-btn {
+  border: none !important;
+}
+
+.siegu-toggle .v-btn--active {
+  background: #27272a !important;
+}
+
+.siegu-field :deep(.v-field) {
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 12px !important;
+}
+
+.siegu-field :deep(.v-field--focused) {
+  border-color: rgba(255, 255, 255, 0.4) !important;
+  background: #27272a !important;
 }
 </style>
 
@@ -136,11 +174,11 @@ export default {
         this.connectionStatus = "Generating secure pair key...";
         
         try {
-          const codes = await invoke("generate_pairing_codes");
+          const codes = await invoke("server::generate_pairing_codes");
           this.uuid = codes.uuid;
           this.passphrase = codes.passphrase;
           
-          const roomId = await invoke("hash_pairing_code", { input: this.uuid });
+          const roomId = await invoke("server::hash_pairing_code", { input: this.uuid });
           this.listen(roomId);
         } catch (error) {
            console.error("Failed to generate code", error);
@@ -149,18 +187,17 @@ export default {
     },
     async listen(roomId) {
       this.connectionStatus = "Waiting for partner device to scan or type phrase...";
+      const args = {
+          room_id: roomId,
+          is_initiator: true,
+          signaling_url: "wss://siegu.denzyl.io"
+      };
+      console.log("Invoking start_webrtc_session with:", args);
       try {
-          // Production Signaling Server
-          const signalingUrl = "wss://mediasafe.denzyl.io";
-          await invoke("start_webrtc_session", {
-              roomId: roomId,
-              isInitiator: true,
-              signalingUrl: signalingUrl
-          });
+          await invoke("start_webrtc_session", args);
           this.connectionStatus = "Signaling channel requested. Awaiting WebRTC connection.";
-          // TODO: Listen for WebRTC event complete to actually set isConnected = true
       } catch (error) {
-          console.error("WebRTC Error", error);
+          console.error("WebRTC Error:", error);
           this.connectionStatus = "Error connecting: " + error;
       }
     },
@@ -168,13 +205,14 @@ export default {
         if (!this.joinPassphrase) return;
         this.connectionStatus = "Joining room...";
         try {
-           const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
-           const signalingUrl = "wss://mediasafe.denzyl.io";
-           await invoke("start_webrtc_session", {
-              roomId: roomId,
-              isInitiator: false,
-              signalingUrl: signalingUrl
-           });
+           const roomId = await invoke("server::hash_pairing_code", { input: this.joinPassphrase });
+           const args = {
+              room_id: roomId,
+              is_initiator: false,
+              signaling_url: "wss://siegu.denzyl.io"
+           };
+           console.log("Invoking start_webrtc_session with:", args);
+           await invoke("start_webrtc_session", args);
            this.connectionStatus = "Signaling channel requested. Awaiting WebRTC Receiver connection.";
         } catch(error) {
            console.error("WebRTC Join Error", error);
@@ -184,9 +222,3 @@ export default {
   },
 };
 </script>
-
-<style scoped>
-.glass-panel {
-    border-radius: 24px !important; 
-}
-</style>

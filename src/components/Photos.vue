@@ -107,6 +107,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Image from "./Image.vue";
 import PhotoViewer from "./PhotoViewer.vue";
+import { processVideoForAI } from "../utils/videoProcessor.js";
 
 export default {
   name: "Photos",
@@ -125,6 +126,8 @@ export default {
     favoritesOnly: false,
     observer: null,
     unlistenPhoto: null,
+    unlistenThumbnail: null,
+    processingVideos: new Set(),
   }),
   computed: {
     groupedImages() {
@@ -178,6 +181,14 @@ export default {
   async created() {
     this.list_files();
 
+    this.unlistenThumbnail = await listen("video-thumbnail-updated", (event) => {
+        const { id, encoded } = event.payload;
+        const photo = this.images.find(p => p.id === id);
+        if (photo) {
+            photo.encoded = encoded;
+        }
+    });
+
     // Listen for real-time photo additions during scanning
     this.unlistenPhoto = await listen("photo-scanned", (event) => {
       const newPhoto = event.payload;
@@ -197,6 +208,8 @@ export default {
           if (!b.created) return -1;
           return b.created.localeCompare(a.created);
         });
+        
+        this.checkAndProcessVideo(newPhoto);
       }
     });
   },
@@ -212,8 +225,23 @@ export default {
     if (this.unlistenPhoto) {
       this.unlistenPhoto();
     }
+    if (this.unlistenThumbnail) {
+      this.unlistenThumbnail();
+    }
   },
   methods: {
+    checkAndProcessVideo(photo) {
+        if (!photo.encoded || photo.encoded === "") {
+            const ext = photo.location.split('.').pop().toLowerCase();
+            if (["mp4", "mkv", "mov", "avi", "webm"].includes(ext) && !this.processingVideos.has(photo.id)) {
+                this.processingVideos.add(photo.id);
+                processVideoForAI(photo.id, photo.location).then(thumbnail => {
+                    if (thumbnail) photo.encoded = thumbnail;
+                    this.processingVideos.delete(photo.id);
+                });
+            }
+        }
+    },
     toggleSelection(id) {
       const index = this.selectedIds.indexOf(id);
       if (index === -1) {
@@ -276,6 +304,8 @@ export default {
         } else {
           this.images.push(...new_images);
         }
+        
+        new_images.forEach(img => this.checkAndProcessVideo(img));
         
         if (!this.isPersonFilter) {
           if (new_images.length < this.paging.limit) {

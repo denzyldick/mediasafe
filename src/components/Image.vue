@@ -6,6 +6,11 @@
   >
     <img :src="imageSrc" loading="lazy" alt="Photo" />
     
+    <!-- Video Icon -->
+    <div v-if="isVideo" class="video-icon-overlay">
+      <v-icon color="white" size="24">mdi-play-circle-outline</v-icon>
+    </div>
+
     <!-- Selection Checkbox -->
     <div v-if="selectionMode" class="selection-overlay">
       <v-icon :color="selected ? 'white' : 'white'" size="24">
@@ -69,6 +74,11 @@ export default {
     isFavorite() {
         return this.path.favorite === true;
     },
+    isVideo() {
+      if (!this.path || !this.path.location) return false;
+      const ext = this.path.location.split('.').pop().toLowerCase();
+      return ["mp4", "mkv", "mov", "avi", "webm"].includes(ext);
+    },
     tags() {
       if (!this.path || !this.path.objects) return [];
       return Object.entries(this.path.objects)
@@ -120,6 +130,20 @@ export default {
   left: 8px;
   z-index: 3;
   text-shadow: 0 0 4px rgba(0,0,0,0.5);
+}
+
+.video-icon-overlay {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  z-index: 2;
+  text-shadow: 0 0 4px rgba(0,0,0,0.5);
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 50%;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 img {

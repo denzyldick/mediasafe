@@ -37,14 +37,17 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
 
     emit_log(app, format!("Scanning with {} threads in: {}", num_threads, directory));
     
-    // Collect all valid image paths first
+    // Collect all valid image and video paths first
     let mut image_paths = Vec::new();
+    let video_extensions = ["mp4", "mkv", "mov", "avi", "webm"];
+    let image_extensions = ["png", "jpg", "jpeg", "webp", "heic", "avif"];
+
     for entry in WalkDir::new(directory).follow_links(false) {
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(extension) = path.extension() {
                 let ext = extension.to_string_lossy().to_lowercase();
-                if ext == "png" || ext == "jpg" || ext == "jpeg" {
+                if image_extensions.contains(&ext.as_str()) || video_extensions.contains(&ext.as_str()) {
                     if let Ok(path) = fs::canonicalize(path) {
                         image_paths.push(path);
                     }
@@ -158,7 +161,19 @@ fn generate_thumbnail_base64(
     max_dimension: u32,
 ) -> Result<String, Box<dyn std::error::Error>> {
     println!("Generating thumbnail for: {}", input_path);
+    
+    let path = Path::new(input_path);
+    let extension = path.extension().and_then(|s| s.to_str()).unwrap_or_default().to_lowercase();
+    let video_extensions = ["mp4", "mkv", "mov", "avi", "webm"];
+
+    if video_extensions.contains(&extension.as_str()) {
+        // Return an empty string. The frontend will generate the thumbnail and frames
+        // via the WebView and call the `update_video_thumbnail` and `process_video_frames` commands.
+        return Ok(String::new());
+    }
+
     let img = ImageReader::open(input_path)?.decode()?;
+
     let thumbnail = img.thumbnail(max_dimension, max_dimension);
 
     let mut buffer = Cursor::new(Vec::new());
@@ -183,8 +198,14 @@ pub fn read_file_base64(path: String) -> String {
         Ok(bytes) => {
             println!("Reading original file: {} ({} bytes)", path, bytes.len());
             let encoded = general_purpose::STANDARD.encode(bytes);
-            let mime = match Path::new(&path).extension().and_then(|s| s.to_str()) {
-                Some("png") | Some("PNG") => "image/png",
+            let ext = Path::new(&path).extension().and_then(|s| s.to_str()).unwrap_or_default().to_lowercase();
+            let mime = match ext.as_str() {
+                "png" => "image/png",
+                "mp4" => "video/mp4",
+                "webm" => "video/webm",
+                "mov" => "video/quicktime",
+                "avi" => "video/x-msvideo",
+                "mkv" => "video/x-matroska",
                 _ => "image/jpeg",
             };
             format!("data:{};base64,{}", mime, encoded)

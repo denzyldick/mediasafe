@@ -1,12 +1,12 @@
-# MediaSafe
+# Siegu
 
-**MediaSafe** is a privacy-first, local-only media management application designed to organize and secure your photo library across your devices without relying on cloud services.
+**Siegu** is a privacy-first, local-only media management application designed to organize and secure your photo library across your devices without relying on cloud services.
 
-![MediaSafe Screenshot](./branding/screenshot.png)
+![Siegu Screenshot](./branding/screenshot.png)
 
 ## Features
 
--   **🔒 Privacy First**: Your photos never leave your local network. MediaSafe runs entirely on your device.
+-   **🔒 Privacy First**: Your photos never leave your local network. Siegu runs entirely on your device.
 -   **📁 Local Library Management**: Easily add and watch specific folders (e.g., Pictures, Downloads) effectively creating a centralized library.
 -   **⚡ Background Scanning**: Automatically monitors your watched folders for new images and updates your library in real-time.
 -   **🖼️ Smart Storage**: Generates and stores optimized Base64 thumbnails in a local SQLite database for fast loading and portability.
@@ -53,4 +53,4 @@
 
 ## Privacy
 
-MediaSafe is designed with privacy as its core principle. It does not track you, does not upload your data to any server, and works completely offline.
+Siegu is designed with privacy as its core principle. It does not track you, does not upload your data to any server, and works completely offline.

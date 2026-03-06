@@ -1,98 +1,109 @@
 <script>
+import logo from "../assets/logo.png";
+
 export default {
   name: "Greet",
   data() {
     return {
       active: true,
+      logoUrl: logo
     };
   },
 };
 </script>
 
 <template>
-  <v-container class="fill-height pb-16" fluid>
+  <v-container class="fill-height pb-16" fluid style="background-color: #ffffff !important;">
     <v-row justify="center" align="center">
-      <v-col cols="12" md="10" lg="8">
-        <!-- Hero Section -->
-        <div class="text-center mb-16">
-          <v-icon color="#71717a" size="64" class="mb-6 opacity-30">mdi-shield-lock-outline</v-icon>
-          <h1 class="text-h3 font-weight-bold text-zinc-secondary mb-4 tracking-tight">
-            MediaSafe
+      <v-col cols="12" sm="10" md="8" lg="6" class="text-center">
+        <div class="onboarding-card animate-fade-in">
+          <v-avatar size="120" color="transparent" class="mb-8 elevation-0">
+            <v-img :src="logoUrl"></v-img>
+          </v-avatar>
+          
+          <h1 class="text-h2 font-weight-black mb-4 tracking-tighter" style="color: #000000 !important;">
+            Siegu
           </h1>
-          <p class="text-body-1 text-zinc-muted mx-auto" style="max-width: 500px; line-height: 1.6;">
-            A simple, private way to back up and sync your memories across your own devices.
+          <p class="text-subtitle-1 text-zinc-secondary mb-10 max-w-500 mx-auto">
+            Your private, AI-powered media sanctuary. Organize, search, and protect your memories entirely on your own terms.
           </p>
-        </div>
 
-        <!-- Selection Cards -->
-        <v-row justify="center" class="px-4">
-          <!-- Option 1: New Device -->
-          <v-col cols="12" md="5" class="mb-4">
-            <v-card
-              variant="flat"
-              class="cursor-pointer h-100 pa-6 transition-all welcome-card border-subtle"
-              @click="$emit('new_device')"
+          <div class="d-flex flex-column ga-4">
+            <v-card 
+              variant="flat" 
+              class="setup-button" 
+              @click="$emit('setup-local')"
             >
-              <div class="d-flex align-center mb-4">
-                <v-icon size="28" color="#a1a1aa" class="mr-3 opacity-40">mdi-plus-circle-outline</v-icon>
-                <v-card-title class="text-h5 font-weight-bold pa-0 text-zinc-secondary">
-                  Start Fresh
-                </v-card-title>
-              </div>
-              <div class="text-body-2 text-zinc-muted opacity-80">
-                Initialize a new library on this device.
+              <div class="d-flex align-center py-4 px-6">
+                <v-avatar color="#f4f4f5" size="48" class="mr-4 border-subtle">
+                  <v-icon color="#18181b">mdi-folder-plus</v-icon>
+                </v-avatar>
+                <div class="text-left">
+                  <div class="font-weight-bold text-zinc-primary">Setup Local Library</div>
+                  <div class="text-caption text-zinc-secondary">Index photos from folders on this device.</div>
+                </div>
               </div>
             </v-card>
-          </v-col>
 
-          <!-- Option 2: Join Group -->
-          <v-col cols="12" md="5" class="mb-4">
-            <v-card
-              variant="flat"
-              class="cursor-pointer h-100 pa-6 transition-all welcome-card border-subtle"
-              @click="$emit('join_group')"
+            <v-card 
+              variant="flat" 
+              class="setup-button" 
+              @click="$emit('setup-sync')"
             >
-              <div class="d-flex align-center mb-4">
-                <v-icon size="28" color="#a1a1aa" class="mr-3 opacity-40">mdi-link-variant</v-icon>
-                <v-card-title class="text-h5 font-weight-bold pa-0 text-zinc-secondary">
-                  Connect
-                </v-card-title>
-              </div>
-              <div class="text-body-2 text-zinc-muted opacity-80">
-                Sync with an existing MediaSafe network.
+              <div class="d-flex align-center py-4 px-6">
+                <v-avatar color="#f4f4f5" size="48" class="mr-4 border-subtle">
+                  <v-icon color="#18181b">mdi-sync</v-icon>
+                </v-avatar>
+                <div class="text-left">
+                  <div class="font-weight-bold text-zinc-primary">Join Library</div>
+                  <div class="text-caption text-zinc-secondary">Sync with an existing Siegu network.</div>
+                </div>
               </div>
             </v-card>
-          </v-col>
-        </v-row>
-        
-        <div class="text-center mt-16">
-          <span class="text-caption text-zinc-muted font-weight-medium uppercase tracking-widest">v0.1.0</span>
-        </div>
+          </div>
 
+          <div class="text-caption text-zinc-muted px-10 mt-10">
+            By continuing, you agree that AI processing happens locally on your device.
+          </div>
+        </div>
       </v-col>
     </v-row>
   </v-container>
 </template>
 
 <style scoped>
-.tracking-tight {
-  letter-spacing: -0.05em;
+.onboarding-card {
+  padding: 40px 20px;
 }
 
-.welcome-card:hover {
-  border-color: rgba(255, 255, 255, 0.15) !important;
-  background: #27272a !important; /* Zinc-800 on hover */
+.max-w-500 {
+  max-width: 500px;
 }
 
-.transition-all {
-  transition: all 0.2s ease;
+.setup-button {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 16px !important;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.uppercase {
-  text-transform: uppercase;
+.setup-button:hover {
+  background: #f4f4f5 !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+  transform: scale(1.01);
 }
 
-.tracking-widest {
-  letter-spacing: 0.1em;
+.setup-button:active {
+  transform: scale(0.98);
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 </style>

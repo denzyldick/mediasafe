@@ -23,12 +23,12 @@
       @ready="onMapReady" 
       :minZoom="2"
       :options="{ zoomControl: false, attributionControl: false }"
-      class="dark-map"
+      class="light-map"
     >
       <l-tile-layer
-        url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         layer-type="base"
-        name="CartoDB DarkMatter"
+        name="CartoDB Positron"
       ></l-tile-layer>
 
     </l-map>
@@ -155,11 +155,7 @@ export default {
 /* Ensure map takes full height of container */
 :deep(.leaflet-container) {
     height: 100%;
-    background: #09090b;
-}
-
-.dark-map :deep(.leaflet-tile-pane) {
-    filter: brightness(1.1) contrast(1.1);
+    background: #f4f4f5;
 }
 
 .map-empty-state {
@@ -168,7 +164,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(9, 9, 11, 0.7);
+  background: rgba(255, 255, 255, 0.7);
   backdrop-filter: blur(4px);
   z-index: 1001;
   pointer-events: none;

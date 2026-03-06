@@ -4,8 +4,8 @@
   line-height: 1.5;
   font-weight: 400;
 
-  color: #f4f4f5;
-  background-color: #09090b;
+  color: #18181b;
+  background-color: #fafafa;
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -18,133 +18,91 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background-color: #09090b;
-  background-attachment: fixed;
+  background-color: #fafafa;
 }
 
-.container {
-  margin: 0;
-  padding-top: 10vh;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  text-align: center;
+/* Global Siegu Design System */
+.siegu-btn {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px !important;
+  color: #18181b !important;
+  text-transform: none !important;
+  font-weight: 600 !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-shadow: none !important;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: 0.75s;
+.siegu-btn:hover {
+  background: #f4f4f5 !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
 }
 
-.logo.tauri:hover {
-  filter: drop-shadow(0 0 2em #24c8db);
+.siegu-btn:active {
+  transform: scale(0.98);
 }
 
-.row {
-  display: flex;
-  justify-content: center;
+.siegu-field :deep(.v-field), 
+.siegu-field.v-field {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px !important;
+  transition: all 0.2s ease !important;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-
-a:hover {
-  color: #535bf2;
-}
-
-h1 {
-  text-align: center;
-}
-
-input,
-button {
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  color: #f4f4f5;
-  background-color: #18181b;
-  transition: all 0.2s ease;
-}
-
-button {
-  cursor: pointer;
-}
-
-button:hover {
-  background-color: #27272a;
-  border-color: rgba(255, 255, 255, 0.2);
-}
-
-button:active {
-  background-color: #3f3f46;
-}
-
-input,
-button {
-  outline: none;
-}
-
-#greet-input {
-  margin-right: 5px;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    color: #f4f4f5;
-    background-color: #09090b;
-  }
-}
-
-/* Modern Minimalist Panels */
-.glass-panel {
-  background: #09090b !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  transition: all 0.2s ease;
-}
-
-.glass-panel:hover {
-  border-color: rgba(255, 255, 255, 0.2) !important;
+.v-field--focused {
+  border-color: rgba(0, 0, 0, 0.2) !important;
+  background: #ffffff !important;
 }
 
 .border-subtle {
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+}
+
+.border-bottom-subtle {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
 }
 
 .text-zinc-primary {
-  color: #e4e4e7 !important; /* Zinc-200 */
+  color: #18181b !important;
 }
 
 .text-zinc-secondary {
-  color: #a1a1aa !important; /* Zinc-400 */
+  color: #52525b !important;
 }
 
 .text-zinc-muted {
-  color: #71717a !important; /* Zinc-500 */
+  color: #71717a !important;
 }
 
-/* Hide scrollbars for a cleaner app feel */
+/* Standard UI Overrides */
+.v-card, .v-sheet {
+  background-color: #ffffff !important;
+}
+
+.siegu-list {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 12px !important;
+}
+
+/* Scrollbars */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: #fafafa;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.1);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.2);
 }
