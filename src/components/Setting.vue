@@ -383,10 +383,17 @@ export default {
       return this.indexingModes.find(m => m.value === val)?.title || val;
     },
     async loadPerformanceConfig() {
-      const threads = await invoke("get_config", { key: "scan_threads" });
-      if (threads) this.performance.scanThreads = parseInt(threads);
-      const mode = await invoke("get_config", { key: "indexing_mode" });
-      if (mode) this.performance.indexingMode = mode;
+      const configStr = await invoke("get_config");
+      const config = JSON.parse(configStr);
+      
+      if (config.scan_threads) {
+        const val = parseInt(config.scan_threads);
+        if (!isNaN(val)) this.performance.scanThreads = val;
+      }
+      
+      if (config.indexing_mode) {
+        this.performance.indexingMode = config.indexing_mode;
+      }
     },
     async savePerformanceConfig() {
       await invoke("save_config", { key: "scan_threads", value: this.performance.scanThreads.toString() });

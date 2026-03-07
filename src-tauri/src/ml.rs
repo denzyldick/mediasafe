@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
 use tauri::Emitter;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
+use tokio::sync::Semaphore;
 
 pub struct MlContext {
     pub tx: std::sync::Mutex<UnboundedSender<String>>,
@@ -79,18 +80,18 @@ pub fn start_background_worker(
         let mut face_detector: Option<Arc<Mutex<Session>>> = None;
         let mut tokenizer: Option<Arc<tokenizers::Tokenizer>> = None;
         let mut text_embeddings: Arc<Vec<(String, Vec<f32>)>> = Arc::new(Vec::new());
-        let mut known_people: Arc<Mutex<Vec<(String, Vec<f32>)>>> = Arc::new(Mutex::new(Vec::new()));
+        let known_people: Arc<Mutex<Vec<(String, Vec<f32>)>>> = Arc::new(Mutex::new(Vec::new()));
         let mut ort_initialized = false;
 
-        // Use thread pool for parallel indexing
-        let db_for_config = Database::new(&db_path);
-        let config = db_for_config.get_state();
+        let db = Arc::new(Mutex::new(Database::new(&db_path)));
+        let config = db.lock().unwrap().get_state();
         let num_threads: usize = config.get("scan_threads")
             .and_then(|s| s.parse().ok())
             .unwrap_or_else(|| { if cfg!(any(target_os = "android", target_os = "ios")) { 2 } else { 4 } });
         
-        println!("ML Worker: Using {} threads", num_threads);
+        println!("ML Worker: Initializing with {} threads", num_threads);
         let pool = rayon::ThreadPoolBuilder::new().num_threads(num_threads).build().unwrap();
+        let memory_semaphore = Arc::new(Semaphore::new(num_threads * 2));
 
         while let Some(photo_id) = rx.blocking_recv() {
             if photo_id == "__STATUS__" {
@@ -131,28 +132,28 @@ pub fn start_background_worker(
                         .commit_from_file(&ultraface_path).ok().map(|s| Arc::new(Mutex::new(s)))
                 } else { None };
 
-                // Load ALL people (named and unnamed) for auto-matching and clustering
-                let people_vec = db_for_config.get_all_people_with_embeddings();
+                let people_vec = db.lock().unwrap().get_all_people_with_embeddings();
                 if let Ok(mut lock) = known_people.lock() {
                     *lock = people_vec;
                 }
 
-                println!("ML Worker: Models loaded. ({} identities ready for auto-match)", known_people.lock().unwrap().len());
+                println!("ML Worker: Models ready.");
                 if photo_id == "__RELOAD_MODELS__" { continue; }
             }
 
             let photo_id_task = photo_id.clone();
             let app_handle_task = app_handle.clone();
-            let db_path_task = db_path.clone();
             let pending_count_task = Arc::clone(&pending_count_clone);
             let clip_visual_task = clip_visual.clone();
             let face_detector_task = face_detector.clone();
             let text_embeddings_task = text_embeddings.clone();
             let known_people_task = known_people.clone();
             let faces_dir_task = faces_dir.clone();
+            let db_task = Arc::clone(&db);
+            let sem_task = Arc::clone(&memory_semaphore);
 
             pool.spawn(move || {
-                let db = Database::new(&db_path_task);
+                let _permit = sem_task.try_acquire(); 
                 let mut provided_frames = Vec::new();
                 let mut actual_id = photo_id_task.clone();
                 
@@ -169,8 +170,12 @@ pub fn start_background_worker(
                     }
                 }
 
-                let state = db.get_state();
-                let mode = state.get("indexing_mode").map(|s| s.as_str()).unwrap_or("immediate");
+                let mode = {
+                    let lock = db_task.lock().unwrap();
+                    let state = lock.get_state();
+                    state.get("indexing_mode").map(|s| s.as_str().to_string()).unwrap_or("immediate".to_string())
+                };
+
                 if mode == "manual" {
                     let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
                     let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
@@ -178,12 +183,14 @@ pub fn start_background_worker(
                 }
 
                 let mut photo_loc = String::new();
-                if let Ok(mut stmt) = db.connection.prepare("SELECT location FROM photo WHERE id = ?1") {
-                    if let Ok(row) = stmt.query_row([&actual_id], |r| r.get::<_, String>(0)) { photo_loc = row; }
+                {
+                    let lock = db_task.lock().unwrap();
+                    if let Ok(row) = lock.connection.query_row("SELECT location FROM photo WHERE id = ?1", [&actual_id], |r| r.get::<_, String>(0)) {
+                        photo_loc = row;
+                    }
                 }
 
                 if !photo_loc.is_empty() && Path::new(&photo_loc).exists() {
-                    println!("ML Worker: Indexing {}", actual_id);
                     let frames = if !provided_frames.is_empty() {
                         provided_frames
                     } else {
@@ -206,15 +213,18 @@ pub fn start_background_worker(
                                             let mut img_embedding = vec![0.0; 512];
                                             img_embedding.copy_from_slice(img_emb_tensor);
                                             let img_norm: f32 = img_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                                            for v in img_embedding.iter_mut() { *v /= img_norm; }
+                                            if img_norm > 0.0 { for v in img_embedding.iter_mut() { *v /= img_norm; } }
+                                            
                                             let mut similarities = Vec::new();
                                             for (text_label, text_embedding) in text_embeddings_task.iter() {
                                                 let dot_product: f32 = img_embedding.iter().zip(text_embedding.iter()).map(|(a, b)| a * b).sum();
                                                 similarities.push((text_label, dot_product));
                                             }
                                             similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                                            
+                                            let lock = db_task.lock().unwrap();
                                             for (class_name, score) in similarities.iter().take(5) {
-                                                let _ = db.connection.execute("INSERT INTO object (photo_id, class, probability) VALUES(?1, ?2, ?3)", (&actual_id, class_name, &score.to_string()));
+                                                let _ = lock.connection.execute("INSERT INTO object (photo_id, class, probability) VALUES(?1, ?2, ?3)", (&actual_id, class_name, &score.to_string()));
                                             }
                                         }
                                     }
@@ -283,20 +293,18 @@ pub fn start_background_worker(
                                                                                 face_embedding = vec![0.0; 512];
                                                                                 face_embedding.copy_from_slice(emb_tensor);
                                                                                 let norm: f32 = face_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                                                                                for v in face_embedding.iter_mut() { *v /= norm; }
+                                                                                if norm > 0.0 { for v in face_embedding.iter_mut() { *v /= norm; } }
                                                                             }
                                                                         }
                                                                     }
                                                                 }
                                                             }
 
-                                                            // Automatic Clustering Logic
                                                             let mut assigned_person_id = None;
                                                             if !face_embedding.is_empty() {
                                                                 if let Ok(mut lock) = known_people_task.lock() {
                                                                     let mut highest_similarity = 0.0f32;
                                                                     let mut best_match_id = None;
-                                                                    
                                                                     for (person_id, person_centroid) in lock.iter() {
                                                                         let dot_product: f32 = face_embedding.iter().zip(person_centroid.iter()).map(|(a, b)| a * b).sum();
                                                                         if dot_product > highest_similarity {
@@ -304,23 +312,23 @@ pub fn start_background_worker(
                                                                             best_match_id = Some(person_id.clone());
                                                                         }
                                                                     }
-
                                                                     if highest_similarity > 0.90 {
                                                                         assigned_person_id = best_match_id;
                                                                     } else {
-                                                                        // No match found -> create a new anonymous identity
-                                                                        let new_id = db.create_anonymous_person(&face_embedding);
+                                                                        let lock_db = db_task.lock().unwrap();
+                                                                        let new_id = lock_db.create_anonymous_person(&face_embedding);
                                                                         lock.push((new_id.clone(), face_embedding.clone()));
                                                                         assigned_person_id = Some(new_id);
                                                                     }
                                                                 }
                                                             }
 
-                                                            use std::io::Cursor;
-                                                            let mut buffer = Cursor::new(Vec::new());
+                                                            let mut buffer = std::io::Cursor::new(Vec::new());
                                                             let _ = face_crop.write_to(&mut buffer, image::ImageOutputFormat::Jpeg(80));
                                                             let encoded = format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(buffer.get_ref()));
-                                                            db.store_face(Face { photo_id: actual_id.clone(), face_id: face_id.clone(), crop_path, encoded, embedding: face_embedding, person_id: assigned_person_id });
+                                                            
+                                                            let lock = db_task.lock().unwrap();
+                                                            lock.store_face(Face { photo_id: actual_id.clone(), face_id: face_id.clone(), crop_path, encoded, embedding: face_embedding, person_id: assigned_person_id });
                                                         }
                                                     }
                                                 }
@@ -330,6 +338,7 @@ pub fn start_background_worker(
                                 }
                             }
                         }
+                        drop(img); 
                     }
                 }
                 let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
