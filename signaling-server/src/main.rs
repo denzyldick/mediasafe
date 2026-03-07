@@ -11,7 +11,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::SocketAddr, sync::Arc};
 use tokio::sync::{RwLock, mpsc};
-use tracing::{debug, info};
+use tracing::info;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 // Standard WebSocket payload structure
@@ -63,9 +63,9 @@ async fn main() {
         .with_state(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "9489".to_string());
-    let addr = format!("0.0.0.0:{}", port).parse::<SocketAddr>().unwrap();
+    let addr = format!("0.0.0.0:{port}").parse::<SocketAddr>().unwrap();
 
-    info!("Starting WebRTC Signaling Server on {}", addr);
+    info!("Starting WebRTC Signaling Server on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();

@@ -234,7 +234,7 @@ impl WebRtcClient {
 
         let incoming_files: Arc<Mutex<HashMap<String, IncomingFile>>> = Arc::new(Mutex::new(HashMap::new()));
         let config_path_clone = self.config_path.clone();
-        let app_handle_outer = self.app_handle.clone();
+        let _app_handle_outer = self.app_handle.clone();
 
         if self.is_initiator {
             let data_channel = peer_connection.create_data_channel("file_transfer", None).await?;
