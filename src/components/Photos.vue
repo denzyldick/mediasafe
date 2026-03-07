@@ -35,19 +35,19 @@
 
     <!-- Monthly Grouped View -->
     <div v-if="images.length > 0" class="animate-fade-in">
-      <div v-for="(group, month) in groupedImages" :key="month" class="month-group mb-12">
+      <div v-for="group in groupedImages" :key="group.name" class="month-group mb-12">
         <div class="sticky-header mb-6">
           <div class="d-flex align-center px-2 py-3 rounded-lg header-blur">
-            <h2 class="text-h5 font-weight-bold text-zinc-primary letter-spacing-tight">{{ month }}</h2>
+            <h2 class="text-h5 font-weight-bold text-zinc-primary letter-spacing-tight">{{ group.name }}</h2>
             <v-spacer></v-spacer>
             <span class="text-caption text-zinc-muted font-weight-medium bg-zinc-100 px-3 py-1 rounded-pill border-subtle">
-              {{ group.length }} items
+              {{ group.images.length }} items
             </span>
           </div>
         </div>
         <div class="photo-grid">
           <Image
-            v-for="image in group"
+            v-for="image in group.images"
             v-bind:key="image.id"
             :path="image"
             :selected="selectedIds.includes(image.id)"
@@ -148,23 +148,37 @@ export default {
         if (!image._groupKey) {
             let date;
             if (image.created) {
-                const parts = image.created.split(' ');
-                const dateParts = parts[0].split(':');
-                if (dateParts.length === 3) {
-                    // Cache the group key on the object to avoid re-calculating
+                // Handle both YYYY:MM:DD and YYYY-MM-DD formats
+                const datePart = image.created.split(' ')[0];
+                const dateParts = datePart.includes(':') ? datePart.split(':') : datePart.split('-');
+                
+                if (dateParts.length >= 2) {
+                    const year = dateParts[0];
                     const monthIdx = parseInt(dateParts[1]) - 1;
-                    image._groupKey = `${monthNames[monthIdx]} ${dateParts[0]}`;
+                    if (monthIdx >= 0 && monthIdx < 12) {
+                        image._groupKey = `${monthNames[monthIdx]} ${year}`;
+                        image._sortKey = `${year}${dateParts[1].padStart(2, '0')}`;
+                    }
                 }
             }
-            if (!image._groupKey) image._groupKey = "Recent";
+            if (!image._groupKey) {
+                image._groupKey = "Recent";
+                image._sortKey = "999999"; // Keep 'Recent' at the top if any
+            }
         }
 
         if (!groups[image._groupKey]) {
-          groups[image._groupKey] = [];
+          groups[image._groupKey] = {
+            name: image._groupKey,
+            sortKey: image._sortKey,
+            images: []
+          };
         }
-        groups[image._groupKey].push(image);
+        groups[image._groupKey].images.push(image);
       });
-      return groups;
+
+      // Sort groups descending by date
+      return Object.values(groups).sort((a, b) => b.sortKey.localeCompare(a.sortKey));
     }
   },
   props: {

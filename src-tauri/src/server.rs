@@ -1,5 +1,4 @@
 use bip39::Mnemonic;
-use hex;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
@@ -22,7 +21,7 @@ pub async fn generate_pairing_codes() -> Result<PairingCodes, String> {
     // Generate the 12-word BIP39 phrase from entropy
     let mnemonic = match Mnemonic::from_entropy(&entropy) {
         Ok(m) => m,
-        Err(e) => return Err(format!("Failed to generate mnemonic: {}", e)),
+        Err(e) => return Err(format!("Failed to generate mnemonic: {e}")),
     };
 
     // We only need a 4-word passphrase for easy typing to guarantee 43 bits of entropy (plenty for a temporary room)

@@ -18,7 +18,7 @@ use crate::ml::MlContext;
 use tauri::{Emitter, Manager};
 
 fn emit_log(app: &tauri::AppHandle, message: String) {
-    println!("{}", message);
+    println!("{message}");
     let _ = app.emit("log-message", message);
 }
 
@@ -26,17 +26,25 @@ fn emit_log(app: &tauri::AppHandle, message: String) {
 /// This is will scan a folder recursively and store all the images in the database.
 pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     let database = database::Database::new(path);
-    
+
     // Load thread config
     let config = database.get_state();
-    let num_threads: usize = config.get("scan_threads")
+    let num_threads: usize = config
+        .get("scan_threads")
         .and_then(|s| s.parse().ok())
-        .unwrap_or_else(|| {
-            if cfg!(any(target_os = "android", target_os = "ios")) { 2 } else { 4 }
+        .unwrap_or({
+            if cfg!(any(target_os = "android", target_os = "ios")) {
+                2
+            } else {
+                4
+            }
         });
 
-    emit_log(app, format!("Scanning with {} threads in: {}", num_threads, directory));
-    
+    emit_log(
+        app,
+        format!("Scanning with {num_threads} threads in: {directory}"),
+    );
+
     // Collect all valid image and video paths first
     let mut image_paths = Vec::new();
     let video_extensions = ["mp4", "mkv", "mov", "avi", "webm"];
@@ -47,7 +55,9 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
             let path = entry.path();
             if let Some(extension) = path.extension() {
                 let ext = extension.to_string_lossy().to_lowercase();
-                if image_extensions.contains(&ext.as_str()) || video_extensions.contains(&ext.as_str()) {
+                if image_extensions.contains(&ext.as_str())
+                    || video_extensions.contains(&ext.as_str())
+                {
                     if let Ok(path) = fs::canonicalize(path) {
                         image_paths.push(path);
                     }
@@ -61,7 +71,10 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     let app_handle = Arc::new(app.clone());
 
     // Create a local thread pool for this scan to avoid blocking the global one if requested
-    let pool = rayon::ThreadPoolBuilder::new().num_threads(num_threads).build().unwrap();
+    let pool = rayon::ThreadPoolBuilder::new()
+        .num_threads(num_threads)
+        .build()
+        .unwrap();
 
     use rayon::prelude::*;
     pool.install(|| {
@@ -94,25 +107,46 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                         }
 
                         // Extract Created Date
-                        if let Some(date_field) = exif.get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY).or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY)) {
+                        if let Some(date_field) = exif
+                            .get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY)
+                            .or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY))
+                        {
                             created = format!("{}", date_field.display_value());
                         }
 
                         // Extract GPS Coordinates
-                        if let (Some(lat_field), Some(lat_ref)) = (exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY), exif.get_field(exif::Tag::GPSLatitudeRef, exif::In::PRIMARY)) {
+                        if let (Some(lat_field), Some(lat_ref)) = (
+                            exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY),
+                            exif.get_field(exif::Tag::GPSLatitudeRef, exif::In::PRIMARY),
+                        ) {
                             if let exif::Value::Rational(lat_values) = &lat_field.value {
                                 if lat_values.len() == 3 {
-                                    let lat = lat_values[0].to_f64() + lat_values[1].to_f64() / 60.0 + lat_values[2].to_f64() / 3600.0;
-                                    latitude = if format!("{}", lat_ref.display_value()) == "S" { -lat } else { lat };
+                                    let lat = lat_values[0].to_f64()
+                                        + lat_values[1].to_f64() / 60.0
+                                        + lat_values[2].to_f64() / 3600.0;
+                                    latitude = if format!("{}", lat_ref.display_value()) == "S" {
+                                        -lat
+                                    } else {
+                                        lat
+                                    };
                                 }
                             }
                         }
 
-                        if let (Some(lon_field), Some(lon_ref)) = (exif.get_field(exif::Tag::GPSLongitude, exif::In::PRIMARY), exif.get_field(exif::Tag::GPSLongitudeRef, exif::In::PRIMARY)) {
+                        if let (Some(lon_field), Some(lon_ref)) = (
+                            exif.get_field(exif::Tag::GPSLongitude, exif::In::PRIMARY),
+                            exif.get_field(exif::Tag::GPSLongitudeRef, exif::In::PRIMARY),
+                        ) {
                             if let exif::Value::Rational(lon_values) = &lon_field.value {
                                 if lon_values.len() == 3 {
-                                    let lon = lon_values[0].to_f64() + lon_values[1].to_f64() / 60.0 + lon_values[2].to_f64() / 3600.0;
-                                    longitude = if format!("{}", lon_ref.display_value()) == "W" { -lon } else { lon };
+                                    let lon = lon_values[0].to_f64()
+                                        + lon_values[1].to_f64() / 60.0
+                                        + lon_values[2].to_f64() / 3600.0;
+                                    longitude = if format!("{}", lon_ref.display_value()) == "W" {
+                                        -lon
+                                    } else {
+                                        lon
+                                    };
                                 }
                             }
                         }
@@ -122,10 +156,8 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                     Err(_) => HashMap::new(),
                 };
 
-                let encoded = match generate_thumbnail_base64(path.to_str().unwrap(), 400) {
-                    Ok(b64) => b64,
-                    Err(_) => String::new(),
-                };
+                let encoded =
+                    generate_thumbnail_base64(path.to_str().unwrap(), 400).unwrap_or_default();
 
                 let photo = database::Photo {
                     id: id.clone(),
@@ -146,7 +178,9 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 let _ = app_handle.emit("photo-scanned", photo);
 
                 if let Some(state) = app_handle.try_state::<MlContext>() {
-                    state.pending_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    state
+                        .pending_count
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                     let _ = state.tx.lock().unwrap().send(id);
                 }
             }
@@ -161,7 +195,7 @@ fn generate_video_thumbnail_base64(
     _max_dimension: u32,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let ffmpeg_binary = ffmpeg_sidecar::paths::ffmpeg_path();
-    
+
     let output = std::process::Command::new(&ffmpeg_binary)
         .arg("-ss")
         .arg("00:00:05.000")
@@ -195,28 +229,32 @@ fn generate_video_thumbnail_base64(
             .arg("image2")
             .arg("-")
             .output()?;
-            
+
         if !fallback_output.status.success() {
             let err_msg = String::from_utf8_lossy(&fallback_output.stderr);
-            return Err(format!("FFmpeg failed: {}", err_msg).into());
+            return Err(format!("FFmpeg failed: {err_msg}").into());
         }
-        
+
         let encoded = general_purpose::STANDARD.encode(&fallback_output.stdout);
-        return Ok(format!("data:image/jpeg;base64,{}", encoded));
+        return Ok(format!("data:image/jpeg;base64,{encoded}"));
     }
 
     let encoded = general_purpose::STANDARD.encode(&output.stdout);
-    Ok(format!("data:image/jpeg;base64,{}", encoded))
+    Ok(format!("data:image/jpeg;base64,{encoded}"))
 }
 
 fn generate_thumbnail_base64(
     input_path: &str,
     max_dimension: u32,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    println!("Generating thumbnail for: {}", input_path);
-    
+    println!("Generating thumbnail for: {input_path}");
+
     let path = Path::new(input_path);
-    let extension = path.extension().and_then(|s| s.to_str()).unwrap_or_default().to_lowercase();
+    let extension = path
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
     let video_extensions = ["mp4", "mkv", "mov", "avi", "webm"];
 
     if video_extensions.contains(&extension.as_str()) {
@@ -231,14 +269,14 @@ fn generate_thumbnail_base64(
     thumbnail.write_to(&mut buffer, ImageOutputFormat::Jpeg(80))?;
 
     let encoded = general_purpose::STANDARD.encode(buffer.get_ref());
-    Ok(format!("data:image/jpeg;base64,{}", encoded))
+    Ok(format!("data:image/jpeg;base64,{encoded}"))
 }
 // This will return the base64 encoded thumbnail for the image
 pub fn get_thumbnail(path: String) -> String {
     match generate_thumbnail_base64(&path, 400) {
         Ok(b64) => b64,
         Err(e) => {
-            eprintln!("Failed to generate thumbnail for {}: {}", path, e);
+            eprintln!("Failed to generate thumbnail for {path}: {e}");
             String::new()
         }
     }
@@ -249,7 +287,11 @@ pub fn read_file_base64(path: String) -> String {
         Ok(bytes) => {
             println!("Reading original file: {} ({} bytes)", path, bytes.len());
             let encoded = general_purpose::STANDARD.encode(bytes);
-            let ext = Path::new(&path).extension().and_then(|s| s.to_str()).unwrap_or_default().to_lowercase();
+            let ext = Path::new(&path)
+                .extension()
+                .and_then(|s| s.to_str())
+                .unwrap_or_default()
+                .to_lowercase();
             let mime = match ext.as_str() {
                 "png" => "image/png",
                 "mp4" => "video/mp4",
@@ -259,10 +301,10 @@ pub fn read_file_base64(path: String) -> String {
                 "mkv" => "video/x-matroska",
                 _ => "image/jpeg",
             };
-            format!("data:{};base64,{}", mime, encoded)
+            format!("data:{mime};base64,{encoded}")
         }
         Err(e) => {
-            eprintln!("Failed to read file {}: {}", path, e);
+            eprintln!("Failed to read file {path}: {e}");
             String::new()
         }
     }

@@ -18,11 +18,11 @@ use webrtc::{
     },
 };
 
-use tauri::Emitter;
 use crate::database::{Database, PhotoSyncInfo};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::collections::HashMap;
 use std::path::Path;
+use tauri::Emitter;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SyncProgress {
@@ -120,7 +120,7 @@ impl WebRtcClient {
     ) -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new(&file_path);
         if !path.exists() {
-            return Err(format!("File not found: {}", file_path).into());
+            return Err(format!("File not found: {file_path}").into());
         }
 
         let mut file = tokio::fs::File::open(path).await?;
@@ -175,12 +175,15 @@ impl WebRtcClient {
         let (ws_stream, _) = match connect_async(req).await {
             Ok(s) => s,
             Err(e) => {
-                let err_msg = format!("Signaling connection failed: {}", e);
+                let err_msg = format!("Signaling connection failed: {e}");
                 self.emit("webrtc-state", err_msg);
                 return Err(e.into());
             }
         };
-        self.emit("webrtc-state", "Connected to signaling. Waiting for peer...");
+        self.emit(
+            "webrtc-state",
+            "Connected to signaling. Waiting for peer...",
+        );
         let (write, mut read) = ws_stream.split();
         let write = Arc::new(Mutex::new(write));
 
@@ -188,7 +191,13 @@ impl WebRtcClient {
         let join_msg = SignalMessage::Join {
             device_id: my_device_id.clone(),
         };
-        write.lock().await.send(Message::Text(Utf8Bytes::from(serde_json::to_string(&join_msg)?))).await?;
+        write
+            .lock()
+            .await
+            .send(Message::Text(Utf8Bytes::from(serde_json::to_string(
+                &join_msg,
+            )?)))
+            .await?;
 
         let config = RTCConfiguration {
             ice_servers: vec![RTCIceServer {
@@ -223,7 +232,11 @@ impl WebRtcClient {
                                     target: "peer".to_string(),
                                 };
                                 if let Ok(msg_str) = serde_json::to_string(&msg) {
-                                    let _ = write_ice.lock().await.send(Message::Text(Utf8Bytes::from(msg_str))).await;
+                                    let _ = write_ice
+                                        .lock()
+                                        .await
+                                        .send(Message::Text(Utf8Bytes::from(msg_str)))
+                                        .await;
                                 }
                             }
                         }
@@ -232,15 +245,18 @@ impl WebRtcClient {
             },
         ));
 
-        let incoming_files: Arc<Mutex<HashMap<String, IncomingFile>>> = Arc::new(Mutex::new(HashMap::new()));
+        let incoming_files: Arc<Mutex<HashMap<String, IncomingFile>>> =
+            Arc::new(Mutex::new(HashMap::new()));
         let config_path_clone = self.config_path.clone();
         let _app_handle_outer = self.app_handle.clone();
 
         if self.is_initiator {
-            let data_channel = peer_connection.create_data_channel("file_transfer", None).await?;
+            let data_channel = peer_connection
+                .create_data_channel("file_transfer", None)
+                .await?;
             let dc_clone = Arc::clone(&data_channel);
             let app_handle_opt = self.app_handle.clone();
-            
+
             data_channel.on_open(Box::new(move || {
                 println!("Data channel opened! Requesting manifest...");
                 if let Some(app) = &app_handle_opt {
@@ -257,77 +273,137 @@ impl WebRtcClient {
             let config_path_dc = config_path_clone.clone();
             let app_handle_opt_msg = self.app_handle.clone();
 
-            data_channel.on_message(Box::new(move |msg: webrtc::data_channel::data_channel_message::DataChannelMessage| {
-                let dc = Arc::clone(&dc_clone_msg);
-                let incoming_files = Arc::clone(&incoming_files_clone);
-                let config_path = config_path_dc.clone();
-                let app_handle = app_handle_opt_msg.clone();
+            data_channel.on_message(Box::new(
+                move |msg: webrtc::data_channel::data_channel_message::DataChannelMessage| {
+                    let dc = Arc::clone(&dc_clone_msg);
+                    let incoming_files = Arc::clone(&incoming_files_clone);
+                    let config_path = config_path_dc.clone();
+                    let app_handle = app_handle_opt_msg.clone();
 
-                Box::pin(async move {
-                    let text = String::from_utf8_lossy(&msg.data);
-                    if let Ok(sync_msg) = serde_json::from_str::<SyncMessage>(&text) {
-                        match sync_msg {
-                            SyncMessage::ManifestResponse { photos } => {
-                                let db = Database::new(&config_path);
-                                let my_manifest = db.get_photo_sync_info();
-                                for peer_photo in photos {
-                                    if !my_manifest.iter().any(|p| p.id == peer_photo.id) {
-                                        let _ = Self::send_sync_message(&dc, &SyncMessage::FileRequest { id: peer_photo.id }).await;
+                    Box::pin(async move {
+                        let text = String::from_utf8_lossy(&msg.data);
+                        if let Ok(sync_msg) = serde_json::from_str::<SyncMessage>(&text) {
+                            match sync_msg {
+                                SyncMessage::ManifestResponse { photos } => {
+                                    let db = Database::new(&config_path);
+                                    let my_manifest = db.get_photo_sync_info();
+                                    for peer_photo in photos {
+                                        if !my_manifest.iter().any(|p| p.id == peer_photo.id) {
+                                            let _ = Self::send_sync_message(
+                                                &dc,
+                                                &SyncMessage::FileRequest { id: peer_photo.id },
+                                            )
+                                            .await;
+                                        }
                                     }
                                 }
-                            }
-                            SyncMessage::FileHeader { id, filename, size, created } => {
-                                let save_path = Path::new(&config_path).join("sync_temp").join(&filename);
-                                let _ = tokio::fs::create_dir_all(save_path.parent().unwrap()).await;
-                                if let Ok(file) = tokio::fs::File::create(&save_path).await {
-                                    let mut incoming = incoming_files.lock().await;
-                                    incoming.insert(id.clone(), IncomingFile { id, filename, size, received: 0, created, file });
+                                SyncMessage::FileHeader {
+                                    id,
+                                    filename,
+                                    size,
+                                    created,
+                                } => {
+                                    let save_path =
+                                        Path::new(&config_path).join("sync_temp").join(&filename);
+                                    let _ = tokio::fs::create_dir_all(save_path.parent().unwrap())
+                                        .await;
+                                    if let Ok(file) = tokio::fs::File::create(&save_path).await {
+                                        let mut incoming = incoming_files.lock().await;
+                                        incoming.insert(
+                                            id.clone(),
+                                            IncomingFile {
+                                                id,
+                                                filename,
+                                                size,
+                                                received: 0,
+                                                created,
+                                                file,
+                                            },
+                                        );
+                                    }
                                 }
-                            }
-                            SyncMessage::FileChunk { id, data } => {
-                                let mut incoming = incoming_files.lock().await;
-                                if let Some(file_state) = incoming.get_mut(&id) {
-                                    let _ = file_state.file.write_all(&data).await;
-                                    file_state.received += data.len() as u64;
-                                    if let Some(app) = &app_handle {
-                                        let progress = (file_state.received as f32 / file_state.size as f32) * 100.0;
-                                        let _ = app.emit("sync-progress", SyncProgress {
-                                            device_id: "peer".to_string(), status: format!("Receiving {}", file_state.filename),
-                                            progress, bytes_per_second: 0, items_completed: 0, items_total: 0,
+                                SyncMessage::FileChunk { id, data } => {
+                                    let mut incoming = incoming_files.lock().await;
+                                    if let Some(file_state) = incoming.get_mut(&id) {
+                                        let _ = file_state.file.write_all(&data).await;
+                                        file_state.received += data.len() as u64;
+                                        if let Some(app) = &app_handle {
+                                            let progress = (file_state.received as f32
+                                                / file_state.size as f32)
+                                                * 100.0;
+                                            let _ = app.emit(
+                                                "sync-progress",
+                                                SyncProgress {
+                                                    device_id: "peer".to_string(),
+                                                    status: format!(
+                                                        "Receiving {}",
+                                                        file_state.filename
+                                                    ),
+                                                    progress,
+                                                    bytes_per_second: 0,
+                                                    items_completed: 0,
+                                                    items_total: 0,
+                                                },
+                                            );
+                                        }
+                                    }
+                                }
+                                SyncMessage::FileEnd { id } => {
+                                    let mut incoming = incoming_files.lock().await;
+                                    if let Some(file_state) = incoming.remove(&id) {
+                                        let temp_path = Path::new(&config_path)
+                                            .join("sync_temp")
+                                            .join(&file_state.filename);
+                                        let db = Database::new(&config_path);
+                                        let dirs = db.list_directories();
+                                        let target_dir = if !dirs.is_empty() {
+                                            Path::new(&dirs[0])
+                                        } else {
+                                            &Path::new(&config_path).join("Siegu")
+                                        };
+                                        let _ = tokio::fs::create_dir_all(&target_dir).await;
+                                        let final_path = target_dir.join(&file_state.filename);
+                                        if let Ok(_) =
+                                            tokio::fs::rename(&temp_path, &final_path).await
+                                        {
+                                            db.import_photo(
+                                                &file_state.id,
+                                                &final_path.to_string_lossy(),
+                                                &file_state.created,
+                                            );
+                                        }
+                                    }
+                                }
+                                SyncMessage::ManifestRequest => {
+                                    let db = Database::new(&config_path);
+                                    let photos = db.get_photo_sync_info();
+                                    let _ = Self::send_sync_message(
+                                        &dc,
+                                        &SyncMessage::ManifestResponse { photos },
+                                    )
+                                    .await;
+                                }
+                                SyncMessage::FileRequest { id } => {
+                                    let db = Database::new(&config_path);
+                                    if let Ok((path, created)) = db.connection.query_row(
+                                        "SELECT location, created FROM photo WHERE id = ?1",
+                                        [&id],
+                                        |row| {
+                                            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                                        },
+                                    ) {
+                                        let dc_send = Arc::clone(&dc);
+                                        tokio::spawn(async move {
+                                            let _ =
+                                                Self::send_file(dc_send, id, path, created).await;
                                         });
                                     }
                                 }
                             }
-                            SyncMessage::FileEnd { id } => {
-                                let mut incoming = incoming_files.lock().await;
-                                if let Some(file_state) = incoming.remove(&id) {
-                                    let temp_path = Path::new(&config_path).join("sync_temp").join(&file_state.filename);
-                                    let db = Database::new(&config_path);
-                                    let dirs = db.list_directories();
-                                    let target_dir = if !dirs.is_empty() { Path::new(&dirs[0]) } else { &Path::new(&config_path).join("Siegu") };
-                                    let _ = tokio::fs::create_dir_all(&target_dir).await;
-                                    let final_path = target_dir.join(&file_state.filename);
-                                    if let Ok(_) = tokio::fs::rename(&temp_path, &final_path).await {
-                                        db.import_photo(&file_state.id, &final_path.to_string_lossy(), &file_state.created);
-                                    }
-                                }
-                            }
-                            SyncMessage::ManifestRequest => {
-                                let db = Database::new(&config_path);
-                                let photos = db.get_photo_sync_info();
-                                let _ = Self::send_sync_message(&dc, &SyncMessage::ManifestResponse { photos }).await;
-                            }
-                            SyncMessage::FileRequest { id } => {
-                                let db = Database::new(&config_path);
-                                if let Ok((path, created)) = db.connection.query_row("SELECT location, created FROM photo WHERE id = ?1", [&id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))) {
-                                    let dc_send = Arc::clone(&dc);
-                                    tokio::spawn(async move { let _ = Self::send_file(dc_send, id, path, created).await; });
-                                }
-                            }
                         }
-                    }
-                })
-            }));
+                    })
+                },
+            ));
         } else {
             let app_handle_opt = self.app_handle.clone();
             let incoming_files_clone = Arc::clone(&incoming_files);
@@ -415,18 +491,22 @@ impl WebRtcClient {
         }
 
         let app_handle_opt_state = self.app_handle.clone();
-        peer_connection.on_peer_connection_state_change(Box::new(move |s: RTCPeerConnectionState| {
-            let status = match s {
-                RTCPeerConnectionState::Connected => "Connected",
-                RTCPeerConnectionState::Connecting => "Connecting WebRTC...",
-                RTCPeerConnectionState::Disconnected => "Peer Disconnected",
-                RTCPeerConnectionState::Failed => "Connection Failed",
-                RTCPeerConnectionState::New => "Waiting for peer...",
-                _ => "Awaiting connection...",
-            };
-            if let Some(app) = &app_handle_opt_state { let _ = app.emit("webrtc-state", status); }
-            Box::pin(async move {})
-        }));
+        peer_connection.on_peer_connection_state_change(Box::new(
+            move |s: RTCPeerConnectionState| {
+                let status = match s {
+                    RTCPeerConnectionState::Connected => "Connected",
+                    RTCPeerConnectionState::Connecting => "Connecting WebRTC...",
+                    RTCPeerConnectionState::Disconnected => "Peer Disconnected",
+                    RTCPeerConnectionState::Failed => "Connection Failed",
+                    RTCPeerConnectionState::New => "Waiting for peer...",
+                    _ => "Awaiting connection...",
+                };
+                if let Some(app) = &app_handle_opt_state {
+                    let _ = app.emit("webrtc-state", status);
+                }
+                Box::pin(async move {})
+            },
+        ));
 
         let pc = Arc::clone(&peer_connection);
         while let Some(msg) = read.next().await {
@@ -439,24 +519,41 @@ impl WebRtcClient {
                                 pc.set_remote_description(sdp).await?;
                                 let answer = pc.create_answer(None).await?;
                                 pc.set_local_description(answer.clone()).await?;
-                                let answer_msg = SignalMessage::Answer { payload: serde_json::to_string(&answer)?, target: "peer".to_string() };
-                                write.lock().await.send(Message::Text(Utf8Bytes::from(serde_json::to_string(&answer_msg)?))).await?;
+                                let answer_msg = SignalMessage::Answer {
+                                    payload: serde_json::to_string(&answer)?,
+                                    target: "peer".to_string(),
+                                };
+                                write
+                                    .lock()
+                                    .await
+                                    .send(Message::Text(Utf8Bytes::from(serde_json::to_string(
+                                        &answer_msg,
+                                    )?)))
+                                    .await?;
                             }
                             SignalMessage::Answer { payload, .. } => {
                                 let sdp: RTCSessionDescription = serde_json::from_str(&payload)?;
                                 pc.set_remote_description(sdp).await?;
                             }
                             SignalMessage::IceCandidate { payload, .. } => {
-                                let candidate: RTCIceCandidateInit = serde_json::from_str(&payload)?;
+                                let candidate: RTCIceCandidateInit =
+                                    serde_json::from_str(&payload)?;
                                 pc.add_ice_candidate(candidate).await?;
                             }
-                            SignalMessage::PeerDisconnected { .. } => { self.emit("webrtc-state", "Peer disconnected"); }
-                            SignalMessage::Error { message } => { self.emit("webrtc-state", format!("Signaling error: {}", message)); }
+                            SignalMessage::PeerDisconnected { .. } => {
+                                self.emit("webrtc-state", "Peer disconnected");
+                            }
+                            SignalMessage::Error { message } => {
+                                self.emit("webrtc-state", format!("Signaling error: {message}"));
+                            }
                             _ => {}
                         }
                     }
                 }
-                Err(e) => { self.emit("webrtc-state", format!("WebSocket error: {}", e)); break; }
+                Err(e) => {
+                    self.emit("webrtc-state", format!("WebSocket error: {e}"));
+                    break;
+                }
                 _ => {}
             }
         }

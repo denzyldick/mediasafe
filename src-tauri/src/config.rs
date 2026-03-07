@@ -15,7 +15,7 @@ struct Folder {
 }
 impl Config {
     pub fn init(data_directory: &str) -> Option<Config> {
-        let file = fs::read_to_string(format!("{}/siegu.yaml", data_directory));
+        let file = fs::read_to_string(format!("{data_directory}/siegu.yaml"));
 
         if let Ok(config) = file {
             let docs = YamlLoader::load_from_str(&config).unwrap();
