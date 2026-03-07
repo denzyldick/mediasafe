@@ -288,6 +288,14 @@ async fn index_faces(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContex
 }
 
 #[tauri::command]
+async fn get_heatmap_data(app: tauri::AppHandle) -> String {
+    let path = get_config_path(&app);
+    if path.is_empty() { return "[]".to_string(); }
+    let database = database::Database::new(&path);
+    serde_json::to_string(&database.get_all_photos_with_location()).unwrap_or("[]".to_string())
+}
+
+#[tauri::command]
 async fn get_os() -> String { std::env::consts::OS.to_string() }
 
 #[tauri::command]
@@ -335,7 +343,8 @@ pub fn run() {
             assign_name_to_face, get_person_photos, is_initialized, get_top_tags, join_network,
             server::generate_pairing_codes, server::hash_pairing_code, start_webrtc_session,
             update_video_thumbnail, process_video_frames, merge_people, rename_person, cleanup_database,
-            remove_directory_full, get_media_server_port, index_faces, get_os, save_config, get_config, get_indexing_status
+            remove_directory_full, get_media_server_port, index_faces, get_os, save_config, get_config, get_indexing_status,
+            get_heatmap_data
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

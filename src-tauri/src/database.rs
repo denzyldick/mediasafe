@@ -160,6 +160,21 @@ impl Database {
         }
     }
 
+    pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
+        let mut photos = Vec::new();
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE p.latitude != 0.0 AND p.longitude != 0.0") {
+            if let Ok(iter) = stmt.query_map([], |row| {
+                Ok(Photo {
+                    id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
+                    objects: HashMap::new(), properties: HashMap::new(), latitude: row.get(3).unwrap_or(0.0), longitude: row.get(4).unwrap_or(0.0), favorite: row.get(6).unwrap_or(false),
+                })
+            }) {
+                for p in iter.flatten() { photos.push(p); }
+            }
+        }
+        photos
+    }
+
     pub fn store_face(&self, face: Face) {
         let embedding_bytes: Vec<u8> = face.embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
         let _ = self.connection.execute("INSERT OR REPLACE INTO faces(photo_id, face_id, crop_path, encoded, embedding, person_id) VALUES(?1, ?2, ?3, ?4, ?5, ?6)", (&face.photo_id, &face.face_id, &face.crop_path, &face.encoded, &embedding_bytes, &face.person_id));
