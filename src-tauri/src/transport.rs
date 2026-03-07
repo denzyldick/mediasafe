@@ -96,6 +96,30 @@ struct IncomingFile {
     file: tokio::fs::File,
 }
 
+use warp::Filter;
+
+pub struct MediaServerState {
+    pub port: u16,
+}
+
+pub fn start_media_server(config_path: String) -> u16 {
+    let (addr, server) = warp::serve(
+        warp::path("media")
+            .and(warp::fs::dir("/"))
+            .with(warp::cors().allow_any_origin())
+    ).bind_ephemeral(([127, 0, 0, 1], 0));
+    
+    let port = addr.port();
+    println!("Media server started on port {}", port);
+    
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(server);
+    });
+    
+    port
+}
+
 impl WebRtcClient {
     fn emit(&self, event: &str, payload: impl Serialize + Clone) {
         if let Some(app) = &self.app_handle {

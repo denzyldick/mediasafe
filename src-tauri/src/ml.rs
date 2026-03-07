@@ -79,6 +79,7 @@ pub fn start_background_worker(
         let mut face_detector: Option<Arc<Mutex<Session>>> = None;
         let mut tokenizer: Option<Arc<tokenizers::Tokenizer>> = None;
         let mut text_embeddings: Arc<Vec<(String, Vec<f32>)>> = Arc::new(Vec::new());
+        let mut known_people: Arc<Vec<(String, Vec<f32>)>> = Arc::new(Vec::new());
         let mut ort_initialized = false;
 
         // Use thread pool for parallel indexing
@@ -130,7 +131,16 @@ pub fn start_background_worker(
                         .commit_from_file(&ultraface_path).ok().map(|s| Arc::new(Mutex::new(s)))
                 } else { None };
 
-                println!("ML Worker: Models loaded.");
+                // Load known people for auto-matching
+                let mut people_vec = Vec::new();
+                for p in db_for_config.get_people() {
+                    if let Some(emb) = p.embedding {
+                        people_vec.push((p.id, emb));
+                    }
+                }
+                known_people = Arc::new(people_vec);
+
+                println!("ML Worker: Models loaded. ({} known people for auto-match)", known_people.len());
                 if photo_id == "__RELOAD_MODELS__" { continue; }
             }
 
@@ -141,6 +151,7 @@ pub fn start_background_worker(
             let clip_visual_task = clip_visual.clone();
             let face_detector_task = face_detector.clone();
             let text_embeddings_task = text_embeddings.clone();
+            let known_people_task = known_people.clone();
             let faces_dir_task = faces_dir.clone();
 
             pool.spawn(move || {
@@ -252,8 +263,7 @@ pub fn start_background_worker(
                                                 let ymin = (bbox[1] * orig_h).max(0.0) as u32;
                                                 let xmax = (bbox[2] * orig_w).min(orig_w) as u32;
                                                 let ymax = (bbox[3] * orig_h).min(orig_h) as u32;
-                                                if xmax > xmin && ymax > ymin {
-                                                    let (w, h) = (xmax - xmin, ymax - ymin);
+                                                if xmax > xmin && ymax > ymin {                                                    let (w, h) = (xmax - xmin, ymax - ymin);
                                                     if w > 20 && h > 20 {
                                                         let face_crop = image::imageops::crop_imm(&img, xmin, ymin, w, h).to_image();
                                                         let face_id = format!("{actual_id}_face_{xmin}_{ymin}");
@@ -281,11 +291,33 @@ pub fn start_background_worker(
                                                                     }
                                                                 }
                                                             }
+
+                                                            // Auto-Match Logic
+                                                            let mut best_match_person_id = None;
+                                                            let mut highest_similarity = 0.0f32;
+                                                            
+                                                            if !face_embedding.is_empty() {
+                                                                for (person_id, person_centroid) in known_people_task.iter() {
+                                                                    let dot_product: f32 = face_embedding.iter().zip(person_centroid.iter()).map(|(a, b)| a * b).sum();
+                                                                    if dot_product > highest_similarity {
+                                                                        highest_similarity = dot_product;
+                                                                        best_match_person_id = Some(person_id.clone());
+                                                                    }
+                                                                }
+                                                            }
+
+                                                            let final_person_id = if highest_similarity > 0.94 {
+                                                                println!("ML Worker: Auto-matched face to person {} (sim: {:.4})", best_match_person_id.as_ref().unwrap(), highest_similarity);
+                                                                best_match_person_id
+                                                            } else {
+                                                                None
+                                                            };
+
                                                             use std::io::Cursor;
                                                             let mut buffer = Cursor::new(Vec::new());
                                                             let _ = face_crop.write_to(&mut buffer, image::ImageOutputFormat::Jpeg(80));
                                                             let encoded = format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(buffer.get_ref()));
-                                                            db.store_face(Face { photo_id: actual_id.clone(), face_id: face_id.clone(), crop_path, encoded, embedding: face_embedding, person_id: None });
+                                                            db.store_face(Face { photo_id: actual_id.clone(), face_id: face_id.clone(), crop_path, encoded, embedding: face_embedding, person_id: final_person_id });
                                                         }
                                                     }
                                                 }
