@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- Primary Meta Tags -->
+    <title>Siegu — The Local-First, AI-Powered Media Vault</title>
+    <meta name="title" content="Siegu — The Local-First, AI-Powered Media Vault">
+    <meta name="description" content="Siegu is a private, intelligent media library powered by local AI. Keep your photos and videos encrypted on your device with neural discovery and instant 4K streaming.">
+    <meta name="keywords" content="private photo library, local ai photos, secure media vault, tauri app, rust media server, privacy-first gallery, neural photo search">
+    <meta name="author" content="Siegu Team">
+    <meta name="robots" content="index, follow">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://siegu.io/">
+    <meta property="og:title" content="Siegu — The Local-First, AI-Powered Media Vault">
+    <meta property="og:description" content="Your life, zero cloud. The private, AI-powered media library that keeps your memories encrypted on your own hardware.">
+    <meta property="og:image" content="https://siegu.io/assets/screenshot.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://siegu.io/">
+    <meta property="twitter:title" content="Siegu — The Local-First, AI-Powered Media Vault">
+    <meta property="twitter:description" content="Your life, zero cloud. The private, AI-powered media library that keeps your memories encrypted on your own hardware.">
+    <meta property="twitter:image" content="https://siegu.io/assets/screenshot.png">
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="assets/logo.png">
+    <link rel="apple-touch-icon" href="assets/logo.png">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/simple-icons-font@v13/font/simple-icons.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="grain"></div>
+
+    <nav class="top-nav">
+        <div class="container-wide">
+            <div class="brand">
+                <img src="assets/logo.png" alt="Siegu Logo" height="24">
+                <span>SIEGU</span>
+            </div>
+            <div class="cta-nav">
+                <a href="#download" class="nav-btn">Get App</a>
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <section class="hero-split">
+            <div class="container">
+                <div class="hero-header">
+                    <h1 class="reveal-text">Ownership<br>is Privacy.</h1>
+                    <p class="hero-sub">The local-first media library for the sovereign individual.</p>
+                    <div class="hero-actions-center">
+                        <a href="#download" class="btn-primary-large">Join the Waitlist</a>
+                        <button class="btn-video" id="play-demo-btn">
+                            <div class="play-icon"><i class="si si-youtube" style="color: inherit;"></i></div>
+                            <span>Watch Demo</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="product-stage">
+                    <div class="frame-3d">
+                        <div class="video-overlay" id="play-demo-overlay">
+                            <div class="play-button-large">▶</div>
+                        </div>
+                        <img src="assets/screenshot.png" alt="Siegu Desktop App Interface" class="main-image">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="manifesto">
+            <div class="container">
+                <div class="grid-layout">
+                    <article class="stat-box">
+                        <span class="label">Architecture</span>
+                        <h2 class="title">Rust-Powered</h2>
+                        <p>A custom streaming core that handles 4K video instantly, with zero UI lag. Performance meets security.</p>
+                    </article>
+                    <article class="stat-box">
+                        <span class="label">Intelligence</span>
+                        <h2 class="title">Neural Edge</h2>
+                        <p>AI that lives on your hardware. Detection happens without a single bit hitting the cloud.</p>
+                    </article>
+                    <article class="stat-box">
+                        <span class="label">Privacy</span>
+                        <h2 class="title">Absolute</h2>
+                        <p>Your library is your vault. Local encryption, local indexing, local control.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section id="download" class="download-tray">
+            <div class="container">
+                <div class="tray-card">
+                    <div class="tray-header">
+                        <h2>Install the Standard.</h2>
+                        <p>Available for desktop and mobile.</p>
+                    </div>
+                    <div class="platform-row">
+                        <a href="javascript:void(0)" class="platform-link dl-trigger" data-os="macOS" title="Download Siegu for macOS">
+                            <i class="si si-apple"></i>
+                            <div class="p-text">
+                                <strong>macOS</strong>
+                                <span>Apple Silicon</span>
+                            </div>
+                        </a>
+                        <a href="javascript:void(0)" class="platform-link dl-trigger" data-os="Windows" title="Download Siegu for Windows">
+                            <i class="si si-microsoftwindows"></i>
+                            <div class="p-text">
+                                <strong>Windows</strong>
+                                <span>x64 Desktop</span>
+                            </div>
+                        </a>
+                        <a href="javascript:void(0)" class="platform-link dl-trigger" data-os="Linux" title="Download Siegu for Linux">
+                            <i class="si si-linux"></i>
+                            <div class="p-text">
+                                <strong>Linux</strong>
+                                <span>AppImage</span>
+                            </div>
+                        </a>
+                        <a href="javascript:void(0)" class="platform-link dl-trigger" data-os="Android" title="Download Siegu for Android">
+                            <i class="si si-android"></i>
+                            <div class="p-text">
+                                <strong>Android</strong>
+                                <span>Google Play</span>
+                            </div>
+                        </a>
+                        <a href="javascript:void(0)" class="platform-link dl-trigger" data-os="iOS" title="Download Siegu for iOS">
+                            <i class="si si-apple"></i>
+                            <div class="p-text">
+                                <strong>iOS</strong>
+                                <span>App Store</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Video Demo Modal -->
+    <div id="video-modal" class="modal-overlay video-modal-overlay">
+        <div class="video-modal-card">
+            <button class="modal-close video-close" aria-label="Close Video">&times;</button>
+            <div class="video-container">
+                <video controls autoplay class="demo-video">
+                    <source src="assets/demo.mp4" type="video/mp4">
+                </video>
+            </div>
+        </div>
+    </div>
+
+    <!-- Waiting List Modal -->
+    <div id="waitlist-modal" class="modal-overlay">
+        <div class="modal-card">
+            <button class="modal-close" aria-label="Close Modal">&times;</button>
+            <div class="modal-content">
+                <span class="modal-badge">Coming Soon</span>
+                <h2>Join the Waiting List</h2>
+                <p id="modal-subtext">Siegu is currently in private beta. Leave your email to get early access when we launch.</p>
+                
+                <form id="waitlist-form" class="waitlist-form">
+                    <input type="hidden" id="selected-os" name="os">
+                    <div class="input-group">
+                        <label for="email-input" class="sr-only">Email Address</label>
+                        <input type="email" id="email-input" name="email" placeholder="Enter your email" required>
+                        <button type="submit" class="btn-submit">Secure Access</button>
+                    </div>
+                </form>
+                
+                <div id="form-success" class="form-status success">
+                    <strong>Success!</strong> You're on the list. We'll be in touch soon.
+                </div>
+                <div id="form-error" class="form-status error">
+                    <strong>Error.</strong> Something went wrong. Please try again.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div class="container">
+            <div class="footer-wrap">
+                <div class="f-brand">SIEGU / 2026</div>
+                <div class="f-links">
+                    <a href="https://github.com" rel="noopener">GITHUB</a>
+                    <a href="#">PRIVACY</a>
+                    <a href="#">TWITTER</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Reveal elements on scroll
+        const reveal = () => {
+            const boxes = document.querySelectorAll('.stat-box, .tray-card, .platform-link');
+            boxes.forEach(box => {
+                const boxTop = box.getBoundingClientRect().top;
+                if (boxTop < window.innerHeight * 0.85) {
+                    box.classList.add('active');
+                }
+            });
+        };
+        window.addEventListener('scroll', reveal);
+        reveal();
+
+        // Modal Logic
+        const modal = document.getElementById('waitlist-modal');
+        const modalClose = document.querySelector('.modal-close');
+        const triggers = document.querySelectorAll('.dl-trigger');
+        const osInput = document.getElementById('selected-os');
+        const modalSubtext = document.getElementById('modal-subtext');
+        const waitlistForm = document.getElementById('waitlist-form');
+        const successMsg = document.getElementById('form-success');
+        const errorMsg = document.getElementById('form-error');
+
+        triggers.forEach(trigger => {
+            trigger.addEventListener('click', () => {
+                const os = trigger.getAttribute('data-os');
+                osInput.value = os;
+                modalSubtext.innerText = `Siegu for ${os} is currently in private beta. Leave your email to get early access when we launch.`;
+                modal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            });
+        });
+
+        const closeModal = () => {
+            modal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+            waitlistForm.style.display = 'block';
+            successMsg.style.display = 'none';
+            errorMsg.style.display = 'none';
+            waitlistForm.reset();
+        };
+
+        modalClose.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) closeModal();
+        });
+
+        // Video Modal Logic
+        const videoModal = document.getElementById('video-modal');
+        const playBtns = [document.getElementById('play-demo-btn'), document.getElementById('play-demo-overlay')];
+        const videoClose = document.querySelector('.video-close');
+
+        playBtns.forEach(btn => {
+            if(btn) {
+                btn.addEventListener('click', () => {
+                    videoModal.classList.add('active');
+                    document.body.style.overflow = 'hidden';
+                    // If you add a real <video> tag, uncomment below to auto-play
+                    // const vid = videoModal.querySelector('video');
+                    // if(vid) vid.play();
+                });
+            }
+        });
+
+        const closeVideoModal = () => {
+            videoModal.classList.remove('active');
+            document.body.style.overflow = 'auto';
+            // If you add a real <video> tag, uncomment below to auto-pause
+            // const vid = videoModal.querySelector('video');
+            // if(vid) { vid.pause(); vid.currentTime = 0; }
+        };
+
+        if(videoClose) videoClose.addEventListener('click', closeVideoModal);
+        if(videoModal) {
+            videoModal.addEventListener('click', (e) => {
+                if (e.target === videoModal) closeVideoModal();
+            });
+        }
+
+        // Form Submission
+        waitlistForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(waitlistForm);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            
+            try {
+                const response = await fetch('/api/waitlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                if (response.ok) {
+                    waitlistForm.style.display = 'none';
+                    successMsg.style.display = 'block';
+                } else {
+                    errorMsg.style.display = 'block';
+                }
+            } catch (err) {
+                errorMsg.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+</html>

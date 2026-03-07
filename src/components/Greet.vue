@@ -13,7 +13,7 @@ export default {
 </script>
 
 <template>
-  <v-container class="fill-height pb-16" fluid style="background-color: #ffffff !important;">
+  <v-container class="fill-height pb-16 bg-siegu-white" fluid>
     <v-row justify="center" align="center">
       <v-col cols="12" sm="10" md="8" lg="6" class="text-center">
         <div class="onboarding-card animate-fade-in">
@@ -21,7 +21,7 @@ export default {
             <v-img :src="logoUrl"></v-img>
           </v-avatar>
           
-          <h1 class="text-h2 font-weight-black mb-4 tracking-tighter" style="color: #000000 !important;">
+          <h1 class="text-h2 font-weight-black mb-4 tracking-tighter text-black-pure">
             Siegu
           </h1>
           <p class="text-subtitle-1 text-zinc-secondary mb-10 max-w-500 mx-auto">
@@ -31,32 +31,32 @@ export default {
           <div class="d-flex flex-column ga-4">
             <v-card 
               variant="flat" 
-              class="setup-button" 
+              class="siegu-btn py-4 px-6" 
               @click="$emit('setup-local')"
             >
-              <div class="d-flex align-center py-4 px-6">
-                <v-avatar color="#f4f4f5" size="48" class="mr-4 border-subtle">
-                  <v-icon color="#18181b">mdi-folder-plus</v-icon>
-                </v-avatar>
+              <div class="d-flex align-center">
+                <div class="siegu-icon-circle mr-4">
+                  <v-icon color="white">mdi-folder-plus</v-icon>
+                </div>
                 <div class="text-left">
-                  <div class="font-weight-bold text-zinc-primary">Setup Local Library</div>
-                  <div class="text-caption text-zinc-secondary">Index photos from folders on this device.</div>
+                  <div class="font-weight-bold text-white">Setup Local Library</div>
+                  <div class="text-caption text-white-muted">Index photos from folders on this device.</div>
                 </div>
               </div>
             </v-card>
 
             <v-card 
               variant="flat" 
-              class="setup-button" 
+              class="siegu-btn py-4 px-6" 
               @click="$emit('setup-sync')"
             >
-              <div class="d-flex align-center py-4 px-6">
-                <v-avatar color="#f4f4f5" size="48" class="mr-4 border-subtle">
-                  <v-icon color="#18181b">mdi-sync</v-icon>
-                </v-avatar>
+              <div class="d-flex align-center">
+                <div class="siegu-icon-circle mr-4">
+                  <v-icon color="white">mdi-sync</v-icon>
+                </div>
                 <div class="text-left">
-                  <div class="font-weight-bold text-zinc-primary">Join Library</div>
-                  <div class="text-caption text-zinc-secondary">Sync with an existing Siegu network.</div>
+                  <div class="font-weight-bold text-white">Join Library</div>
+                  <div class="text-caption text-white-muted">Sync with an existing Siegu network.</div>
                 </div>
               </div>
             </v-card>
@@ -74,28 +74,6 @@ export default {
 <style scoped>
 .onboarding-card {
   padding: 40px 20px;
-}
-
-.max-w-500 {
-  max-width: 500px;
-}
-
-.setup-button {
-  background: #ffffff !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-  border-radius: 16px !important;
-  cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.setup-button:hover {
-  background: #f4f4f5 !important;
-  border-color: rgba(0, 0, 0, 0.2) !important;
-  transform: scale(1.01);
-}
-
-.setup-button:active {
-  transform: scale(0.98);
 }
 
 .animate-fade-in {

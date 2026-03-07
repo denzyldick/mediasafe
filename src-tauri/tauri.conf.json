@@ -18,8 +18,9 @@
       }
     ],
     "security": {
-      "csp": null,
+      "csp": "default-src 'self' 'unsafe-inline' tauri: localhost; img-src 'self' data: tauri: asset: http://asset.localhost http://127.0.0.1:*; media-src 'self' tauri: asset: http://asset.localhost http://127.0.0.1:*; frame-src 'self' tauri: localhost; connect-src 'self' tauri: localhost ws: wss: http://127.0.0.1:*;",
       "assetProtocol": {
+        "enable": true,
         "scope": [
           "**"
         ]

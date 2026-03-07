@@ -3,7 +3,19 @@
     <v-card rounded="0" color="#fafafa" class="fill-height" style="overflow: hidden;">
       <v-layout class="fill-height">
         <!-- Main Viewer Area -->
-        <v-main class="fill-height position-relative d-flex align-center justify-center p-0" style="background-color: #fafafa !important;">
+        <v-main class="fill-height position-relative d-flex flex-column align-center justify-center p-0" style="background-color: #fafafa;">
+          
+          <!-- Top Controls -->
+          <v-btn icon="mdi-close" variant="text" color="#18181b" class="viewer-nav-btn top-left" @click="close"></v-btn>
+          <v-btn
+            icon="mdi-information-outline"
+            variant="text"
+            :color="showInfo ? '#18181b' : '#71717a'"
+            class="viewer-nav-btn top-right"
+            @click="showInfo = !showInfo"
+          ></v-btn>
+
+          <!-- Interaction Layer -->
           <div class="touch-overlay" 
                v-touch="{ 
                  left: () => next(), 
@@ -12,23 +24,43 @@
                }">
           </div>
 
-          <v-btn icon="mdi-close" variant="text" color="#18181b" style="position: absolute; top: 20px; right: 20px; z-index: 2000" @click="close"></v-btn>
+          <!-- Content Layer -->
+          <div class="viewer-content-container">
+            <v-btn v-if="!isMobile" icon="mdi-chevron-left" variant="text" color="#18181b" size="x-large" @click="prev" class="side-nav-btn left"></v-btn>
+            
+            <div class="media-wrapper">
+              <img v-if="currentPhoto && !isVideo" :src="currentPhotoSrc" class="viewer-image" />
+              <video 
+                v-if="currentPhoto && isVideo" 
+                :src="videoUrl" 
+                class="viewer-image" 
+                controls 
+                autoplay 
+                style="z-index: 10; position: relative;"
+              ></video>
+            </div>
 
-          <v-btn v-if="!isMobile" icon="mdi-chevron-left" variant="text" color="#18181b" size="x-large" @click="prev" style="position: absolute; left: 20px; z-index: 10"></v-btn>
+            <v-btn v-if="!isMobile" icon="mdi-chevron-right" variant="text" color="#18181b" size="x-large" @click="next" class="side-nav-btn right"></v-btn>
+          </div>
 
-          <img v-if="currentPhoto && !isVideo" :src="currentPhotoSrc" class="viewer-image" />
-          <video v-if="currentPhoto && isVideo" :src="currentVideoSrc" class="viewer-image" controls autoplay style="z-index: 10; position: relative;"></video>
+          <!-- Bottom Thumbnail Rail -->
+          <div class="thumbnail-rail-container">
+            <div class="thumbnail-rail" ref="thumbnailRail">
+              <div 
+                v-for="(photo, i) in photos" 
+                :key="photo.id"
+                class="rail-item"
+                :class="{ 'active': i === index }"
+                @click="$emit('update:index', i)"
+              >
+                <img :src="getThumbSrc(photo)" alt="thumb" />
+                <div v-if="isVideoPhoto(photo)" class="rail-video-icon">
+                  <v-icon size="12" color="white">mdi-play</v-icon>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <v-btn v-if="!isMobile" icon="mdi-chevron-right" variant="text" color="#18181b" size="x-large" @click="next" style="position: absolute; right: 20px; z-index: 10"></v-btn>
-          
-          <!-- Toggle Info Panel Button -->
-          <v-btn
-            icon="mdi-information-outline"
-            variant="text"
-            :color="showInfo ? '#18181b' : '#71717a'"
-            style="position: absolute; bottom: 20px; right: 20px; z-index: 2000"
-            @click="showInfo = !showInfo"
-          ></v-btn>
         </v-main>
 
         <!-- Info Drawer -->
@@ -37,8 +69,7 @@
           location="right"
           width="350"
           color="#ffffff"
-          class="border-s border-subtle"
-          style="border-left: 1px solid rgba(0,0,0,0.05) !important; z-index: 3000 !important;"
+          class="border-s border-subtle info-drawer"
         >
         <v-toolbar color="transparent" density="compact">
           <v-toolbar-title class="text-zinc-primary text-subtitle-1 font-weight-bold">Metadata</v-toolbar-title>
@@ -47,20 +78,18 @@
         <v-divider class="opacity-5"></v-divider>
 
         <v-list class="bg-transparent px-4">
-          <!-- File Info -->
           <div class="mb-6 pt-4">
             <div class="text-caption text-zinc-muted mb-1 text-uppercase tracking-widest">File Details</div>
             <div class="d-flex align-start mb-2">
               <v-icon size="small" color="#71717a" class="mr-2 mt-1">mdi-file-document-outline</v-icon>
-              <div class="text-body-2 text-zinc-secondary" style="word-break: break-all;">
-                {{ currentPhoto.location }}
+              <div class="text-body-2 text-zinc-secondary word-break-all">
+                {{ currentPhoto?.location }}
               </div>
             </div>
           </div>
 
           <v-divider class="opacity-5 mb-4"></v-divider>
 
-          <!-- Camera / EXIF Info -->
           <div class="mb-6" v-if="hasExif">
             <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">Camera Settings</div>
             
@@ -95,7 +124,6 @@
 
           <v-divider class="opacity-5 mb-4" v-if="hasExif"></v-divider>
 
-          <!-- AI Insights -->
           <div class="mb-6">
             <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">AI Insights</div>
             
@@ -145,6 +173,7 @@ export default {
     showInfo: false,
     fullPhotoB64: '',
     os: '',
+    mediaPort: null,
   }),
   computed: {
     isMobile() {
@@ -159,46 +188,32 @@ export default {
       return this.photos[this.index];
     },
     isVideo() {
-      if (!this.currentPhoto) return false;
-      const ext = this.currentPhoto.location.split('.').pop().toLowerCase();
-      return ["mp4", "mkv", "mov", "avi", "webm"].includes(ext);
+      return this.isVideoPhoto(this.currentPhoto);
     },
-    currentVideoSrc() {
-      if (!this.currentPhoto) return '';
-      const src = this.currentPhoto.location;
-      
-      const converted = convertFileSrc(src);
-      if (converted.startsWith('http') || converted.startsWith('asset:') || converted.startsWith('tauri:')) {
-          return converted;
+    videoUrl() {
+      if (!this.currentPhoto || !this.isVideo || !this.mediaPort) return '';
+      let path = this.currentPhoto.location.replace(/\\/g, '/');
+      if (path.match(/^[a-zA-Z]:\//)) {
+          path = path.substring(3);
+      } else if (path.startsWith('/')) {
+          path = path.substring(1);
       }
-
-      // If it looks like a raw file path (starts with / or has a drive letter), use the manual prefix
-      if (src.startsWith('/') || /^[a-zA-Z]:\\/.test(src)) {
-          // In Tauri v2, the asset protocol is usually https://asset.localhost/
-          // Ensure it has exactly one slash after localhost regardless of OS
-          const path = src.startsWith('/') ? src : '/' + src.replace(/\\/g, '/');
-          return `https://asset.localhost${path}`;
-      }
-      
-      return converted;
+      const encoded = path.split('/').map(encodeURIComponent).join('/');
+      return `http://127.0.0.1:${this.mediaPort}/media/${encoded}`;
     },
     currentPhotoSrc() {
-      if (!this.currentPhoto) return '';
-      // Use full base64 if fetched, otherwise fallback to thumbnail
-      return this.fullPhotoB64 || this.currentPhoto.encoded;
+      if (!this.currentPhoto || this.isVideo) return '';
+      return this.fullPhotoB64 || this.currentPhoto.encoded || convertFileSrc(this.currentPhoto.location);
     },
     exifData() {
       if (!this.currentPhoto || !this.currentPhoto.properties) return {};
       const props = this.currentPhoto.properties;
-      
-      // Attempt to format common EXIF fields
       let dimensions = null;
       if (props.PixelXDimension && props.PixelYDimension) {
         dimensions = `${props.PixelXDimension} x ${props.PixelYDimension}`;
       } else if (props.ImageWidth && props.ImageLength) {
         dimensions = `${props.ImageWidth} x ${props.ImageLength}`;
       }
-
       return {
         make: props.Make,
         model: props.Model,
@@ -214,7 +229,6 @@ export default {
     },
     aiTags() {
       if (!this.currentPhoto || !this.currentPhoto.objects) return [];
-      
       return Object.entries(this.currentPhoto.objects)
         .map(([name, score]) => ({
           name,
@@ -224,16 +238,25 @@ export default {
     }
   },
   methods: {
+    getThumbSrc(photo) {
+      if (!photo) return '';
+      if (photo.encoded && photo.encoded.length > 100) return photo.encoded;
+      return convertFileSrc(photo.location);
+    },
+    isVideoPhoto(photo) {
+      if (!photo || !photo.location) return false;
+      const ext = photo.location.split('.').pop().toLowerCase();
+      return ["mp4", "mkv", "mov", "avi", "webm"].includes(ext);
+    },
     async fetchFullPhoto() {
-      if (this.currentPhoto && this.currentPhoto.location && !this.isVideo) {
-        try {
-          this.fullPhotoB64 = await invoke("get_raw_photo", { path: this.currentPhoto.location });
-        } catch (e) {
-          console.error("Failed to fetch full photo", e);
-          this.fullPhotoB64 = '';
-        }
-      } else {
-        this.fullPhotoB64 = '';
+      this.fullPhotoB64 = '';
+      if (!this.currentPhoto || this.isVideo || !this.currentPhoto.location) return;
+
+      try {
+        const b64 = await invoke("get_raw_photo", { path: this.currentPhoto.location });
+        this.fullPhotoB64 = b64;
+      } catch (e) {
+        console.error("Failed to fetch full photo", e);
       }
     },
     close() { this.visible = false; },
@@ -253,27 +276,36 @@ export default {
         if (e.key === 'ArrowLeft') this.prev();
         if (e.key === 'Escape') this.close();
         if (e.key === 'i') this.showInfo = !this.showInfo;
+    },
+    scrollToActiveThumb() {
+      this.$nextTick(() => {
+        const rail = this.$refs.thumbnailRail;
+        if (!rail) return;
+        const activeItem = rail.querySelector('.rail-item.active');
+        if (activeItem) {
+          activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+      });
     }
   },
   watch: {
-    index() {
+    index() { 
       this.fetchFullPhoto();
+      this.scrollToActiveThumb();
     },
     visible(val) {
-      if (val) {
-        this.fetchFullPhoto();
-      } else {
-        this.fullPhotoB64 = '';
+      if (val) { 
+        this.fetchFullPhoto(); 
+        this.scrollToActiveThumb();
+      } else { 
+        this.fullPhotoB64 = ''; 
       }
     }
   },
   async mounted() {
       window.addEventListener('keydown', this.handleKeydown);
-      try {
-        this.os = await invoke("get_os");
-      } catch (e) {
-        console.error("Failed to get OS", e);
-      }
+      try { this.os = await invoke("get_os"); } catch (e) {}
+      try { this.mediaPort = await invoke("get_media_server_port"); } catch (e) { console.error("Failed to get media server port", e); }
   },
   beforeUnmount() {
       window.removeEventListener('keydown', this.handleKeydown);
@@ -282,28 +314,125 @@ export default {
 </script>
 
 <style scoped>
-.touch-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 5;
+.viewer-content-container {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.media-wrapper {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
 }
 
 .viewer-image {
-  width: 100%;
-  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   object-fit: contain;
   transition: opacity 0.2s ease-in-out;
   user-select: none;
   -webkit-user-drag: none;
 }
 
+.touch-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 100px; 
+  z-index: 5;
+}
+
+/* Nav Buttons */
+.viewer-nav-btn {
+  position: absolute;
+  z-index: 2000;
+}
+.top-left { top: 20px; left: 20px; }
+.top-right { top: 20px; right: 20px; }
+
+.side-nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: rgba(255,255,255,0.1);
+  backdrop-filter: blur(4px);
+  border-radius: 50%;
+}
+.side-nav-btn.left { left: 20px; }
+.side-nav-btn.right { right: 20px; }
+
+/* Thumbnail Rail */
+.thumbnail-rail-container {
+  width: 100%;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(0,0,0,0.05);
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  z-index: 20;
+}
+
+.thumbnail-rail {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 10px 0;
+  width: 100%;
+  scrollbar-width: none;
+}
+.thumbnail-rail::-webkit-scrollbar { display: none; }
+
+.rail-item {
+  min-width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  opacity: 0.6;
+}
+
+.rail-item.active {
+  border-color: #000000;
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.rail-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.rail-video-icon {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0,0,0,0.2);
+}
+
+.info-drawer {
+  border-left: 1px solid rgba(0,0,0,0.05);
+  z-index: 3000;
+}
+
 .tracking-widest {
   letter-spacing: 0.1em;
-}
-.min-h-0 {
-  min-height: 0 !important;
 }
 </style>

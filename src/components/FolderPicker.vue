@@ -1,14 +1,14 @@
 <template>
   <v-dialog v-model="show" fullscreen transition="dialog-bottom-transition">
-    <v-card rounded="0">
-      <v-toolbar color="primary">
-        <v-btn icon @click="close">
+    <v-card rounded="0" color="#fafafa">
+      <v-toolbar color="white" border="bottom">
+        <v-btn icon @click="close" color="#18181b">
           <v-icon>mdi-close</v-icon>
         </v-btn>
-        <v-toolbar-title>Select Folder</v-toolbar-title>
+        <v-toolbar-title class="text-zinc-primary font-weight-bold">Select Folder</v-toolbar-title>
         <v-spacer></v-spacer>
-        <v-btn variant="text" @click="selectCurrent">
-          Select This Folder
+        <v-btn variant="flat" @click="selectCurrent" class="siegu-btn px-4 mr-2">
+          Select Folder
         </v-btn>
       </v-toolbar>
 

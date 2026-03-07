@@ -4,10 +4,11 @@
     <v-card-title>Arch-linux </v-card-title>
     <v-card-subtitle>This device</v-card-subtitle>
     <v-card-actions>
-      <v-btn color="green-lighten-2" text="sync"></v-btn>
+      <v-btn variant="flat" class="siegu-btn px-4">Sync</v-btn>
       <v-spacer></v-spacer>
 
       <v-btn
+        class="siegu-btn"
         :icon="show ? 'mdi-chevron-up' : 'mdi-chevron-down'"
         @click="show = !show"
       ></v-btn>

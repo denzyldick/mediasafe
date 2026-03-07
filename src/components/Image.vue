@@ -1,48 +1,55 @@
 <template>
   <div 
-    class="image-container" 
-    :class="{ 'is-selected': selected, 'in-selection-mode': selectionMode }"
+    class="image-item-container" 
+    :class="{ 'is-selected': selected, 'selection-active': selectionMode }"
     @click="handleClick"
   >
-    <img :src="imageSrc" loading="lazy" alt="Photo" />
-    
-    <!-- Video Icon -->
-    <div v-if="isVideo" class="video-icon-overlay">
-      <v-icon color="white" size="24">mdi-play-circle-outline</v-icon>
-    </div>
+    <div class="image-wrapper shadow-sm">
+      <template v-if="imageSrc">
+        <img :src="imageSrc" loading="lazy" alt="Photo" class="photo-img" />
+      </template>
+      <template v-else-if="isVideo">
+        <div class="video-placeholder d-flex flex-column align-center justify-center">
+          <v-progress-circular indeterminate size="24" width="2" color="#a1a1aa" class="mb-2"></v-progress-circular>
+          <div class="text-caption text-zinc-muted font-weight-bold">VIDEO</div>
+        </div>
+      </template>
+      <template v-else>
+        <div class="video-placeholder d-flex align-center justify-center">
+          <v-icon color="#d4d4d8" size="48">mdi-image-outline</v-icon>
+        </div>
+      </template>
+      
+      <div class="scrim-overlay"></div>
 
-    <!-- Selection Checkbox -->
-    <div v-if="selectionMode" class="selection-overlay">
-      <v-icon :color="selected ? 'white' : 'white'" size="24">
-        {{ selected ? 'mdi-checkbox-marked-circle' : 'mdi-checkbox-blank-circle-outline' }}
-      </v-icon>
-    </div>
+      <!-- Video Indicator -->
+      <div v-if="isVideo" class="video-indicator">
+        <v-icon color="white" size="20">mdi-play</v-icon>
+      </div>
 
-    <!-- Favorite Button (Hidden in selection mode) -->
-    <v-btn
-      v-if="!selectionMode"
-      icon
-      variant="text"
-      size="small"
-      class="favorite-btn"
-      :class="{ 'is-fav': isFavorite }"
-      :color="isFavorite ? 'red' : 'white'"
-      @click.stop="toggleFavorite"
-    >
-      <v-icon>{{ isFavorite ? 'mdi-heart' : 'mdi-heart-outline' }}</v-icon>
-    </v-btn>
+      <!-- Selection Mode UI -->
+      <div v-if="selectionMode" class="selection-indicator">
+        <div class="check-circle" :class="{ 'checked': selected }">
+          <v-icon v-if="selected" color="white" size="16">mdi-check</v-icon>
+        </div>
+      </div>
 
-    <div class="tags-container" v-if="tags.length > 0 && !selectionMode">
-      <v-chip
-        v-for="tag in tags"
-        :key="tag"
-        size="x-small"
-        color="primary"
-        variant="flat"
-        class="ma-1"
+      <!-- Favorite Button -->
+      <button
+        v-if="!selectionMode"
+        class="action-btn favorite-action"
+        :class="{ 'is-fav': isFavorite }"
+        @click.stop="toggleFavorite"
       >
-        {{ tag }}
-      </v-chip>
+        <v-icon size="18" :color="isFavorite ? '#ef4444' : 'white'">
+          {{ isFavorite ? 'mdi-heart' : 'mdi-heart-outline' }}
+        </v-icon>
+      </button>
+
+      <!-- AI Tags -->
+      <div class="ai-tags-preview" v-if="tags.length > 0 && !selectionMode">
+        <span v-for="tag in tags" :key="tag" class="tag-pill">{{ tag }}</span>
+      </div>
     </div>
   </div>
 </template>
@@ -60,16 +67,19 @@ export default {
   emits: ['toggle-favorite', 'click', 'select'],
   computed: {
     imageSrc() {
-      if (!this.path || !this.path.encoded) return '';
+      if (!this.path) return '';
       
-      const src = this.path.encoded;
-      if (src.startsWith('data:image')) return src;
-
-      const converted = convertFileSrc(src);
-      if (converted === src && src.startsWith('/')) {
-            return `http://asset.localhost${encodeURIComponent(src)}`;
+      // 1. ALWAYS prioritize the generated base64 thumbnail (encoded)
+      if (this.path.encoded && this.path.encoded.length > 100) {
+          return this.path.encoded;
       }
-      return converted;
+
+      // 2. Fallback to asset protocol for PHOTOS
+      if (!this.isVideo && this.path.location) {
+          return convertFileSrc(this.path.location);
+      }
+
+      return null;
     },
     isFavorite() {
         return this.path.favorite === true;
@@ -83,7 +93,7 @@ export default {
       if (!this.path || !this.path.objects) return [];
       return Object.entries(this.path.objects)
         .sort((a, b) => b[1] - a[1])
-        .slice(0, 3)
+        .slice(0, 2)
         .map(entry => entry[0]);
     }
   },
@@ -103,85 +113,170 @@ export default {
 </script>
 
 <style scoped>
-.image-container {
+.image-item-container {
   width: 100%;
-  aspect-ratio: 1;
-  overflow: hidden;
-  background-color: #09090b;
-  cursor: pointer;
   position: relative;
-  transition: all 0.2s ease;
-  border: 2px solid transparent;
-  will-change: transform, border-color;
-}
-
-.in-selection-mode {
-  transform: scale(0.95);
-}
-
-.is-selected {
-  border-color: #ffffff !important;
-  transform: scale(0.95);
-}
-
-.selection-overlay {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  z-index: 3;
-  text-shadow: 0 0 4px rgba(0,0,0,0.5);
-}
-
-.video-icon-overlay {
-  position: absolute;
-  bottom: 8px;
-  right: 8px;
-  z-index: 2;
-  text-shadow: 0 0 4px rgba(0,0,0,0.5);
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 50%;
-  padding: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: center;
-  transition: transform 0.3s ease;
+  cursor: pointer;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform;
 }
 
-.image-container:not(.in-selection-mode):hover img {
-  transform: scale(1.05);
+.image-wrapper {
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 16px;
+  position: relative;
+  background-color: #f4f4f5;
+  border: 1px solid rgba(0,0,0,0.05);
 }
 
-.favorite-btn {
-    position: absolute;
-    top: 5px;
-    right: 5px;
-    z-index: 2;
-    background-color: rgba(0,0,0,0.2);
-    backdrop-filter: blur(4px);
-    opacity: 0;
-    transition: opacity 0.2s ease;
+.photo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.image-container:hover .favorite-btn,
-.favorite-btn.is-fav {
-    opacity: 1;
+.video-placeholder {
+  width: 100%;
+  height: 100%;
+  background-color: #f4f4f5;
 }
 
-.tags-container {
+.scrim-overlay {
   position: absolute;
-  bottom: 4px;
-  left: 4px;
+  inset: 0;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, transparent 30%, transparent 70%, rgba(0,0,0,0.3) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: 1;
+}
+
+.image-item-container:hover .scrim-overlay {
+  opacity: 1;
+}
+
+.image-item-container:hover .photo-img {
+  transform: scale(1.08);
+}
+
+.image-item-container:active {
+  transform: scale(0.96);
+}
+
+/* Selection State */
+.selection-active .image-wrapper {
+  transform: scale(0.92);
+}
+
+.is-selected .image-wrapper {
+  border: 4px solid #000000;
+  transform: scale(0.92);
+}
+
+.selection-indicator {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+}
+
+.check-circle {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: rgba(0,0,0,0.2);
+  backdrop-filter: blur(4px);
   display: flex;
-  flex-wrap: wrap;
-  z-index: 2;
-  gap: 2px;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.check-circle.checked {
+  background: #000000;
+  border-color: #000000;
+}
+
+/* Video Indicator */
+.video-indicator {
+  position: absolute;
+  bottom: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(8px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 5;
+}
+
+/* Favorite Button */
+.action-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.2);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 5;
+}
+
+.image-item-container:hover .action-btn, 
+.action-btn.is-fav {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.action-btn.is-fav {
+  background: white;
+}
+
+/* AI Tags */
+.ai-tags-preview {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  display: flex;
+  gap: 4px;
+  z-index: 5;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.image-item-container:hover .ai-tags-preview {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.tag-pill {
+  font-size: 10px;
+  font-weight: 700;
+  color: white;
+  background: rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+  padding: 2px 8px;
+  border-radius: 6px;
+  text-transform: capitalize;
+}
+
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
 }
 </style>

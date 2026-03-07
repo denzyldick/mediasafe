@@ -9,17 +9,14 @@
     "core:default",
     "opener:default",
     "fs:default",
+    "dialog:default",
     {
       "identifier": "fs:allow-home-read-recursive",
       "allow": [
         {
           "path": "$HOME/*"
-        },
-        {
-          "path": "/storage/emulated/0/**"
         }
       ]
-    },
-    "dialog:default"
+    }
   ]
 }

@@ -1,5 +1,5 @@
 <template>
-  <v-container class="pa-6" style="background-color: #fafafa !important; min-height: 100%;">
+  <v-container class="pa-6 bg-siegu-main min-h-100">
     <div class="d-flex align-center justify-space-between mb-8">
       <div>
         <div class="d-flex align-center mb-1">
@@ -24,7 +24,14 @@
             </v-card-title>
           </div>
           <v-card-actions class="justify-center">
-            <v-btn icon="mdi-pencil-outline" size="x-small" color="#71717a" @click="openManageDialog(person)"></v-btn>
+            <v-btn variant="flat" class="siegu-btn px-4" size="small" @click="openManageDialog(person)">
+              <div class="d-flex align-center">
+                <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
+                  <v-icon size="10" color="white">mdi-pencil-outline</v-icon>
+                </div>
+                <span class="text-white">Rename</span>
+              </div>
+            </v-btn>
           </v-card-actions>
         </v-card>
       </v-col>
@@ -32,15 +39,14 @@
       <!-- Unnamed Faces -->
       <v-col cols="6" sm="4" md="3" lg="2" v-for="group in groupedUnnamedFaces" :key="group.representative.face_id">
         <v-card class="border-subtle h-100 unnamed-card" variant="flat" color="#ffffff" rounded="xl">
-          <div class="position-relative">
+          <div class="pos-rel">
             <v-img :src="getFaceImageSrc(group.representative.crop_path, group.representative.encoded)" aspect-ratio="1" cover class="rounded-t-xl"></v-img>
             <v-chip
               v-if="group.faces.length > 1"
               size="x-small"
               color="#18181b"
               variant="flat"
-              class="position-absolute font-weight-bold text-white"
-              style="top: 8px; right: 8px; z-index: 2;"
+              class="font-weight-bold text-white pos-tr-8"
             >
               {{ group.faces.length }}
             </v-chip>
@@ -72,7 +78,6 @@
             v-model="newName"
             label="Name"
             variant="solo-filled"
-            bg-color="#f4f4f5"
             hide-details
             flat
             rounded="lg"
@@ -83,8 +88,22 @@
         </v-card-text>
         <v-card-actions class="px-0 pt-4">
           <v-spacer></v-spacer>
-          <v-btn variant="text" color="#71717a" @click="nameDialog = false">Cancel</v-btn>
-          <v-btn variant="flat" class="siegu-btn" :disabled="!newName" @click="saveName">Save</v-btn>
+          <v-btn variant="flat" class="siegu-btn px-6 mr-2" @click="nameDialog = false">
+             <div class="d-flex align-center">
+               <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
+                 <v-icon size="12" color="white">mdi-close</v-icon>
+               </div>
+               <span class="text-white">Cancel</span>
+             </div>
+          </v-btn>
+          <v-btn variant="flat" class="siegu-btn px-6" :disabled="!newName" @click="saveName">
+             <div class="d-flex align-center">
+               <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
+                 <v-icon size="12" color="white">mdi-check</v-icon>
+               </div>
+               <span class="text-white">Save</span>
+             </div>
+          </v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -105,7 +124,6 @@
                 v-model="newName"
                 label="New Name"
                 variant="solo-filled"
-                bg-color="#f4f4f5"
                 hide-details
                 flat
                 rounded="lg"
@@ -113,7 +131,14 @@
                 @keyup.enter="renamePerson"
               ></v-text-field>
               <div class="mt-4">
-                <v-btn block variant="flat" class="siegu-btn" @click="renamePerson">Update Name</v-btn>
+                <v-btn block variant="flat" class="siegu-btn py-6" @click="renamePerson">
+                  <div class="d-flex align-center">
+                    <div class="siegu-icon-circle mr-3">
+                      <v-icon size="14" color="white">mdi-pencil-outline</v-icon>
+                    </div>
+                    <span class="text-white">Update Name</span>
+                  </div>
+                </v-btn>
               </div>
             </v-window-item>
 
@@ -128,38 +153,35 @@
                 item-value="id"
                 label="Select Target Person"
                 variant="solo-filled"
-                bg-color="#f4f4f5"
+                hide-details
                 flat
                 rounded="lg"
                 class="siegu-field"
               ></v-select>
               <div class="mt-4">
-                <v-btn block color="error" variant="flat" :disabled="!mergeTargetId" @click="mergePerson" class="rounded-lg text-none font-weight-bold">Confirm Merge</v-btn>
+                <v-btn block variant="flat" :disabled="!mergeTargetId" @click="mergePerson" class="siegu-btn py-6">
+                  <div class="d-flex align-center">
+                    <div class="siegu-icon-circle mr-3">
+                      <v-icon size="14" color="white">mdi-merge</v-icon>
+                    </div>
+                    <span class="text-white">Confirm Merge</span>
+                  </div>
+                </v-btn>
               </div>
             </v-window-item>
           </v-window>
         </v-card-text>
         <v-card-actions class="px-0 pt-4">
           <v-spacer></v-spacer>
-          <v-btn variant="text" color="#71717a" @click="manageDialog = false">Close</v-btn>
+          <v-btn variant="flat" class="siegu-btn px-6" @click="manageDialog = false">
+             <div class="d-flex align-center">
+               <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
+                 <v-icon size="12" color="white">mdi-close</v-icon>
+               </div>
+               <span class="text-white">Close</span>
+             </div>
+          </v-btn>
         </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- Person Gallery -->
-    <v-dialog v-model="galleryDialog" fullscreen transition="dialog-bottom-transition">
-      <v-card color="#fafafa" class="d-flex flex-column">
-        <v-app-bar elevation="0" class="border-bottom-subtle" color="#ffffff">
-          <v-btn icon="mdi-close" @click="galleryDialog = false" color="#18181b"></v-btn>
-          <v-toolbar-title class="text-zinc-primary font-weight-bold">
-            {{ activePerson?.name }}
-          </v-toolbar-title>
-        </v-app-bar>
-        <v-main class="overflow-y-auto" style="background-color: #fafafa !important;">
-          <div class="pa-6">
-            <Photos v-if="galleryDialog" :search-query="activePerson?.id" is-person-filter />
-          </div>
-        </v-main>
       </v-card>
     </v-dialog>
   </v-container>
@@ -181,13 +203,6 @@
 .bg-zinc-50 {
   background-color: #f9fafb !important;
 }
-
-.siegu-field :deep(.v-field) {
-  background: #f4f4f5 !important;
-  border: 1px solid rgba(0, 0, 0, 0.05) !important;
-  border-radius: 12px !important;
-  color: #18181b !important;
-}
 </style>
 
 <script>
@@ -202,7 +217,6 @@ export default {
     unnamedFaces: [],
     nameDialog: false,
     manageDialog: false,
-    galleryDialog: false,
     activeFace: null,
     activeGroup: null,
     activePerson: null,
@@ -271,8 +285,7 @@ export default {
       this.fetchData();
     },
     viewPerson(person) {
-      this.activePerson = person;
-      this.galleryDialog = true;
+      this.$emit("search-person", person);
     },
     openManageDialog(person) {
       this.activePerson = person;

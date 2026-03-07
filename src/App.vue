@@ -30,6 +30,7 @@ export default {
     faces: [],
     filters: {
       favoritesOnly: false,
+      videosOnly: false,
       dateRange: 'all',
       folder: null,
     },
@@ -107,7 +108,7 @@ export default {
   },
   methods: {
     resetFilters() {
-      this.filters = { favoritesOnly: false, dateRange: 'all', folder: null };
+      this.filters = { favoritesOnly: false, videosOnly: false, dateRange: 'all', folder: null };
     },
     list_directories() {
       invoke("list_directories").then((response) => {
@@ -134,6 +135,7 @@ export default {
     addPersonToSearch(person) {
       this.search = person.name;
       this.query = person.name;
+      this.current_page = "home";
     },
   },
   watch: {
@@ -145,21 +147,23 @@ export default {
 </script>
 
 <template>
-  <v-app style="background-color: #fafafa !important;">
+  <v-app class="bg-siegu-main">
     <Greet v-if="clean_install" @setup-local="clean_install = false; current_page = 'settings';" @setup-sync="clean_install = false; current_page = 'devices';"></Greet>
 
-    <v-layout v-else style="background-color: #fafafa !important;">
-      <v-app-bar elevation="0" v-if="current_page === 'home'" color="#ffffff" class="border-bottom-subtle">
-        <v-row class="px-4 align-center no-gutters">
+    <v-layout v-else class="bg-siegu-main">
+      <v-app-bar elevation="0" v-if="current_page === 'home'" color="#ffffff" class="border-bottom-subtle px-2">
+        <v-row class="px-2 align-center no-gutters">
           <v-col cols="auto">
             <v-menu offset-y>
               <template v-slot:activator="{ props }">
-                <v-btn v-bind="props" variant="flat" class="siegu-btn" size="small">
-                  <template v-slot:prepend>
-                    <v-progress-circular v-if="scanStatus === 'scanning' || indexingCount > 0" indeterminate size="16" width="2" color="currentColor" class="mr-1"></v-progress-circular>
-                    <v-icon v-else size="18">mdi-sync</v-icon>
-                  </template>
-                  {{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}
+                <v-btn v-bind="props" color="#000000" theme="dark" variant="flat" class="siegu-btn px-4" height="40">
+                  <div class="d-flex align-center">
+                    <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
+                      <v-progress-circular v-if="scanStatus === 'scanning' || indexingCount > 0" indeterminate size="12" width="2" color="white"></v-progress-circular>
+                      <v-icon v-else size="14" color="white">mdi-sync</v-icon>
+                    </div>
+                    <span class="text-white font-weight-bold">{{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}</span>
+                  </div>
                 </v-btn>
               </template>
               <v-card min-width="300" border class="mt-2 border-subtle" color="#ffffff" rounded="xl">
@@ -172,7 +176,7 @@ export default {
                   </div>
                   <div v-if="scanStatus === 'scanning'" class="mb-4">
                     <div class="text-caption mb-1 text-zinc-muted">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
-                    <v-progress-linear :model-value="scanProgress.progress" color="#18181b" height="2" rounded bg-color="#f4f4f5" bg-opacity="1"></v-progress-linear>
+                    <v-progress-linear :model-value="scanProgress.progress" color="#000000" height="2" rounded bg-color="#f4f4f5" bg-opacity="1"></v-progress-linear>
                   </div>
                   <div class="d-flex align-center mb-4">
                     <v-chip color="#f4f4f5" size="x-small" variant="flat" class="mr-2 text-zinc-secondary border-subtle">
@@ -182,7 +186,17 @@ export default {
                   </div>
                   <v-divider class="my-4 border-subtle"></v-divider>
                   <div class="text-caption text-zinc-muted mb-4">Last scan: {{ lastScanTime }}</div>
-                  <v-btn v-if="scanStatus !== 'scanning' && indexingCount === 0" @click="scan()" variant="flat" block class="siegu-btn">Sync Library</v-btn>
+                  <v-btn v-if="scanStatus !== 'scanning' && indexingCount === 0" @click="scan()" variant="flat" block class="siegu-btn py-6">
+                    <div class="d-flex align-center">
+                      <div class="siegu-icon-circle mr-3">
+                        <v-icon color="white">mdi-sync</v-icon>
+                      </div>
+                      <div class="text-left">
+                        <div class="font-weight-bold text-white">Sync Library</div>
+                        <div class="text-caption text-white-muted">Refresh your local files and AI index.</div>
+                      </div>
+                    </div>
+                  </v-btn>
                 </v-card-text>
               </v-card>
             </v-menu>
@@ -200,16 +214,16 @@ export default {
               hide-details
               flat
               rounded="lg"
-              class="search-autocomplete w-100 siegu-field"
-              bg-color="#f4f4f5"
+              class="search-autocomplete w-100"
+              bg-color="#ffffff"
               :menu-props="{ contentClass: 'siegu-list', elevation: 4, disabled: !objects.length && !filteredPeople.length }"
               no-data-text=""
             >
                 <template v-slot:prepend-item>
                   <div v-if="filteredPeople.length > 0">
                     <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption py-2">People</v-list-subheader>
-                    <div class="pa-2 d-flex flex-nowrap" style="overflow-x: auto; gap: 8px;">
-                      <div v-for="person in filteredPeople" :key="person.id" class="d-flex flex-column align-center cursor-pointer" @click="addPersonToSearch(person)" style="min-width: 60px;">
+                    <div class="pa-2 d-flex flex-nowrap overflow-x-auto ga-2">
+                      <div v-for="person in filteredPeople" :key="person.id" class="d-flex flex-column align-center cursor-pointer min-w-60" @click="addPersonToSearch(person)">
                         <v-avatar size="40" class="mb-1 border-subtle">
                           <v-img :src="getFaceImageSrc(person.representative_crop, person.encoded)"></v-img>
                         </v-avatar>
@@ -226,7 +240,7 @@ export default {
             <v-col cols="auto">
               <v-menu :close-on-content-click="false" offset-y>
                 <template v-slot:activator="{ props }">
-                  <v-btn icon size="small" variant="text" v-bind="props" :color="hasActiveFilters ? '#18181b' : '#71717a'">
+                  <v-btn icon size="small" variant="text" v-bind="props" color="#18181b">
                     <v-badge :model-value="hasActiveFilters" color="black" dot px="1">
                       <v-icon size="20">mdi-filter-variant</v-icon>
                     </v-badge>
@@ -235,12 +249,15 @@ export default {
                 <v-card min-width="250" border class="mt-2 border-subtle" color="#ffffff" rounded="xl">
                   <v-list bg-color="transparent" density="compact" class="px-2 ga-2">
                     <v-list-item class="px-0">
-                      <v-switch v-model="filters.favoritesOnly" label="Favorites only" color="#18181b" hide-details density="compact" inset class="text-zinc-secondary px-2"></v-switch>
+                      <v-switch v-model="filters.favoritesOnly" label="Favorites only" color="#000000" hide-details density="compact" inset class="text-zinc-secondary px-2"></v-switch>
+                    </v-list-item>
+                    <v-list-item class="px-0">
+                      <v-switch v-model="filters.videosOnly" label="Videos only" color="#000000" hide-details density="compact" inset class="text-zinc-secondary px-2"></v-switch>
                     </v-list-item>
                     <v-divider class="border-subtle my-2"></v-divider>
                     <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption px-0">Date Range</v-list-subheader>
                     <v-list-item class="px-0">
-                      <v-btn-toggle v-model="filters.dateRange" mandatory variant="flat" density="compact" class="ga-2 w-100 bg-transparent" color="#18181b">
+                      <v-btn-toggle v-model="filters.dateRange" mandatory variant="flat" density="compact" class="ga-2 w-100 bg-transparent">
                         <v-btn value="all" size="x-small" class="siegu-btn flex-grow-1">All</v-btn>
                         <v-btn value="month" size="x-small" class="siegu-btn flex-grow-1">Month</v-btn>
                         <v-btn value="year" size="x-small" class="siegu-btn flex-grow-1">Year</v-btn>
@@ -249,11 +266,18 @@ export default {
                     <v-divider class="border-subtle my-2"></v-divider>
                     <v-list-subheader class="text-zinc-muted text-uppercase tracking-widest text-caption px-0">Folder</v-list-subheader>
                     <v-list-item class="px-0">
-                      <v-select v-model="filters.folder" :items="directories" placeholder="All folders" variant="solo-filled" density="compact" hide-details flat bg-color="#f4f4f5" clearable rounded="lg" class="text-zinc-secondary"></v-select>
+                      <v-select v-model="filters.folder" :items="directories" placeholder="All folders" variant="solo-filled" density="compact" hide-details flat rounded="lg" class="siegu-field"></v-select>
                     </v-list-item>
                   </v-list>
-                  <v-card-actions class="pa-2">
-                    <v-btn variant="text" size="x-small" color="#71717a" class="text-none" @click="resetFilters">Reset Filters</v-btn>
+                  <v-card-actions class="pa-4">
+                    <v-btn variant="flat" class="siegu-btn w-100 py-4" @click="resetFilters">
+                       <div class="d-flex align-center">
+                         <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
+                           <v-icon size="12" color="white">mdi-refresh</v-icon>
+                         </div>
+                         <span class="text-white">Reset Filters</span>
+                       </div>
+                    </v-btn>
                   </v-card-actions>
                 </v-card>
               </v-menu>
@@ -261,9 +285,9 @@ export default {
           </v-row>
         </v-app-bar>
   
-        <v-main style="background-color: #fafafa !important;">
+        <v-main class="bg-siegu-main">
           <Photos v-if="current_page === 'home'" :search-query="search" :filters="filters" @clear-search="search = null" />
-          <People v-if="current_page === 'people'" />
+          <People v-if="current_page === 'people'" @search-person="addPersonToSearch" />
           <Map v-if="current_page === 'location'" />
           <DeviceList v-if="current_page === 'devices'" />
           <Setting v-if="current_page === 'settings'" @done="current_page = 'home'" />

@@ -2,30 +2,37 @@
   <v-dialog v-model="dialog" width="auto" scrim="black" transition="dialog-bottom-transition">
     <template v-slot:activator="{ props }">
       <v-btn
-        prepend-icon="mdi-plus"
         v-bind="props"
+        color="#000000"
+        theme="dark"
         variant="flat"
-        class="text-none siegu-btn"
+        class="siegu-btn px-6"
+        height="44"
       >
-        Add Device
+        <div class="d-flex align-center">
+          <div class="siegu-icon-circle siegu-icon-circle-md mr-3">
+            <v-icon size="14" color="white">mdi-plus</v-icon>
+          </div>
+          <span class="text-white font-weight-bold">Add Device</span>
+        </div>
       </v-btn>
     </template>
     
-    <v-card class="border-subtle pa-6 text-center" color="#000000" rounded="xl" min-width="350" max-width="400">
+    <v-card class="border-subtle pa-6 text-center bg-siegu-white" rounded="xl" min-width="350" max-width="400">
       <div class="text-h5 font-weight-bold text-zinc-primary mb-2">Link Device</div>
-      <div class="text-body-2 text-zinc-muted mb-6">
+      <div class="text-body-2 text-zinc-secondary mb-6">
         Sync your library across your own hardware.
       </div>
 
       <div class="d-flex justify-center mb-6 mt-2">
-         <v-btn-toggle v-model="mode" color="white" mandatory variant="outlined" divided class="border-subtle siegu-toggle">
-            <v-btn value="host" class="text-none">Host</v-btn>
-            <v-btn value="join" class="text-none">Join</v-btn>
+         <v-btn-toggle v-model="mode" mandatory variant="flat" class="ga-2 bg-transparent">
+            <v-btn value="host" class="siegu-btn text-none px-6">Host</v-btn>
+            <v-btn value="join" class="siegu-btn text-none px-6">Join</v-btn>
          </v-btn-toggle>
       </div>
 
       <div class="d-flex justify-center mb-6" v-if="uuid && mode === 'host'">
-        <v-sheet color="white" rounded="lg" class="pa-4 shadow-lg border-subtle">
+        <v-sheet class="bg-siegu-white rounded-lg pa-4 shadow-lg border-subtle">
              <qrcode-vue :value="uuid" :size="180" level="H" />
         </v-sheet>
       </div>
@@ -35,9 +42,9 @@
         <v-chip
           v-for="(word, index) in passphrase"
           :key="index"
-          color="#18181b"
+          color="#f4f4f5"
           variant="flat"
-          class="font-weight-medium mx-1 text-zinc-secondary border-subtle"
+          class="font-weight-medium mx-1 text-zinc-primary border-subtle"
           size="small"
         >
           {{ word }}
@@ -49,7 +56,6 @@
            v-model="joinPassphrase"
            placeholder="Enter 4-word phrase"
            variant="solo-filled"
-           bg-color="#18181b"
            density="comfortable"
            hide-details
            flat
@@ -57,11 +63,18 @@
            class="text-center siegu-field"
            @keyup.enter="joinWebRTC"
          ></v-text-field>
-         <v-btn variant="flat" @click="joinWebRTC" class="text-none siegu-btn" block>Link Device</v-btn>
+         <v-btn variant="flat" @click="joinWebRTC" class="siegu-btn py-6" block>
+            <div class="d-flex align-center">
+              <div class="siegu-icon-circle mr-3">
+                <v-icon size="14" color="white">mdi-link-variant</v-icon>
+              </div>
+              <span class="text-white">Link Device</span>
+            </div>
+         </v-btn>
       </div>
 
       <div class="text-caption text-zinc-muted mb-1 text-center py-2" v-if="connectionStatus">
-         <v-progress-circular v-if="!isConnected" indeterminate color="white" size="16" width="2" class="mr-2 opacity-50"></v-progress-circular>
+         <v-progress-circular v-if="!isConnected" indeterminate color="black" size="16" width="2" class="mr-2 opacity-50"></v-progress-circular>
          <v-icon v-else color="success" size="16" class="mr-2">mdi-check-circle-outline</v-icon>
          {{ connectionStatus }}
       </div>
@@ -69,7 +82,14 @@
       <v-divider class="opacity-10 my-4"></v-divider>
 
       <v-card-actions class="justify-center">
-        <v-btn color="#a1a1aa" variant="text" class="text-none" @click="dialog = false">Cancel</v-btn>
+        <v-btn variant="flat" class="siegu-btn px-6" @click="dialog = false">
+           <div class="d-flex align-center">
+             <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
+               <v-icon size="12" color="white">mdi-close</v-icon>
+             </div>
+             <span class="text-white">Cancel</span>
+           </div>
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -81,43 +101,6 @@
 }
 .tracking-widest {
   letter-spacing: 0.1em;
-}
-
-.siegu-btn {
-  background: #18181b !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  border-radius: 12px !important;
-  color: #ffffff !important;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
-
-.siegu-btn:hover {
-  background: #27272a !important;
-  border-color: rgba(255, 255, 255, 0.4) !important;
-  transform: translateY(-1px);
-}
-
-.siegu-toggle {
-  background: #18181b !important;
-  border-radius: 12px !important;
-}
-
-.siegu-toggle .v-btn {
-  border: none !important;
-}
-
-.siegu-toggle .v-btn--active {
-  background: #27272a !important;
-}
-
-.siegu-field :deep(.v-field) {
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  border-radius: 12px !important;
-}
-
-.siegu-field :deep(.v-field--focused) {
-  border-color: rgba(255, 255, 255, 0.4) !important;
-  background: #27272a !important;
 }
 </style>
 
@@ -172,16 +155,13 @@ export default {
   methods: {
     async initialize() {
         this.connectionStatus = "Generating secure pair key...";
-        
         try {
           const codes = await invoke("server::generate_pairing_codes");
           this.uuid = codes.uuid;
           this.passphrase = codes.passphrase;
-          
           const roomId = await invoke("server::hash_pairing_code", { input: this.uuid });
           this.listen(roomId);
         } catch (error) {
-           console.error("Failed to generate code", error);
            this.connectionStatus = "Pairing Error.";
         }
     },
@@ -192,12 +172,10 @@ export default {
           is_initiator: true,
           signaling_url: "wss://siegu.denzyl.io"
       };
-      console.log("Invoking start_webrtc_session with:", args);
       try {
           await invoke("start_webrtc_session", args);
           this.connectionStatus = "Signaling channel requested. Awaiting WebRTC connection.";
       } catch (error) {
-          console.error("WebRTC Error:", error);
           this.connectionStatus = "Error connecting: " + error;
       }
     },
@@ -211,11 +189,9 @@ export default {
               is_initiator: false,
               signaling_url: "wss://siegu.denzyl.io"
            };
-           console.log("Invoking start_webrtc_session with:", args);
            await invoke("start_webrtc_session", args);
            this.connectionStatus = "Signaling channel requested. Awaiting WebRTC Receiver connection.";
         } catch(error) {
-           console.error("WebRTC Join Error", error);
            this.connectionStatus = "Error joining: " + error;
         }
     }

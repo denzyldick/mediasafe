@@ -22,70 +22,72 @@ body {
 }
 
 /* Global Siegu Design System */
-.siegu-btn {
-  background: #ffffff !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-  border-radius: 12px !important;
-  color: #18181b !important;
-  text-transform: none !important;
-  font-weight: 600 !important;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  box-shadow: none !important;
+.v-application .siegu-btn, .siegu-btn {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  color: #18181b;
+  text-transform: none;
+  font-weight: 600;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: none;
 }
 
-.siegu-btn:hover {
-  background: #f4f4f5 !important;
-  border-color: rgba(0, 0, 0, 0.2) !important;
+.v-application .siegu-btn:hover, .siegu-btn:hover {
+  background: #f4f4f5;
+  border-color: rgba(0, 0, 0, 0.2);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.siegu-btn:active {
+.v-application .siegu-btn:active, .siegu-btn:active {
   transform: scale(0.98);
 }
 
+.v-application .siegu-field :deep(.v-field), 
+.v-application .siegu-field.v-field,
 .siegu-field :deep(.v-field), 
 .siegu-field.v-field {
-  background: #ffffff !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-  border-radius: 12px !important;
-  transition: all 0.2s ease !important;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
+  transition: all 0.2s ease;
 }
 
-.v-field--focused {
-  border-color: rgba(0, 0, 0, 0.2) !important;
-  background: #ffffff !important;
+.v-application .v-field--focused, .v-field--focused {
+  border-color: rgba(0, 0, 0, 0.2);
+  background: #ffffff;
 }
 
 .border-subtle {
-  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .border-bottom-subtle {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.05) !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
 }
 
-.text-zinc-primary {
-  color: #18181b !important;
+.v-application .text-zinc-primary, .text-zinc-primary {
+  color: #18181b;
 }
 
-.text-zinc-secondary {
-  color: #52525b !important;
+.v-application .text-zinc-secondary, .text-zinc-secondary {
+  color: #52525b;
 }
 
-.text-zinc-muted {
-  color: #71717a !important;
+.v-application .text-zinc-muted, .text-zinc-muted {
+  color: #71717a;
 }
 
 /* Standard UI Overrides */
-.v-card, .v-sheet {
-  background-color: #ffffff !important;
+.v-application .v-card, .v-application .v-sheet, .v-card, .v-sheet {
+  background-color: #ffffff;
 }
 
-.siegu-list {
-  background: #ffffff !important;
-  border: 1px solid rgba(0, 0, 0, 0.1) !important;
-  border-radius: 12px !important;
+.v-application .siegu-list, .siegu-list {
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 12px;
 }
 
 /* Scrollbars */

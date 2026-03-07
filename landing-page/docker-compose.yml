@@ -1,0 +1,8 @@
+services:
+  landing-page:
+    build: .
+    ports:
+      - "8080:80"
+    volumes:
+      - ./data:/app/data
+    restart: always

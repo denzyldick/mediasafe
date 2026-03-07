@@ -40,11 +40,13 @@ impl Database {
     }
 
     pub fn new(config_path: &str) -> Self {
-        let path = format!("{}/database.sql", config_path);
+        let path = format!("{}/siegu.db", config_path);
         let _ = fs::create_dir_all(config_path);
         let conn = Connection::open(&path).expect("Failed to open database connection");
 
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS photo (id STRING PRIMARY KEY, location STRING, encoded STRING, created DATE_TIME, latitude REAL, longitude REAL);", ());
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_photo_location ON photo(location);", ());
+        let _ = conn.execute("CREATE INDEX IF NOT EXISTS idx_photo_created ON photo(created);", ());
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS directory (name STRING);", ());
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS object(photo_id STRING, class STRING, probability STRING);", ());
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS properties (photo_id STRING, key STRING, value STRING);", ());
@@ -138,9 +140,12 @@ impl Database {
         }
         objects
     }
-pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_only: bool) -> Vec<Photo> {
+pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_only: bool, videos_only: bool) -> Vec<Photo> {
     let mut photos = Vec::new();
     let fav_filter = if favorites_only { "AND EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite')" } else { "" };
+    let video_filter = if videos_only { 
+        "AND (p.location LIKE '%.mp4' OR p.location LIKE '%.mkv' OR p.location LIKE '%.mov' OR p.location LIKE '%.avi' OR p.location LIKE '%.webm')" 
+    } else { "" };
 
     // If query looks like a UUID, check for person_id exactly
     let is_uuid = query.len() == 36 && query.chars().all(|c| c.is_alphanumeric() || c == '-');
@@ -153,7 +158,7 @@ pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_on
         }
     } else { "" };
 
-    let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created FROM photo p WHERE 1=1 {} {} ORDER BY p.created DESC LIMIT ?1, ?2", fav_filter, q_filter);
+    let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE 1=1 {} {} {} ORDER BY p.created DESC LIMIT ?1, ?2", fav_filter, video_filter, q_filter);
     if let Ok(mut stmt) = self.connection.prepare(&sql) {
         let q_param = if is_uuid { query.to_string() } else { format!("%{}%", query) };
         let params: Vec<&dyn rusqlite::ToSql> = if !query.is_empty() { vec![&offset, &limit, &q_param] } else { vec![&offset, &limit] };
@@ -167,7 +172,7 @@ pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_on
                 properties: HashMap::new(),
                 latitude: row.get(3).unwrap_or(0.0),
                 longitude: row.get(4).unwrap_or(0.0),
-                favorite: false,
+                favorite: row.get(6).unwrap_or(false),
             })
         }) {
                 for p in iter.flatten() { photos.push(p); }
@@ -189,11 +194,11 @@ pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_on
 
     pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT id, location, encoded, latitude, longitude, created FROM photo WHERE latitude != 0.0 AND longitude != 0.0") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE p.latitude != 0.0 AND p.longitude != 0.0") {
             if let Ok(iter) = stmt.query_map([], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
-                    objects: HashMap::new(), properties: HashMap::new(), latitude: row.get(3).unwrap_or(0.0), longitude: row.get(4).unwrap_or(0.0), favorite: false,
+                    objects: HashMap::new(), properties: HashMap::new(), latitude: row.get(3).unwrap_or(0.0), longitude: row.get(4).unwrap_or(0.0), favorite: row.get(6).unwrap_or(false),
                 })
             }) {
                 for p in iter.flatten() { photos.push(p); }
@@ -264,11 +269,11 @@ pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_on
 
     pub fn get_photos_for_person(&self, person_id: &str) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created FROM photo p JOIN faces f ON p.id = f.photo_id WHERE f.person_id = ?1 GROUP BY p.id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p JOIN faces f ON p.id = f.photo_id WHERE f.person_id = ?1 GROUP BY p.id") {
             if let Ok(iter) = stmt.query_map([person_id], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
-                    objects: HashMap::new(), properties: HashMap::new(), latitude: row.get(3).unwrap_or(0.0), longitude: row.get(4).unwrap_or(0.0), favorite: false,
+                    objects: HashMap::new(), properties: HashMap::new(), latitude: row.get(3).unwrap_or(0.0), longitude: row.get(4).unwrap_or(0.0), favorite: row.get(6).unwrap_or(false),
                 })
             }) {
                 for p in iter.flatten() { photos.push(p); }

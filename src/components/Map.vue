@@ -1,5 +1,5 @@
 <template>
-  <div style="height: 100%; width: 100%; position: relative">
+  <div class="wh-100 pos-rel">
     <!-- Empty State Overlay -->
     <div v-if="!loading && photos.length === 0" class="map-empty-state">
       <div class="d-flex flex-column align-center justify-center h-100 px-6 text-center animate-fade-in">
@@ -23,7 +23,7 @@
       @ready="onMapReady" 
       :minZoom="2"
       :options="{ zoomControl: false, attributionControl: false }"
-      class="light-map"
+      class="light-map wh-100"
     >
       <l-tile-layer
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"

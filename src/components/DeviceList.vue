@@ -1,5 +1,5 @@
 <template>
-  <v-container class="pa-6" style="background-color: #fafafa !important;">
+  <v-container class="pa-6 bg-siegu-main">
     <div class="d-flex align-center justify-space-between mb-8">
       <div>
         <div class="d-flex align-center mb-1">
@@ -23,9 +23,9 @@
         <v-card variant="flat" height="100%" class="device-card border-subtle ga-2" rounded="xl" color="#ffffff">
           <v-card-item class="py-4">
             <template v-slot:prepend>
-              <v-avatar color="#f4f4f5" variant="flat" rounded="lg" class="border-subtle">
-                <v-icon color="#18181b">{{ device.icon }}</v-icon>
-              </v-avatar>
+              <div class="siegu-icon-circle-dark mr-3">
+                <v-icon color="#ffffff" size="small">{{ device.icon }}</v-icon>
+              </div>
             </template>
             <v-card-title class="text-zinc-primary text-subtitle-1 font-weight-bold">{{ device.title }}</v-card-title>
             <v-card-subtitle class="text-zinc-secondary text-caption">{{ device.subtitle || 'Connected' }}</v-card-subtitle>

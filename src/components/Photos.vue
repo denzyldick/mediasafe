@@ -1,43 +1,51 @@
 <template>
-  <div class="photos-container">
+  <div class="photos-container px-4 py-6">
     <!-- Bulk Actions Toolbar -->
     <v-fade-transition>
       <div v-if="selectedIds.length > 0" class="bulk-toolbar-container">
-        <v-sheet class="bulk-toolbar border-subtle d-flex align-center px-4 py-2 rounded-pill shadow-lg">
-          <v-btn icon="mdi-close" variant="text" density="comfortable" color="#a1a1aa" @click="clearSelection"></v-btn>
-          <span class="text-body-2 font-weight-bold text-zinc-primary ml-2">{{ selectedIds.length }} selected</span>
+        <v-sheet class="bulk-toolbar d-flex align-center px-6 py-3 rounded-pill shadow-xl" color="#18181b">
+          <v-btn icon="mdi-close" variant="text" density="comfortable" color="white" @click="clearSelection"></v-btn>
+          <div class="ml-4">
+            <div class="text-subtitle-2 font-weight-bold text-white">{{ selectedIds.length }} items selected</div>
+          </div>
           <v-spacer></v-spacer>
-          <v-btn
-            prepend-icon="mdi-heart"
-            variant="flat"
-            color="white"
-            size="small"
-            class="text-none mr-2"
-            @click="bulkFavorite"
-          >
-            Favorite
-          </v-btn>
-          <v-btn
-            prepend-icon="mdi-delete-outline"
-            variant="text"
-            color="error"
-            size="small"
-            class="text-none"
-            @click="bulkRemove"
-          >
-            Remove
-          </v-btn>
+          <div class="d-flex ga-2">
+            <v-btn
+              variant="flat"
+              class="siegu-btn-modern px-6"
+              size="small"
+              @click="bulkFavorite"
+            >
+              <v-icon size="16" class="mr-2">mdi-heart</v-icon>
+              <span>Favorite</span>
+            </v-btn>
+            <v-btn
+              variant="flat"
+              color="rgba(255,255,255,0.1)"
+              class="text-white px-6 rounded-xl text-none font-weight-bold"
+              size="small"
+              @click="bulkRemove"
+            >
+              Remove
+            </v-btn>
+          </div>
         </v-sheet>
       </div>
     </v-fade-transition>
 
     <!-- Monthly Grouped View -->
-    <div v-if="images.length > 0">
-      <div v-for="(group, month) in groupedImages" :key="month" class="mb-10">
-        <div class="text-h6 font-weight-bold text-black mb-4 sticky-header px-2">
-          {{ month }}
+    <div v-if="images.length > 0" class="animate-fade-in">
+      <div v-for="(group, month) in groupedImages" :key="month" class="month-group mb-12">
+        <div class="sticky-header mb-6">
+          <div class="d-flex align-center px-2 py-3 rounded-lg header-blur">
+            <h2 class="text-h5 font-weight-bold text-zinc-primary letter-spacing-tight">{{ month }}</h2>
+            <v-spacer></v-spacer>
+            <span class="text-caption text-zinc-muted font-weight-medium bg-zinc-100 px-3 py-1 rounded-pill border-subtle">
+              {{ group.length }} items
+            </span>
+          </div>
         </div>
-        <div class="grid">
+        <div class="photo-grid">
           <Image
             v-for="image in group"
             v-bind:key="image.id"
@@ -53,47 +61,50 @@
     </div>
 
     <!-- Empty States -->
-    <div v-else-if="!loading" class="d-flex flex-column align-center justify-center py-16 text-center animate-fade-in">
-      <template v-if="searchQuery">
-        <v-icon size="64" color="#3f3f46" class="mb-4">mdi-text-search-variant</v-icon>
-        <div class="text-h6 text-zinc-secondary font-weight-bold">No results found</div>
-        <p class="text-body-2 text-zinc-muted mt-1">We couldn't find any photos matching "{{ searchQuery }}"</p>
-        <v-btn variant="text" color="white" class="mt-4 text-none" @click="$emit('clear-search')">Clear search</v-btn>
-      </template>
-      <template v-else-if="favoritesOnly">
-        <v-icon size="64" color="#3f3f46" class="mb-4">mdi-heart-outline</v-icon>
-        <div class="text-h6 text-zinc-secondary font-weight-bold">No favorites yet</div>
-        <p class="text-body-2 text-zinc-muted mt-1">Tap the heart on any photo to add it to your favorites</p>
-      </template>
-      <template v-else>
-        <v-icon size="64" color="#3f3f46" class="mb-4">mdi-image-plus-outline</v-icon>
-        <div class="text-h6 text-zinc-secondary font-weight-bold">Your library is empty</div>
-        <p class="text-body-2 text-zinc-muted mt-1">Add a folder in settings to start indexing your memories</p>
-      </template>
+    <div v-else-if="!loading" class="empty-state-container d-flex flex-column align-center justify-center text-center">
+      <div class="empty-state-icon mb-6">
+        <template v-if="searchQuery">
+          <v-icon size="80" color="#d4d4d8">mdi-text-search-variant</v-icon>
+        </template>
+        <template v-else-if="filters.favoritesOnly">
+          <v-icon size="80" color="#fee2e2">mdi-heart-multiple</v-icon>
+        </template>
+        <template v-else>
+          <v-icon size="80" color="#f4f4f5">mdi-image-multiple-outline</v-icon>
+        </template>
+      </div>
+      
+      <h3 class="text-h5 font-weight-bold text-zinc-primary mb-2">
+        {{ searchQuery ? 'No results found' : (filters.favoritesOnly ? 'No favorites yet' : 'Your library is empty') }}
+      </h3>
+      <p class="text-body-1 text-zinc-secondary max-w-400 mx-auto mb-8">
+        {{ searchQuery ? `We couldn't find any photos matching "${searchQuery}"` : (filters.favoritesOnly ? 'Tap the heart on any photo to add it to your favorites' : 'Add a folder in settings to start indexing your memories') }}
+      </p>
+      
+      <v-btn v-if="searchQuery" variant="flat" class="siegu-btn-modern px-8 py-6" @click="$emit('clear-search')">
+        Clear search query
+      </v-btn>
     </div>
 
-    <!-- Sentinel for infinite scroll -->
-    <div id="scroll-sentinel" style="height: 20px;"></div>
+    <!-- Loading State & Infinite Scroll -->
+    <div id="scroll-sentinel" class="scroll-sentinel"></div>
 
-    <!-- Loading State -->
-    <v-row class="mt-4 pb-16">
-      <v-col class="d-flex justify-center align-center">
-        <v-progress-circular
-          indeterminate
-          color="#71717a"
-          v-if="loading === true"
-        ></v-progress-circular>
+    <div class="loading-container py-12 d-flex justify-center">
+      <v-fade-transition>
+        <div v-if="loading" class="d-flex flex-column align-center">
+          <v-progress-circular indeterminate color="#18181b" size="32" width="3"></v-progress-circular>
+          <span class="mt-4 text-caption text-zinc-muted font-weight-medium tracking-widest text-uppercase">Loading your memories</span>
+        </div>
         <v-btn
+          v-else-if="!allLoaded && images.length > 0"
           @click="list_files"
-          variant="text"
-          color="#a1a1aa"
-          v-if="loading === false && !allLoaded"
-          class="text-none"
+          variant="flat"
+          class="siegu-btn-outline px-10 py-6"
         >
           Load more
         </v-btn>
-      </v-col>
-    </v-row>
+      </v-fade-transition>
+    </div>
 
     <PhotoViewer
       v-model="viewerOpen"
@@ -102,12 +113,12 @@
     />
   </div>
 </template>
+
 <script>
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import Image from "./Image.vue";
 import PhotoViewer from "./PhotoViewer.vue";
-import { processVideoForAI } from "../utils/videoProcessor.js";
 
 export default {
   name: "Photos",
@@ -123,44 +134,40 @@ export default {
     selectedIds: [],
     viewerOpen: false,
     currentPhotoIndex: 0,
-    favoritesOnly: false,
     observer: null,
     unlistenPhoto: null,
-    unlistenThumbnail: null,
-    processingVideos: new Set(),
+    scanBuffer: [],
+    scanInterval: null
   }),
   computed: {
     groupedImages() {
       const groups = {};
+      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+      
       this.images.forEach(image => {
-        let date;
-        if (image.created) {
-          // EXIF format is usually YYYY:MM:DD HH:MM:SS
-          const parts = image.created.split(' ');
-          const dateParts = parts[0].split(':');
-          if (dateParts.length === 3) {
-            date = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
-          } else {
-            date = new Date(image.created);
-          }
-        } else {
-          date = new Date(); // Fallback
+        if (!image._groupKey) {
+            let date;
+            if (image.created) {
+                const parts = image.created.split(' ');
+                const dateParts = parts[0].split(':');
+                if (dateParts.length === 3) {
+                    // Cache the group key on the object to avoid re-calculating
+                    const monthIdx = parseInt(dateParts[1]) - 1;
+                    image._groupKey = `${monthNames[monthIdx]} ${dateParts[0]}`;
+                }
+            }
+            if (!image._groupKey) image._groupKey = "Recent";
         }
 
-        const month = date.toLocaleString('default', { month: 'long', year: 'numeric' });
-        if (!groups[month]) {
-          groups[month] = [];
+        if (!groups[image._groupKey]) {
+          groups[image._groupKey] = [];
         }
-        groups[month].push(image);
+        groups[image._groupKey].push(image);
       });
       return groups;
     }
   },
   props: {
-    favorites: {
-      type: Boolean,
-      default: false,
-    },
     searchQuery: {
       type: String,
       default: "",
@@ -173,6 +180,7 @@ export default {
       type: Object,
       default: () => ({
         favoritesOnly: false,
+        videosOnly: false,
         dateRange: 'all',
         folder: null,
       })
@@ -181,36 +189,43 @@ export default {
   async created() {
     this.list_files();
 
-    this.unlistenThumbnail = await listen("video-thumbnail-updated", (event) => {
-        const { id, encoded } = event.payload;
-        const photo = this.images.find(p => p.id === id);
-        if (photo) {
-            photo.encoded = encoded;
+    // Buffered scan updates to prevent UI freezing during large scans
+    this.scanInterval = setInterval(() => {
+        if (this.scanBuffer.length > 0) {
+            const batch = [...this.scanBuffer];
+            this.scanBuffer = [];
+            
+            const newImages = [...this.images];
+            batch.forEach(newPhoto => {
+                if (!newImages.find(p => p.id === newPhoto.id)) {
+                    newImages.push(newPhoto);
+                }
+            });
+            
+            newImages.sort((a, b) => {
+                if (!a.created) return 1;
+                if (!b.created) return -1;
+                return b.created.localeCompare(a.created);
+            });
+            
+            this.images = newImages;
         }
-    });
+    }, 1000);
 
-    // Listen for real-time photo additions during scanning
     this.unlistenPhoto = await listen("photo-scanned", (event) => {
       const newPhoto = event.payload;
-      
-      // Check if photo matches current favorites filter
       if (this.filters.favoritesOnly && !newPhoto.favorite) return;
-      
-      // Basic search match check (on ID or location)
+
+      const isVideo = (photo) => {
+          if (!photo || !photo.location) return false;
+          const ext = photo.location.split('.').pop().toLowerCase();
+          return ["mp4", "mkv", "mov", "avi", "webm"].includes(ext);
+      };
+
+      if (this.filters.videosOnly && !isVideo(newPhoto)) return;
       if (this.searchQuery && !newPhoto.location.toLowerCase().includes(this.searchQuery.toLowerCase())) return;
 
-      // Add to list if not already there
-      if (!this.images.find(p => p.id === newPhoto.id)) {
-        this.images.unshift(newPhoto);
-        // Sort to maintain order
-        this.images.sort((a, b) => {
-          if (!a.created) return 1;
-          if (!b.created) return -1;
-          return b.created.localeCompare(a.created);
-        });
-        
-        this.checkAndProcessVideo(newPhoto);
-      }
+      this.scanBuffer.push(newPhoto);
     });
   },
   mounted() {
@@ -219,29 +234,11 @@ export default {
     }
   },
   beforeUnmount() {
-    if (this.observer) {
-      this.observer.disconnect();
-    }
-    if (this.unlistenPhoto) {
-      this.unlistenPhoto();
-    }
-    if (this.unlistenThumbnail) {
-      this.unlistenThumbnail();
-    }
+    if (this.observer) this.observer.disconnect();
+    if (this.unlistenPhoto) this.unlistenPhoto();
+    if (this.scanInterval) clearInterval(this.scanInterval);
   },
   methods: {
-    checkAndProcessVideo(photo) {
-        if (!photo.encoded || photo.encoded === "") {
-            const ext = photo.location.split('.').pop().toLowerCase();
-            if (["mp4", "mkv", "mov", "avi", "webm"].includes(ext) && !this.processingVideos.has(photo.id)) {
-                this.processingVideos.add(photo.id);
-                processVideoForAI(photo.id, photo.location).then(thumbnail => {
-                    if (thumbnail) photo.encoded = thumbnail;
-                    this.processingVideos.delete(photo.id);
-                });
-            }
-        }
-    },
     toggleSelection(id) {
       const index = this.selectedIds.indexOf(id);
       if (index === -1) {
@@ -270,7 +267,7 @@ export default {
         }
       }, { 
         threshold: 0.01,
-        rootMargin: '400px' // Load when sentinel is within 400px of viewport
+        rootMargin: '600px'
       });
       
       const sentinel = document.getElementById('scroll-sentinel');
@@ -278,9 +275,7 @@ export default {
     },
     list_files: async function () {
       if (this.loading) return;
-      
       this.loading = true;
-      console.log("Listing files. Offset:", this.paging.offset, "Query:", this.searchQuery, "Filters:", this.filters);
       
       try {
         let response;
@@ -294,6 +289,7 @@ export default {
             query: this.searchQuery ?? "",
             scan: false,
             favoritesOnly: this.filters.favoritesOnly,
+            videosOnly: this.filters.videosOnly,
           });
         }
         
@@ -304,8 +300,6 @@ export default {
         } else {
           this.images.push(...new_images);
         }
-        
-        new_images.forEach(img => this.checkAndProcessVideo(img));
         
         if (!this.isPersonFilter) {
           if (new_images.length < this.paging.limit) {
@@ -340,13 +334,11 @@ export default {
     },
     openViewerByPhoto(photo) {
       const index = this.images.findIndex(p => p.id === photo.id);
-      if (index !== -1) {
-        this.openViewer(index);
-      }
+      if (index !== -1) this.openViewer(index);
     },
   },
   watch: {
-    searchQuery(val) {
+    searchQuery() {
       this.paging.offset = 0;
       this.allLoaded = false;
       this.list_files();
@@ -362,66 +354,98 @@ export default {
   },
 };
 </script>
+
 <style scoped>
 .photos-container {
-  padding: 10px;
-  height: 100%;
+  min-height: 100vh;
 }
 
-.grid {
+.photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 2px; /* Minimum gap for maximum seamlessness */
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+@media (max-width: 600px) {
+  .photo-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 8px;
+  }
 }
 
 .sticky-header {
   position: sticky;
-  top: 0;
-  background: white;
-  z-index: 5;
-  margin-left: -10px;
-  margin-right: -10px;
-  padding-left: 10px;
-  padding-top: 12px;
-  padding-bottom: 12px;
+  top: 64px; /* Adjust based on App Bar height */
+  z-index: 10;
+}
+
+.header-blur {
+  background: rgba(250, 250, 250, 0.8);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.letter-spacing-tight {
+  letter-spacing: -0.02em;
+}
+
+.bg-zinc-100 {
+  background-color: #f4f4f5;
 }
 
 .bulk-toolbar-container {
   position: fixed;
-  bottom: 100px;
+  bottom: 110px;
   left: 0;
   right: 0;
   display: flex;
   justify-content: center;
-  z-index: 1000;
-  padding: 0 20px;
+  z-index: 2100;
+  padding: 0 24px;
 }
 
 .bulk-toolbar {
-  background: #18181b !important;
   width: 100%;
-  max-width: 500px;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  max-width: 560px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.siegu-btn-modern {
+  background: #000000;
+  color: #ffffff;
+  border-radius: 12px;
+  text-transform: none;
+  font-weight: 700;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.siegu-btn-outline {
+  background: #ffffff;
+  color: #18181b;
+  border: 1px solid #e4e4e7;
+  border-radius: 12px;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.empty-state-container {
+  min-height: 60vh;
+}
+
+.max-w-400 {
+  max-width: 400px;
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.4s ease-out;
+  animation: fadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* Scrollbar styling for webkit */
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #27272a;
-  border-radius: 4px;
+.scroll-sentinel {
+  height: 20px;
 }
 </style>

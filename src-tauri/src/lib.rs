@@ -328,10 +328,26 @@ async fn get_config_dir(app: tauri::AppHandle) -> String {
     path
 }
 
+use warp::Filter;
+
+struct MediaServerState {
+    port: u16,
+}
+
+#[tauri::command]
+fn get_media_server_port(state: tauri::State<'_, MediaServerState>) -> u16 {
+    state.port
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let num_threads = if cfg!(any(target_os = "android", target_os = "ios")) { 2 } else { num_cpus::get() };
     let _ = rayon::ThreadPoolBuilder::new().num_threads(num_threads).build_global();
+
+    // Auto-download FFmpeg binary
+    if let Err(e) = ffmpeg_sidecar::download::auto_download() {
+        println!("Failed to auto-download FFmpeg: {}", e);
+    }
 
     tauri::Builder::default()
         .setup(|app| {
@@ -343,6 +359,23 @@ pub fn run() {
             let config_path_str = config_path.to_str().unwrap().to_string();
             let (tx, pending_count) = ml::start_background_worker(&app.handle(), config_path_str);
             app.manage(ml::MlContext { tx: std::sync::Mutex::new(tx), pending_count });
+
+            // Start the Warp media server for robust video streaming (bypasses WebKit asset protocol bugs)
+            let media_route = warp::path("media").and(warp::fs::dir(if cfg!(windows) { "C:\\" } else { "/" }));
+            let cors = warp::cors()
+                .allow_any_origin()
+                .allow_methods(vec!["GET", "HEAD"])
+                .allow_headers(vec!["Range", "Content-Type", "Accept-Ranges"]);
+            let route = media_route.with(cors);
+            
+            // We use block_on here to ensure the TCP listener binds correctly within the Tokio reactor
+            let (addr, server) = tauri::async_runtime::block_on(async {
+                warp::serve(route).bind_ephemeral(([127, 0, 0, 1], 0))
+            });
+            
+            tauri::async_runtime::spawn(server);
+            app.manage(MediaServerState { port: addr.port() });
+
             Ok(())
         })
         .plugin(tauri_plugin_fs::init())
@@ -358,7 +391,7 @@ pub fn run() {
             add_directory, remove_directory, get_thumbnail, list_objects, join_network,
             server::generate_pairing_codes, server::hash_pairing_code, start_webrtc_session,
             update_video_thumbnail, process_video_frames, merge_people, rename_person, cleanup_database,
-            remove_directory_full
+            remove_directory_full, get_media_server_port
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -433,12 +466,16 @@ use std::string::String;
 struct Image { path: String, encoded: String }
 
 #[tauri::command]
-async fn list_files(app: tauri::AppHandle, query: String, limit: usize, offset: usize, _scan: bool, favorites_only: bool) -> String {
+async fn list_files(app: tauri::AppHandle, query: String, limit: usize, offset: usize, _scan: bool, favorites_only: bool, videos_only: bool) -> Result<String, String> {
     let path = get_config_path(&app);
-    if path.is_empty() { return "[]".to_string(); }
-    let database = database::Database::new(&path);
-    let photos = database.list_photos(&query, offset, limit, favorites_only);
-    serde_json::to_string(&photos).unwrap_or("[]".to_string())
+    if path.is_empty() { return Ok("[]".to_string()); }
+    
+    // Run database query and serialization in a background thread to avoid blocking the main executor
+    tauri::async_runtime::spawn_blocking(move || {
+        let database = database::Database::new(&path);
+        let photos = database.list_photos(&query, offset, limit, favorites_only, videos_only);
+        serde_json::to_string(&photos).map_err(|e| e.to_string())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

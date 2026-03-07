@@ -156,6 +156,59 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     emit_log(app, "Done scanning all photos".to_string());
 }
 
+fn generate_video_thumbnail_base64(
+    input_path: &str,
+    _max_dimension: u32,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let ffmpeg_binary = ffmpeg_sidecar::paths::ffmpeg_path();
+    
+    let output = std::process::Command::new(&ffmpeg_binary)
+        .arg("-ss")
+        .arg("00:00:05.000")
+        .arg("-i")
+        .arg(input_path)
+        .arg("-vframes")
+        .arg("1")
+        .arg("-vf")
+        .arg("scale=400:-1")
+        .arg("-q:v")
+        .arg("2")
+        .arg("-f")
+        .arg("image2")
+        .arg("-") // output to stdout
+        .output()?;
+
+    if !output.status.success() {
+        // Fallback: Try 0 seconds if 1 second fails (e.g. video is too short)
+        let fallback_output = std::process::Command::new(&ffmpeg_binary)
+            .arg("-ss")
+            .arg("00:00:00.000")
+            .arg("-i")
+            .arg(input_path)
+            .arg("-vframes")
+            .arg("1")
+            .arg("-vf")
+            .arg("scale=400:-1")
+            .arg("-q:v")
+            .arg("2")
+            .arg("-f")
+            .arg("image2")
+            .arg("-")
+            .output()?;
+            
+        if !fallback_output.status.success() {
+            let err_msg = String::from_utf8_lossy(&fallback_output.stderr);
+            return Err(format!("FFmpeg failed: {}", err_msg).into());
+        }
+        
+        let encoded = general_purpose::STANDARD.encode(&fallback_output.stdout);
+        return Ok(format!("data:image/jpeg;base64,{}", encoded));
+    }
+
+    let encoded = general_purpose::STANDARD.encode(&output.stdout);
+    Ok(format!("data:image/jpeg;base64,{}", encoded))
+}
+
 fn generate_thumbnail_base64(
     input_path: &str,
     max_dimension: u32,
@@ -167,9 +220,7 @@ fn generate_thumbnail_base64(
     let video_extensions = ["mp4", "mkv", "mov", "avi", "webm"];
 
     if video_extensions.contains(&extension.as_str()) {
-        // Return an empty string. The frontend will generate the thumbnail and frames
-        // via the WebView and call the `update_video_thumbnail` and `process_video_frames` commands.
-        return Ok(String::new());
+        return generate_video_thumbnail_base64(input_path, max_dimension);
     }
 
     let img = ImageReader::open(input_path)?.decode()?;
