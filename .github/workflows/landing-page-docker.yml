@@ -1,60 +1,60 @@
-name: Publish Landing Page Docker Image
+name: "Publish Landing Page Docker Image"
 
 on:
   push:
     branches:
-      - 'main'
+      - "main"
     paths:
-      - 'landing-page/**'
-      - '.github/workflows/landing-page-docker.yml'
+      - "landing-page/**"
+      - ".github/workflows/landing-page-docker.yml"
     tags:
-      - 'v*'
+      - "v*"
   workflow_dispatch:
 
 env:
-  REGISTRY: ghcr.io
+  REGISTRY: "ghcr.io"
   # Converts repository name to lowercase automatically to comply with Docker conventions
-  IMAGE_NAME: ${{ github.repository }}-landing-page
+  IMAGE_NAME: "${{ github.repository }}-landing-page"
 
 jobs:
   build-and-push-image:
-    runs-on: ubuntu-latest
+    runs-on: "ubuntu-latest"
     permissions:
-      contents: read
-      packages: write
+      contents: "read"
+      packages: "write"
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: "Checkout repository"
+        uses: "actions/checkout@v4"
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
+      - name: "Log in to the Container registry"
+        uses: "docker/login-action@v3"
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: "${{ env.REGISTRY }}"
+          username: "${{ github.actor }}"
+          password: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Expose repository name in lowercase
+      - name: "Expose repository name in lowercase"
         run: |
           echo "IMAGE_NAME_LOWER=${IMAGE_NAME,,}" >> $GITHUB_ENV
 
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: "Extract metadata (tags, labels) for Docker"
+        id: "meta"
+        uses: "docker/metadata-action@v5"
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}
+          images: "${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWER }}"
           tags: |
             type=ref,event=branch
             type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{ github.ref == 'refs/heads/main' }}
-            type=raw,value={{sha}}
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ github.sha }}
 
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
+      - name: "Build and push Docker image"
+        uses: "docker/build-push-action@v5"
         with:
-          context: ./landing-page
+          context: "./landing-page"
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: "${{ steps.meta.outputs.tags }}"
+          labels: "${{ steps.meta.outputs.labels }}"
