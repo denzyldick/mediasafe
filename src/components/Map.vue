@@ -1,5 +1,5 @@
 <template>
-  <div class="wh-100 pos-rel">
+  <div style="height: 100vh; width: 100%; position: relative;">
     <!-- Empty State Overlay -->
     <div v-if="!loading && photos.length === 0" class="map-empty-state">
       <div class="d-flex flex-column align-center justify-center h-100 px-6 text-center animate-fade-in">
@@ -23,7 +23,8 @@
       @ready="onMapReady" 
       :minZoom="2"
       :options="{ zoomControl: false, attributionControl: false }"
-      class="light-map wh-100"
+      style="height: 100%; width: 100%;"
+      class="light-map"
     >
       <l-tile-layer
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
@@ -73,25 +74,43 @@ export default {
   methods: {
     async onMapReady(map) {
       this.map = map;
-      await this.loadHeatmapData();
+      // Wait for next tick and a small delay to ensure container has dimensions
+      this.$nextTick(async () => {
+        setTimeout(async () => {
+          if (this.map) {
+            this.map.invalidateSize();
+            await this.loadHeatmapData();
+          }
+        }, 100);
+      });
     },
     async loadHeatmapData() {
-        const dataDir = await path.homeDir();
+        if (!this.map) return;
+        
         try {
-            const photosJson = await invoke("get_heatmap_data", { path: dataDir });
+            const photosJson = await invoke("get_heatmap_data");
             this.photos = JSON.parse(photosJson);
             
-            const heatData = this.photos.map(p => [p.latitude, p.longitude, 5]); // Intensity 5
+            if (this.photos.length === 0) {
+                this.loading = false;
+                return;
+            }
+
+            const heatData = this.photos.map(p => [p.latitude, p.longitude, 5]);
             
             if (this.heatLayer) {
                 this.map.removeLayer(this.heatLayer);
             }
             
-            this.heatLayer = L.heatLayer(heatData, {
-                radius: 25,
-                blur: 15,
-                maxZoom: 10,
-            }).addTo(this.map);
+            // Final check: ensure map has a valid size before adding heat layer
+            const size = this.map.getSize();
+            if (size.x > 0 && size.y > 0) {
+                this.heatLayer = L.heatLayer(heatData, {
+                    radius: 25,
+                    blur: 15,
+                    maxZoom: 10,
+                }).addTo(this.map);
+            }
 
             // Find location with most photos
             if (this.photos.length > 0) {

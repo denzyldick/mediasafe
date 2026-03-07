@@ -156,21 +156,22 @@ export default {
     async initialize() {
         this.connectionStatus = "Generating secure pair key...";
         try {
-          const codes = await invoke("server::generate_pairing_codes");
+          const codes = await invoke("generate_pairing_codes");
           this.uuid = codes.uuid;
           this.passphrase = codes.passphrase;
-          const roomId = await invoke("server::hash_pairing_code", { input: this.uuid });
+          const roomId = await invoke("hash_pairing_code", { input: this.uuid });
           this.listen(roomId);
         } catch (error) {
+           console.error("Pairing Error:", error);
            this.connectionStatus = "Pairing Error.";
         }
     },
     async listen(roomId) {
       this.connectionStatus = "Waiting for partner device to scan or type phrase...";
       const args = {
-          room_id: roomId,
-          is_initiator: true,
-          signaling_url: "wss://siegu.denzyl.io"
+          roomId: roomId,
+          isInitiator: true,
+          signalingUrl: "wss://siegu.denzyl.io"
       };
       try {
           await invoke("start_webrtc_session", args);
@@ -183,11 +184,11 @@ export default {
         if (!this.joinPassphrase) return;
         this.connectionStatus = "Joining room...";
         try {
-           const roomId = await invoke("server::hash_pairing_code", { input: this.joinPassphrase });
+           const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
            const args = {
-              room_id: roomId,
-              is_initiator: false,
-              signaling_url: "wss://siegu.denzyl.io"
+              roomId: roomId,
+              isInitiator: false,
+              signalingUrl: "wss://siegu.denzyl.io"
            };
            await invoke("start_webrtc_session", args);
            this.connectionStatus = "Signaling channel requested. Awaiting WebRTC Receiver connection.";

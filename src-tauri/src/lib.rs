@@ -211,12 +211,18 @@ async fn remove_directory_full(app: tauri::AppHandle, path: String) {
 }
 
 #[tauri::command]
-async fn start_webrtc_session(app: tauri::AppHandle, room_id: String, is_initiator: bool, signaling_url: String) -> Result<(), String> {
+async fn start_webrtc_session(app: tauri::AppHandle, roomId: String, isInitiator: bool, signalingUrl: String) -> Result<(), String> {
     let app_handle = app.clone();
     let config_path = get_config_path(&app);
     if config_path.is_empty() { return Err("Config error".to_string()); }
     tauri::async_runtime::spawn(async move {
-        let client = transport::WebRtcClient { room_id, is_initiator, signaling_url, app_handle: Some(app_handle), config_path };
+        let client = transport::WebRtcClient { 
+            room_id: roomId, 
+            is_initiator: isInitiator, 
+            signaling_url: signalingUrl, 
+            app_handle: Some(app_handle), 
+            config_path 
+        };
         let _ = client.start().await;
     });
     Ok(())
