@@ -521,22 +521,47 @@ pub fn run() {
             server::generate_pairing_codes,
             server::hash_pairing_code,
             start_webrtc_session,
-            update_video_thumbnail,
-            process_video_frames,
-            merge_people,
-            rename_person,
-            cleanup_database,
-            remove_directory_full,
-            get_media_server_port
-        ])
+            update_video_thumbnail, process_video_frames, merge_people, rename_person, cleanup_database,
+            remove_directory_full, get_media_server_port, index_faces
+            ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
 
 #[tauri::command]
-async fn get_os() -> String {
-    std::env::consts::OS.to_string()
+async fn index_faces(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContext>) -> Result<(), String> {
+    println!("Face indexing requested...");
+    let path = get_config_path(&app);
+    if path.is_empty() { return Err("Could not resolve config dir".to_string()); }
+    let db = database::Database::new(&path);
+
+    let mut photo_ids = Vec::new();
+    if let Ok(mut stmt) = db.connection.prepare("SELECT id FROM photo") {
+        if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
+            for id in rows.flatten() { photo_ids.push(id); }
+        }
+    }
+
+    let count = photo_ids.len();
+    println!("Found {} photos to index.", count);
+
+    if let Ok(tx) = state.tx.lock() {
+        let total_pending = state.pending_count.fetch_add(count, std::sync::atomic::Ordering::SeqCst) + count;
+        
+        // Emit immediately so UI updates before processing starts
+        use tauri::Emitter;
+        let _ = app.emit("indexing-progress", total_pending);
+        
+        for id in photo_ids {
+            let _ = tx.send(id);
+        }
+    }
+
+    Ok(())
 }
+
+#[tauri::command]
+async fn get_os() -> String { std::env::consts::OS.to_string() }
 
 #[tauri::command]
 async fn save_config(app: tauri::AppHandle, key: String, value: String) {
