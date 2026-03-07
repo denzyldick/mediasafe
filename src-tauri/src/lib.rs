@@ -2,6 +2,7 @@ use tauri::Manager;
 use tauri::Emitter;
 use std::time::SystemTime;
 use std::collections::HashMap;
+use std::path::Path;
 use serde_json;
 
 mod config;
@@ -38,6 +39,21 @@ fn scan_files(app: tauri::AppHandle) {
         database.set_last_scan_time(timestamp);
         let _ = app.emit("scan-progress", serde_json::json!({ "status": "complete", "progress": 100 }));
     });
+}
+
+#[tauri::command]
+async fn check_models(app: tauri::AppHandle) -> bool {
+    let path = get_config_path(&app);
+    if path.is_empty() { return false; }
+    let models_dir = Path::new(&path).join("models");
+    let required = ["clip-vit-base-patch32-visual.onnx", "clip-vit-base-patch32-text.onnx", "tokenizer.json", "version-RFB-320.onnx"];
+    for name in required {
+        let p = models_dir.join(name);
+        if !p.exists() || p.metadata().map(|m| m.len()).unwrap_or(0) < 1024 * 1024 {
+            if name != "tokenizer.json" { return false; }
+        }
+    }
+    true
 }
 
 #[tauri::command]
@@ -112,20 +128,20 @@ async fn get_unnamed_faces(app: tauri::AppHandle) -> String {
     let path = get_config_path(&app);
     if path.is_empty() { return "[]".to_string(); }
     let database = database::Database::new(&path);
-    serde_json::to_string(&database.get_unnamed_faces()).unwrap_or("[]".to_string())
+    serde_json::to_string(&database.get_anonymous_people_groups()).unwrap_or("[]".to_string())
 }
 
 #[tauri::command]
-async fn assign_name_to_face(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContext>, face_id: String, name: String) -> Result<String, String> {
+fn assign_name_to_face(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContext>, face_id: String, name: String) -> String {
     let path = get_config_path(&app);
-    if path.is_empty() { return Err("Config error".to_string()); }
+    if path.is_empty() { return "".to_string(); }
     let database = database::Database::new(&path);
     let id = database.assign_name_to_face(&face_id, &name);
     
     if let Ok(tx) = state.tx.lock() {
         let _ = tx.send("__RELOAD_MODELS__".to_string());
     }
-    Ok(id)
+    id
 }
 
 #[tauri::command]
@@ -159,43 +175,39 @@ async fn get_top_tags(app: tauri::AppHandle) -> String {
 }
 
 #[tauri::command]
-async fn merge_people(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContext>, from_id: String, to_id: String) -> Result<(), String> {
+fn merge_people(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContext>, from_id: String, to_id: String) {
     let path = get_config_path(&app);
-    if path.is_empty() { return Ok(()); }
+    if path.is_empty() { return; }
     let db = database::Database::new(&path);
     db.merge_people(&from_id, &to_id);
     
     if let Ok(tx) = state.tx.lock() {
         let _ = tx.send("__RELOAD_MODELS__".to_string());
     }
-    Ok(())
 }
 
 #[tauri::command]
-async fn rename_person(app: tauri::AppHandle, id: String, new_name: String) -> Result<(), String> {
+async fn rename_person(app: tauri::AppHandle, id: String, new_name: String) {
     let path = get_config_path(&app);
-    if path.is_empty() { return Ok(()); }
+    if path.is_empty() { return; }
     let db = database::Database::new(&path);
     db.rename_person(&id, &new_name);
-    Ok(())
 }
 
 #[tauri::command]
-async fn cleanup_database(app: tauri::AppHandle) -> Result<(), String> {
+async fn cleanup_database(app: tauri::AppHandle) {
     let path = get_config_path(&app);
-    if path.is_empty() { return Ok(()); }
+    if path.is_empty() { return; }
     let db = database::Database::new(&path);
     let _ = db.connection.execute("VACUUM", ());
-    Ok(())
 }
 
 #[tauri::command]
-async fn remove_directory_full(app: tauri::AppHandle, path: String) -> Result<(), String> {
+async fn remove_directory_full(app: tauri::AppHandle, path: String) {
     let config_path = get_config_path(&app);
-    if config_path.is_empty() { return Ok(()); }
+    if config_path.is_empty() { return; }
     let db = database::Database::new(&config_path);
     db.remove_directory_full(&path);
-    Ok(())
 }
 
 #[tauri::command]
@@ -211,17 +223,16 @@ async fn start_webrtc_session(app: tauri::AppHandle, room_id: String, is_initiat
 }
 
 #[tauri::command]
-async fn get_indexing_status(state: tauri::State<'_, ml::MlContext>) -> Result<usize, String> {
-    Ok(state.pending_count.load(std::sync::atomic::Ordering::SeqCst))
+fn get_indexing_status(state: tauri::State<'_, ml::MlContext>) -> usize {
+    state.pending_count.load(std::sync::atomic::Ordering::SeqCst)
 }
 
 #[tauri::command]
-async fn join_network(app: tauri::AppHandle, ip: String, name: String) -> Result<(), String> {
+async fn join_network(app: tauri::AppHandle, ip: String, name: String) {
     let path = get_config_path(&app);
-    if path.is_empty() { return Ok(()); }
+    if path.is_empty() { return; }
     let db = database::Database::new(&path);
     let _ = db.connection.execute("INSERT OR REPLACE INTO device(ip, name) VALUES(?1, ?2)", (ip, name));
-    Ok(())
 }
 
 #[tauri::command]
@@ -233,23 +244,21 @@ async fn list_objects(app: tauri::AppHandle, query: String) -> Result<String, St
 }
 
 #[tauri::command]
-async fn update_video_thumbnail(app: tauri::AppHandle, id: String, b64: String) -> Result<(), String> {
+async fn update_video_thumbnail(app: tauri::AppHandle, id: String, b64: String) {
     let path = get_config_path(&app);
-    if path.is_empty() { return Ok(()); }
+    if path.is_empty() { return; }
     let db = database::Database::new(&path);
     db.update_photo_thumbnail(&id, &b64);
-    Ok(())
 }
 
 #[tauri::command]
-async fn process_video_frames(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContext>, id: String, frames: Vec<String>) -> Result<(), String> {
+fn process_video_frames(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContext>, id: String, frames: Vec<String>) {
     let mut payload = format!("__VIDEO_FRAMES__:{}", id);
     for frame in frames { payload.push_str("|||"); payload.push_str(&frame); }
     if let Ok(tx) = state.tx.lock() {
         state.pending_count.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         let _ = tx.send(payload);
     }
-    Ok(())
 }
 
 #[tauri::command]
@@ -282,14 +291,13 @@ async fn index_faces(app: tauri::AppHandle, state: tauri::State<'_, ml::MlContex
 async fn get_os() -> String { std::env::consts::OS.to_string() }
 
 #[tauri::command]
-async fn save_config(app: tauri::AppHandle, key: String, value: String) -> Result<(), String> {
+async fn save_config(app: tauri::AppHandle, key: String, value: String) {
     let path = get_config_path(&app);
-    if path.is_empty() { return Ok(()); }
+    if path.is_empty() { return; }
     let db = database::Database::new(&path);
     let mut state = HashMap::new();
     state.insert(key, value);
     db.set_state(state);
-    Ok(())
 }
 
 #[tauri::command]
@@ -322,12 +330,12 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            list_files, get_thumbnail, get_last_scan_time, toggle_favorite, add_directory,
+            scan_files, check_models, list_files, get_thumbnail, get_last_scan_time, toggle_favorite, add_directory,
             list_directories, remove_directory, read_file_base64, get_people, get_unnamed_faces,
             assign_name_to_face, get_person_photos, is_initialized, get_top_tags, join_network,
             server::generate_pairing_codes, server::hash_pairing_code, start_webrtc_session,
             update_video_thumbnail, process_video_frames, merge_people, rename_person, cleanup_database,
-            remove_directory_full, get_media_server_port, index_faces, get_os, save_config, get_config
+            remove_directory_full, get_media_server_port, index_faces, get_os, save_config, get_config, get_indexing_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

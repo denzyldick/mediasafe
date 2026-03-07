@@ -102,22 +102,25 @@ pub struct MediaServerState {
     pub port: u16,
 }
 
-pub fn start_media_server(config_path: String) -> u16 {
-    let (addr, server) = warp::serve(
-        warp::path("media")
-            .and(warp::fs::dir("/"))
-            .with(warp::cors().allow_any_origin())
-    ).bind_ephemeral(([127, 0, 0, 1], 0));
-    
-    let port = addr.port();
-    println!("Media server started on port {}", port);
+pub fn start_media_server(_config_path: String) -> u16 {
+    let (tx, rx) = std::sync::mpsc::channel();
     
     std::thread::spawn(move || {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(server);
+        rt.block_on(async {
+            let (addr, server) = warp::serve(
+                warp::path("media")
+                    .and(warp::fs::dir("/"))
+                    .with(warp::cors().allow_any_origin())
+            ).bind_ephemeral(([127, 0, 0, 1], 0));
+            
+            let port = addr.port();
+            let _ = tx.send(port);
+            server.await;
+        });
     });
     
-    port
+    rx.recv().unwrap_or(0)
 }
 
 impl WebRtcClient {

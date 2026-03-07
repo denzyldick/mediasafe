@@ -80,15 +80,15 @@
         </v-row>
       </section>
 
-      <!-- New Identified Faces Section -->
-      <section v-if="groupedUnnamedFaces.length > 0" class="animate-fade-up" :style="{ animationDelay: '0.1s' }">
+      <!-- New Identified Faces Section (Anonymous Clusters) -->
+      <section v-if="unnamedFaces.length > 0" class="animate-fade-up" :style="{ animationDelay: '0.1s' }">
         <div class="d-flex align-center mb-8">
           <h2 class="text-h5 font-weight-black text-zinc-primary pr-6">New Faces</h2>
           <v-divider class="border-subtle border-opacity-100"></v-divider>
         </div>
 
         <v-row class="ga-y-6">
-          <v-col cols="6" sm="4" md="3" lg="2" xl="1" v-for="group in groupedUnnamedFaces" :key="group.representative.face_id">
+          <v-col cols="6" sm="4" md="3" lg="2" xl="1" v-for="group in unnamedFaces" :key="group.id">
             <v-card 
               class="unnamed-card-reimagined overflow-hidden border-subtle" 
               variant="flat" 
@@ -97,7 +97,7 @@
             >
               <div class="image-wrapper pos-rel">
                 <v-img 
-                  :src="getFaceImageSrc(group.representative.crop_path, group.representative.encoded)" 
+                  :src="getFaceImageSrc(group.representative_crop, group.encoded)" 
                   aspect-ratio="1" 
                   cover 
                   class="hover-scale transition-slow"
@@ -143,7 +143,7 @@
 
           <div class="d-flex justify-center mb-8">
             <v-avatar size="160" class="border-subtle shadow-xl elevation-2 bg-zinc-100">
-              <v-img v-if="activeFace" :src="getFaceImageSrc(activeFace.crop_path, activeFace.encoded)" cover></v-img>
+              <v-img v-if="activeFace" :src="getFaceImageSrc(activeFace.representative_crop, activeFace.encoded)" cover></v-img>
             </v-avatar>
           </div>
 
@@ -273,11 +273,10 @@ export default {
   name: "People",
   data: () => ({
     people: [],
-    unnamedFaces: [],
+    unnamedFaces: [], // Now contains anonymous person groups from backend
     nameDialog: false,
     manageDialog: false,
     activeFace: null,
-    activeGroup: null,
     activePerson: null,
     newName: "",
     manageTab: "rename",
@@ -288,38 +287,6 @@ export default {
   computed: {
     otherPeople() {
       return this.people.filter(p => p.id !== this.activePerson?.id);
-    },
-    groupedUnnamedFaces() {
-      if (this.unnamedFaces.length === 0) return [];
-      const groups = [];
-      const SIMILARITY_THRESHOLD = 0.85;
-      
-      this.unnamedFaces.forEach(face => {
-        if (!face.embedding || face.embedding.length === 0) {
-          groups.push({ representative: face, faces: [face] });
-          return;
-        }
-        
-        let addedToGroup = false;
-        for (const group of groups) {
-          if (!group.representative.embedding) continue;
-          
-          let dotProduct = 0;
-          for (let i = 0; i < face.embedding.length; i++) {
-            dotProduct += face.embedding[i] * group.representative.embedding[i];
-          }
-          
-          if (dotProduct > SIMILARITY_THRESHOLD) {
-            group.faces.push(face);
-            addedToGroup = true;
-            break;
-          }
-        }
-        
-        if (!addedToGroup) groups.push({ representative: face, faces: [face] });
-      });
-      
-      return groups;
     }
   },
   async mounted() {
@@ -363,21 +330,18 @@ export default {
       return encoded || '';
     },
     promptName(group) {
-      this.activeGroup = group;
-      this.activeFace = group.representative;
+      this.activeFace = group; // group contains representative_face_id and representative_crop
       this.newName = "";
       this.nameDialog = true;
     },
     async saveName() {
-      if (!this.newName || !this.activeGroup) return;
+      if (!this.newName || !this.activeFace) return;
       
       try {
-        const promises = this.activeGroup.faces.map(face => 
-          invoke("assign_name_to_face", { faceId: face.face_id, name: this.newName })
-        );
-        await Promise.all(promises);
+        // Naming the representative face will now automatically name the entire cluster in the backend
+        await invoke("assign_name_to_face", { faceId: this.activeFace.representative_face_id, name: this.newName });
         this.nameDialog = false;
-        this.activeGroup = null;
+        this.activeFace = null;
         this.fetchData();
       } catch (e) {
         console.error("Failed to assign name:", e);
@@ -425,7 +389,6 @@ export default {
 .text-zinc-muted { color: #71717a !important; }
 .border-subtle { border: 1px solid rgba(0, 0, 0, 0.1) !important; }
 .border-bottom-subtle { border-bottom: 1px solid rgba(0, 0, 0, 0.1) !important; }
-.max-w-1200 { max-width: 1200px !important; }
 .max-w-400 { max-width: 400px !important; }
 
 .header-banner {
@@ -529,4 +492,3 @@ export default {
 .tracking-tight { letter-spacing: -0.025em !important; }
 .shadow-xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important; }
 </style>
-

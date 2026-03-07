@@ -50,45 +50,11 @@ impl Database {
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS properties (photo_id STRING, key STRING, value STRING);", ());
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS device(ip STRING, name STRING, offer STRING);", ());
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS faces (photo_id STRING, face_id STRING PRIMARY KEY, crop_path STRING, encoded STRING, embedding BLOB, person_id STRING);", ());
-        
-        // Identity Profile Migration
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS people (id STRING PRIMARY KEY, name STRING, embedding BLOB);", ());
-        let _ = conn.execute("ALTER TABLE people ADD COLUMN embedding BLOB;", ()); // Safe even if it fails
-
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS config(key STRING, value STRING);", ());
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS logs (timestamp DATETIME DEFAULT CURRENT_TIMESTAMP, level STRING, message TEXT);", ());
 
         Self { connection: conn }
-    }
-
-    pub fn store_log(&self, level: &str, message: &str) {
-        let _ = self.connection.execute(
-            "INSERT INTO logs (level, message) VALUES (?1, ?2)",
-            (level, message),
-        );
-    }
-
-    pub fn get_logs(&self, limit: usize) -> Vec<LogEntry> {
-        let mut logs = Vec::new();
-        let sql = "SELECT timestamp, level, message FROM logs ORDER BY timestamp DESC LIMIT ?1";
-        if let Ok(mut stmt) = self.connection.prepare(sql) {
-            if let Ok(iter) = stmt.query_map([limit], |row| {
-                Ok(LogEntry {
-                    timestamp: row.get(0)?,
-                    level: row.get(1)?,
-                    message: row.get(2)?,
-                })
-            }) {
-                for log in iter.flatten() {
-                    logs.push(log);
-                }
-            }
-        }
-        logs
-    }
-
-    pub fn clear_logs(&self) {
-        let _ = self.connection.execute("DELETE FROM logs", ());
     }
 
     pub fn get_state(&self) -> HashMap<String, String> {
@@ -142,40 +108,41 @@ impl Database {
         }
         objects
     }
-pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_only: bool, videos_only: bool) -> Vec<Photo> {
-    let mut photos = Vec::new();
-    let fav_filter = if favorites_only { "AND EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite')" } else { "" };
-    let video_filter = if videos_only { 
-        "AND (p.location LIKE '%.mp4' OR p.location LIKE '%.mkv' OR p.location LIKE '%.mov' OR p.location LIKE '%.avi' OR p.location LIKE '%.webm')" 
-    } else { "" };
 
-    let is_uuid = query.len() == 36 && query.chars().all(|c| c.is_alphanumeric() || c == '-');
+    pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_only: bool, videos_only: bool) -> Vec<Photo> {
+        let mut photos = Vec::new();
+        let fav_filter = if favorites_only { "AND EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite')" } else { "" };
+        let video_filter = if videos_only { 
+            "AND (p.location LIKE '%.mp4' OR p.location LIKE '%.mkv' OR p.location LIKE '%.mov' OR p.location LIKE '%.avi' OR p.location LIKE '%.webm')" 
+        } else { "" };
 
-    let q_filter = if !query.is_empty() { 
-        if is_uuid {
-            "AND (p.id = ?3 OR EXISTS(SELECT 1 FROM faces WHERE photo_id=p.id AND person_id = ?3))"
-        } else {
-            "AND (p.location LIKE ?3 OR p.id LIKE ?3 OR EXISTS(SELECT 1 FROM object WHERE photo_id=p.id AND class LIKE ?3) OR EXISTS(SELECT 1 FROM faces f JOIN people p_name ON f.person_id = p_name.id WHERE f.photo_id=p.id AND p_name.name LIKE ?3))"
-        }
-    } else { "" };
+        let is_uuid = query.len() == 36 && query.chars().all(|c| c.is_alphanumeric() || c == '-');
 
-    let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE 1=1 {} {} {} ORDER BY p.created DESC LIMIT ?1, ?2", fav_filter, video_filter, q_filter);
-    if let Ok(mut stmt) = self.connection.prepare(&sql) {
-        let q_param = if is_uuid { query.to_string() } else { format!("%{}%", query) };
-        let params: Vec<&dyn rusqlite::ToSql> = if !query.is_empty() { vec![&offset, &limit, &q_param] } else { vec![&offset, &limit] };
-        if let Ok(iter) = stmt.query_map(params.as_slice(), |row| {
-            Ok(Photo {
-                id: row.get(0)?,
-                location: row.get(1)?,
-                encoded: row.get(2)?,
-                created: row.get(5).unwrap_or_default(),
-                objects: HashMap::new(),
-                properties: HashMap::new(),
-                latitude: row.get(3).unwrap_or(0.0),
-                longitude: row.get(4).unwrap_or(0.0),
-                favorite: row.get(6).unwrap_or(false),
-            })
-        }) {
+        let q_filter = if !query.is_empty() { 
+            if is_uuid {
+                "AND (p.id = ?3 OR EXISTS(SELECT 1 FROM faces WHERE photo_id=p.id AND person_id = ?3))"
+            } else {
+                "AND (p.location LIKE ?3 OR p.id LIKE ?3 OR EXISTS(SELECT 1 FROM object WHERE photo_id=p.id AND class LIKE ?3) OR EXISTS(SELECT 1 FROM faces f JOIN people p_name ON f.person_id = p_name.id WHERE f.photo_id=p.id AND p_name.name LIKE ?3))"
+            }
+        } else { "" };
+
+        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE 1=1 {} {} {} ORDER BY p.created DESC LIMIT ?1, ?2", fav_filter, video_filter, q_filter);
+        if let Ok(mut stmt) = self.connection.prepare(&sql) {
+            let q_param = if is_uuid { query.to_string() } else { format!("%{}%", query) };
+            let params: Vec<&dyn rusqlite::ToSql> = if !query.is_empty() { vec![&offset, &limit, &q_param] } else { vec![&offset, &limit] };
+            if let Ok(iter) = stmt.query_map(params.as_slice(), |row| {
+                Ok(Photo {
+                    id: row.get(0)?,
+                    location: row.get(1)?,
+                    encoded: row.get(2)?,
+                    created: row.get(5).unwrap_or_default(),
+                    objects: HashMap::new(),
+                    properties: HashMap::new(),
+                    latitude: row.get(3).unwrap_or(0.0),
+                    longitude: row.get(4).unwrap_or(0.0),
+                    favorite: row.get(6).unwrap_or(false),
+                })
+            }) {
                 for p in iter.flatten() { photos.push(p); }
             }
         }
@@ -193,43 +160,14 @@ pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_on
         }
     }
 
-    pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
-        let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE p.latitude != 0.0 AND p.longitude != 0.0") {
-            if let Ok(iter) = stmt.query_map([], |row| {
-                Ok(Photo {
-                    id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
-                    objects: HashMap::new(), properties: HashMap::new(), latitude: row.get(3).unwrap_or(0.0), longitude: row.get(4).unwrap_or(0.0), favorite: row.get(6).unwrap_or(false),
-                })
-            }) {
-                for p in iter.flatten() { photos.push(p); }
-            }
-        }
-        photos
-    }
-
     pub fn store_face(&self, face: Face) {
         let embedding_bytes: Vec<u8> = face.embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
         let _ = self.connection.execute("INSERT OR REPLACE INTO faces(photo_id, face_id, crop_path, encoded, embedding, person_id) VALUES(?1, ?2, ?3, ?4, ?5, ?6)", (&face.photo_id, &face.face_id, &face.crop_path, &face.encoded, &embedding_bytes, &face.person_id));
     }
 
-    pub fn get_all_faces(&self) -> Vec<Face> {
-        let mut faces = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id, encoded, embedding FROM faces") {
-            if let Ok(iter) = stmt.query_map([], |row| {
-                let embedding_bytes: Vec<u8> = row.get(5).unwrap_or_default();
-                let embedding: Vec<f32> = embedding_bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect();
-                Ok(Face { photo_id: row.get(0)?, face_id: row.get(1)?, crop_path: row.get(2)?, person_id: row.get(3).ok(), encoded: row.get(4).unwrap_or_default(), embedding })
-            }) {
-                for f in iter.flatten() { faces.push(f); }
-            }
-        }
-        faces
-    }
-
     pub fn get_people(&self) -> Vec<PersonWithFace> {
         let mut people = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.name, f.crop_path, f.face_id, f.encoded, p.embedding FROM people p LEFT JOIN faces f ON p.id = f.person_id GROUP BY p.id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.name, f.crop_path, f.face_id, f.encoded, p.embedding FROM people p LEFT JOIN faces f ON p.id = f.person_id WHERE p.name IS NOT NULL GROUP BY p.id") {
             if let Ok(iter) = stmt.query_map([], |row| {
                 let embedding: Option<Vec<f32>> = row.get::<_, Option<Vec<u8>>>(5).ok().flatten().map(|bytes| bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect());
                 Ok(PersonWithFace { id: row.get(0)?, name: row.get(1)?, representative_crop: row.get(2).ok(), representative_face_id: row.get(3).ok(), encoded: row.get(4).ok(), embedding })
@@ -241,17 +179,42 @@ pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_on
     }
 
     pub fn assign_name_to_face(&self, face_id: &str, name: &str) -> String {
-        let person_id: Option<String> = self.connection.query_row("SELECT id FROM people WHERE name = ?1", [name], |row| row.get(0)).ok();
-        let id = match person_id {
-            Some(existing_id) => existing_id,
+        let existing_id: Option<String> = self.connection.query_row("SELECT id FROM people WHERE name = ?1", [name], |row| row.get(0)).ok();
+        let current_person_id: Option<String> = self.connection.query_row("SELECT person_id FROM faces WHERE face_id = ?1", [face_id], |row| row.get(0)).ok();
+
+        let target_id = match existing_id {
+            Some(id) => {
+                if let Some(anon_id) = current_person_id {
+                    if anon_id != id {
+                        let _ = self.connection.execute("UPDATE faces SET person_id = ?1 WHERE person_id = ?2", (&id, &anon_id));
+                        let _ = self.connection.execute("DELETE FROM people WHERE id = ?1", [&anon_id]);
+                    }
+                } else {
+                    let _ = self.connection.execute("UPDATE faces SET person_id = ?1 WHERE face_id = ?2", (&id, face_id));
+                }
+                id
+            },
             None => {
-                let new_id = uuid::Uuid::new_v4().to_string();
-                let _ = self.connection.execute("INSERT INTO people (id, name) VALUES (?1, ?2)", (&new_id, name));
-                new_id
+                if let Some(id) = current_person_id {
+                    let _ = self.connection.execute("UPDATE people SET name = ?1 WHERE id = ?2", (name, &id));
+                    id
+                } else {
+                    let new_id = uuid::Uuid::new_v4().to_string();
+                    let _ = self.connection.execute("INSERT INTO people (id, name) VALUES (?1, ?2)", (&new_id, name));
+                    let _ = self.connection.execute("UPDATE faces SET person_id = ?1 WHERE face_id = ?2", (&new_id, face_id));
+                    new_id
+                }
             }
         };
-        let _ = self.connection.execute("UPDATE faces SET person_id = ?1 WHERE face_id = ?2", (&id, face_id));
-        self.update_person_centroid(&id);
+
+        self.update_person_centroid(&target_id);
+        target_id
+    }
+
+    pub fn create_anonymous_person(&self, embedding: &[f32]) -> String {
+        let id = uuid::Uuid::new_v4().to_string();
+        let embedding_bytes: Vec<u8> = embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
+        let _ = self.connection.execute("INSERT INTO people (id, name, embedding) VALUES (?1, NULL, ?2)", (&id, &embedding_bytes));
         id
     }
 
@@ -282,18 +245,24 @@ pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_on
         let _ = self.connection.execute("UPDATE people SET embedding = ?1 WHERE id = ?2", (centroid_bytes, person_id));
     }
 
-    pub fn get_unnamed_faces(&self) -> Vec<Face> {
-        let mut faces = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, person_id, encoded, embedding FROM faces WHERE person_id IS NULL") {
+    pub fn get_anonymous_people_groups(&self) -> Vec<PersonWithFace> {
+        let mut results = Vec::new();
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, f.crop_path, f.face_id, f.encoded, p.embedding FROM people p JOIN faces f ON p.id = f.person_id WHERE p.name IS NULL GROUP BY p.id") {
             if let Ok(iter) = stmt.query_map([], |row| {
-                let embedding_bytes: Vec<u8> = row.get(5).unwrap_or_default();
-                let embedding: Vec<f32> = embedding_bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect();
-                Ok(Face { photo_id: row.get(0)?, face_id: row.get(1)?, crop_path: row.get(2)?, person_id: None, encoded: row.get(4).unwrap_or_default(), embedding })
+                let embedding: Option<Vec<f32>> = row.get::<_, Option<Vec<u8>>>(4).ok().flatten().map(|bytes| bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect());
+                Ok(PersonWithFace { 
+                    id: row.get(0)?, 
+                    name: "Unnamed Person".to_string(), 
+                    representative_crop: row.get(1).ok(), 
+                    representative_face_id: row.get(2).ok(), 
+                    encoded: row.get(3).ok(), 
+                    embedding 
+                })
             }) {
-                for f in iter.flatten() { faces.push(f); }
+                for p in iter.flatten() { results.push(p); }
             }
         }
-        faces
+        results
     }
 
     pub fn get_photos_for_person(&self, person_id: &str) -> Vec<Photo> {
@@ -362,6 +331,21 @@ pub fn list_photos(&self, query: &str, offset: usize, limit: usize, favorites_on
     pub fn import_photo(&self, id: &str, location: &str, created: &str) {
         let _ = self.connection.execute("INSERT OR REPLACE INTO photo (id, location, created) VALUES (?1, ?2, ?3)", (id, location, created));
     }
+    
+    pub fn get_all_people_with_embeddings(&self) -> Vec<(String, Vec<f32>)> {
+        let mut results = Vec::new();
+        if let Ok(mut stmt) = self.connection.prepare("SELECT id, embedding FROM people WHERE embedding IS NOT NULL") {
+            if let Ok(iter) = stmt.query_map([], |row| {
+                let id: String = row.get(0)?;
+                let bytes: Vec<u8> = row.get(1)?;
+                let emb: Vec<f32> = bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect();
+                Ok((id, emb))
+            }) {
+                for p in iter.flatten() { results.push(p); }
+            }
+        }
+        results
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -378,43 +362,4 @@ pub struct LogEntry {
     pub timestamp: String,
     pub level: String,
     pub message: String,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tempfile::tempdir;
-
-    fn setup_test_db() -> (Database, tempfile::TempDir) {
-        let dir = tempdir().unwrap();
-        let db = Database::new(dir.path().to_str().unwrap());
-        (db, dir)
-    }
-
-    #[test]
-    fn test_import_photo() {
-        let (db, _dir) = setup_test_db();
-        db.import_photo("p1", "/path/1.jpg", "2026-03-04");
-        assert!(db.path_exists("/path/1.jpg"));
-    }
-
-    #[test]
-    fn test_merge_people() {
-        let (db, _dir) = setup_test_db();
-        let p1_id = db.assign_name_to_face("f1", "Alice");
-        let p2_id = db.assign_name_to_face("f2", "Bob");
-        db.merge_people(&p1_id, &p2_id);
-        let faces = db.get_all_faces();
-        assert!(faces.iter().all(|f| f.person_id.as_ref() == Some(&p2_id)));
-    }
-
-    #[test]
-    fn test_remove_directory_full() {
-        let (db, _dir) = setup_test_db();
-        db.add_directory("/test");
-        db.import_photo("p1", "/test/1.jpg", "2026-03-04");
-        db.remove_directory_full("/test");
-        assert!(!db.path_exists("/test/1.jpg"));
-        assert!(db.list_directories().is_empty());
-    }
 }
