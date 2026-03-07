@@ -2,4 +2,4 @@
 ORT_STRATEGY = "system"
 
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-arg=/NODEFAULTLIB:libcmt"]
+rustflags = ["-C", "target-feature=+crt-static"]
