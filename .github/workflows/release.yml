@@ -19,6 +19,7 @@ jobs:
     runs-on: ${{ matrix.platform }}
     env:
       ORT_STRATEGY: download
+      MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
     
     steps:
       - name: Checkout repository

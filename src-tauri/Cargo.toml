@@ -48,7 +48,7 @@ tauri-plugin-fs = "2"
 tauri-plugin-devtools = "2.0.0"
 tauri-plugin-dialog = "2"
 base64 = "0.22.1"
-ort = { version = "2.0.0-rc.11", default-features = false, features = ["ndarray", "std", "copy-dylibs", "download-binaries", "tls-rustls"] }
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["ndarray", "std", "copy-dylibs", "download-binaries", "tls-rustls"] }
 ndarray = "0.17.2"
 reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls-webpki-roots"] }
 tokio = "1.49.0"
@@ -70,4 +70,4 @@ ffmpeg-sidecar = { version = "2.4.0", features = ["download_ffmpeg"] }
 tempfile = "3.8"
 
 [target.'cfg(target_os = "android")'.dependencies]
-ort = { version = "2.0.0-rc.11", default-features = false, features = ["ndarray", "load-dynamic", "std", "copy-dylibs", "download-binaries", "tls-rustls"] }
+ort = { version = "2.0.0-rc.12", default-features = false, features = ["ndarray", "load-dynamic", "std", "copy-dylibs", "download-binaries", "tls-rustls"] }

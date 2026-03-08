@@ -2,4 +2,9 @@
 ORT_STRATEGY = "system"
 
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "link-arg=/FORCE:MULTIPLE"]
+rustflags = [
+    "-C", "target-feature=-crt-static",
+    "-C", "link-arg=/NODEFAULTLIB:libcmt",
+    "-C", "link-arg=/NODEFAULTLIB:libcmtd",
+    "-C", "link-arg=/FORCE:MULTIPLE"
+]
