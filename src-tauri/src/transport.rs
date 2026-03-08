@@ -528,6 +528,9 @@ impl WebRtcClient {
         }
 
         let app_handle_opt_state = self.app_handle.clone();
+        let config_path_state = self.config_path.clone();
+        let room_id_state = self.room_id.clone();
+        
         peer_connection.on_peer_connection_state_change(Box::new(
             move |s: RTCPeerConnectionState| {
                 println!("Peer Connection State changed to: {:?}", s);
@@ -539,8 +542,20 @@ impl WebRtcClient {
                     RTCPeerConnectionState::New => "Waiting for peer...",
                     _ => "Awaiting connection...",
                 };
+                
                 if let Some(app) = &app_handle_opt_state {
                     let _ = app.emit("webrtc-state", status);
+                    
+                    if s == RTCPeerConnectionState::Connected {
+                        // Save device to database when connected
+                        let db = Database::new(&config_path_state);
+                        let peer_name = format!("Peer ({})", &room_id_state[..8]);
+                        let _ = db.connection.execute(
+                            "INSERT OR REPLACE INTO device(ip, name) VALUES(?1, ?2)",
+                            (&room_id_state, &peer_name)
+                        );
+                        let _ = app.emit("refresh-devices", ());
+                    }
                 }
                 Box::pin(async move {})
             },

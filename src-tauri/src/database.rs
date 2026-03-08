@@ -346,6 +346,25 @@ impl Database {
     pub fn import_photo(&self, id: &str, location: &str, created: &str) {
         let _ = self.connection.execute("INSERT OR REPLACE INTO photo (id, location, created) VALUES (?1, ?2, ?3)", (id, location, created));
     }
+
+    pub fn list_devices(&self) -> Vec<DeviceInfo> {
+        let mut results = Vec::new();
+        if let Ok(mut stmt) = self.connection.prepare("SELECT ip, name FROM device") {
+            if let Ok(iter) = stmt.query_map([], |row| {
+                Ok(DeviceInfo {
+                    id: row.get::<_, String>(0)?, // Using IP as ID for now or it could be UUID
+                    title: row.get::<_, String>(1)?,
+                    icon: "mdi-cellphone".to_string(), // Default icon
+                    up_to_date: true,
+                })
+            }) {
+                for d in iter.flatten() {
+                    results.push(d);
+                }
+            }
+        }
+        results
+    }
     
     pub fn get_all_people_with_embeddings(&self) -> Vec<(String, Vec<f32>)> {
         let mut results = Vec::new();
@@ -377,4 +396,12 @@ pub struct LogEntry {
     pub timestamp: String,
     pub level: String,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct DeviceInfo {
+    pub id: String,
+    pub title: String,
+    pub icon: String,
+    pub up_to_date: bool,
 }

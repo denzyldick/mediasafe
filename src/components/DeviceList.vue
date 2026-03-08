@@ -127,6 +127,10 @@ export default {
   async mounted() {
       await this.list_devices();
       
+      listen("refresh-devices", () => {
+          this.list_devices();
+      });
+
       // Listen for real-time sync updates
       listen("sync-progress", (event) => {
           const payload = event.payload;

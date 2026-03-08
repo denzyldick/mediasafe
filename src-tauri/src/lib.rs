@@ -259,6 +259,14 @@ async fn join_network(app: tauri::AppHandle, ip: String, name: String) {
 }
 
 #[tauri::command]
+async fn list_devices(app: tauri::AppHandle) -> String {
+    let path = get_config_path(&app);
+    if path.is_empty() { return "[]".to_string(); }
+    let db = database::Database::new(&path);
+    serde_json::to_string(&db.list_devices()).unwrap_or("[]".to_string())
+}
+
+#[tauri::command]
 async fn list_objects(app: tauri::AppHandle, query: String) -> Result<String, String> {
     let path = get_config_path(&app);
     if path.is_empty() { return Ok("[]".to_string()); }
@@ -366,7 +374,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             scan_files, check_models, list_files, get_thumbnail, get_last_scan_time, toggle_favorite, add_directory,
             list_directories, remove_directory, read_file_base64, get_people, get_unnamed_faces,
-            assign_name_to_face, get_person_photos, is_initialized, get_top_tags, join_network,
+            assign_name_to_face, get_person_photos, is_initialized, get_top_tags, join_network, list_devices,
             server::generate_pairing_codes, server::hash_pairing_code, start_webrtc_session,
             update_video_thumbnail, process_video_frames, merge_people, rename_person, cleanup_database,
             remove_directory_full, get_media_server_port, index_faces, get_os, save_config, get_config, get_indexing_status,
