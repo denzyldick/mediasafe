@@ -209,7 +209,7 @@ impl WebRtcClient {
             self.signaling_url, self.room_id
         );
         self.emit("webrtc-state", "Connecting to signaling...");
-        let url_str = format!("{}/ws/{}", self.signaling_url, self.room_id);
+        let url_str = format!("{}/{}", self.signaling_url, self.room_id);
         let req = url_str.into_client_request()?;
 
         let (ws_stream, _) = match connect_async(req).await {
