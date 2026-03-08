@@ -14,6 +14,10 @@ mod ml;
 mod server;
 mod transport;
 
+struct WebRtcState {
+    active_session: std::sync::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+}
+
 fn get_config_path(app: &tauri::AppHandle) -> String {
     app.path().app_config_dir()
         .map(|p| p.to_string_lossy().to_string())
@@ -211,20 +215,32 @@ async fn remove_directory_full(app: tauri::AppHandle, path: String) {
 }
 
 #[tauri::command]
-async fn start_webrtc_session(app: tauri::AppHandle, roomId: String, isInitiator: bool, signalingUrl: String) -> Result<(), String> {
+async fn start_webrtc_session(app: tauri::AppHandle, state: tauri::State<'_, WebRtcState>, roomId: String, isInitiator: bool, signalingUrl: String) -> Result<(), String> {
     let app_handle = app.clone();
     let config_path = get_config_path(&app);
     if config_path.is_empty() { return Err("Config error".to_string()); }
-    tauri::async_runtime::spawn(async move {
-        let client = transport::WebRtcClient { 
-            room_id: roomId, 
-            is_initiator: isInitiator, 
-            signaling_url: signalingUrl, 
-            app_handle: Some(app_handle), 
-            config_path 
-        };
-        let _ = client.start().await;
-    });
+
+    // Abort existing session if any
+    if let Ok(mut session) = state.active_session.lock() {
+        if let Some(handle) = session.take() {
+            println!("Aborting previous WebRTC session");
+            handle.abort();
+        }
+        
+        let handle = tauri::async_runtime::spawn(async move {
+            let client = transport::WebRtcClient { 
+                room_id: roomId, 
+                is_initiator: isInitiator, 
+                signaling_url: signalingUrl, 
+                app_handle: Some(app_handle), 
+                config_path 
+            };
+            let _ = client.start().await;
+        });
+        
+        *session = Some(handle);
+    }
+
     Ok(())
 }
 
@@ -235,6 +251,7 @@ fn get_indexing_status(state: tauri::State<'_, ml::MlContext>) -> usize {
 
 #[tauri::command]
 async fn join_network(app: tauri::AppHandle, ip: String, name: String) {
+    println!("Adding new device: {} at {}", name, ip);
     let path = get_config_path(&app);
     if path.is_empty() { return; }
     let db = database::Database::new(&path);
@@ -341,6 +358,9 @@ pub fn run() {
             
             let media_server_port = transport::start_media_server(config_path);
             app.manage(transport::MediaServerState { port: media_server_port });
+
+            app.manage(WebRtcState { active_session: std::sync::Mutex::new(None) });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

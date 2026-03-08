@@ -20,6 +20,8 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 enum SignalMessage {
     #[serde(rename = "join")]
     Join { device_id: String },
+    #[serde(rename = "joined")]
+    Joined { device_id: String, room_id: String, peer_count: usize },
     #[serde(rename = "offer")]
     Offer { payload: String, target: String },
     #[serde(rename = "answer")]
@@ -28,6 +30,8 @@ enum SignalMessage {
     IceCandidate { payload: String, target: String },
     #[serde(rename = "peer_disconnected")]
     PeerDisconnected { device_id: String },
+    #[serde(rename = "peer_joined")]
+    PeerJoined { device_id: String },
     #[serde(rename = "error")]
     Error { message: String },
 }
@@ -92,7 +96,11 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
         }
     });
 
-    let mut device_id = String::new();
+    let device_id_shared = Arc::new(RwLock::new(String::new()));
+    let device_id_recv = Arc::clone(&device_id_shared);
+    let room_id_recv = room_id.clone();
+    let state_recv = Arc::clone(&state);
+    let tx_recv = tx.clone();
 
     // Handle incoming messages from the WebSocket client
     let mut recv_task = tokio::spawn(async move {
@@ -101,11 +109,12 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
             if let Ok(signal) = serde_json::from_str::<SignalMessage>(&text) {
                 match signal {
                     SignalMessage::Join { device_id: id } => {
-                        device_id = id.clone();
-                        info!("Device {} joining room {}", device_id, room_id);
+                        *device_id_recv.write().await = id.clone();
+                        let d_id = id.clone();
+                        info!("Device {} joining room {}", d_id, room_id_recv);
 
-                        let mut rooms = state.write().await;
-                        let room = rooms.entry(room_id.clone()).or_insert_with(|| Room {
+                        let mut rooms = state_recv.write().await;
+                        let room = rooms.entry(room_id_recv.clone()).or_insert_with(|| Room {
                             clients: HashMap::new(),
                         });
 
@@ -115,37 +124,59 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                                 message: "Room is full".to_string(),
                             };
                             let _ =
-                                tx.send(Message::Text(serde_json::to_string(&err).unwrap().into()));
+                                tx_recv.send(Message::Text(serde_json::to_string(&err).unwrap().into()));
                             break;
                         }
 
                         room.clients
-                            .insert(device_id.clone(), Client { sender: tx.clone() });
+                            .insert(d_id.clone(), Client { sender: tx_recv.clone() });
+
+                        // Notify other peer that someone joined
+                        for (id, client) in room.clients.iter() {
+                            if id != &d_id {
+                                let msg = SignalMessage::PeerJoined {
+                                    device_id: d_id.clone(),
+                                };
+                                let _ = client.sender.send(Message::Text(serde_json::to_string(&msg).unwrap().into()));
+                            }
+                        }
+
+                        // Confirm join to the client
+                        let peer_count = room.clients.len();
+                        let joined = SignalMessage::Joined {
+                            device_id: d_id,
+                            room_id: room_id_recv.clone(),
+                            peer_count,
+                        };
+                        let _ = tx_recv.send(Message::Text(serde_json::to_string(&joined).unwrap().into()));
                     }
                     SignalMessage::Offer { payload, target } => {
-                        info!("Relaying offer from {} to {}", device_id, target);
+                        let d_id = device_id_recv.read().await.clone();
+                        info!("Relaying offer from {} to {}", d_id, target);
                         let msg = SignalMessage::Offer {
                             payload,
                             target: target.clone(),
                         };
-                        relay_message(&state, &room_id, &device_id, &target, msg).await;
+                        relay_message(&state_recv, &room_id_recv, &d_id, &target, msg).await;
                     }
                     SignalMessage::Answer { payload, target } => {
-                        info!("Relaying answer from {} to {}", device_id, target);
+                        let d_id = device_id_recv.read().await.clone();
+                        info!("Relaying answer from {} to {}", d_id, target);
                         let msg = SignalMessage::Answer {
                             payload,
                             target: target.clone(),
                         };
-                        relay_message(&state, &room_id, &device_id, &target, msg).await;
+                        relay_message(&state_recv, &room_id_recv, &d_id, &target, msg).await;
                     }
                     SignalMessage::IceCandidate { payload, target } => {
+                        let d_id = device_id_recv.read().await.clone();
                         // Very noisy, keeping as debug
                         tracing::debug!("Relaying ICE candidate to {}", target);
                         let msg = SignalMessage::IceCandidate {
                             payload,
                             target: target.clone(),
                         };
-                        relay_message(&state, &room_id, &device_id, &target, msg).await;
+                        relay_message(&state_recv, &room_id_recv, &d_id, &target, msg).await;
                     }
                     _ => {}
                 }
@@ -153,15 +184,16 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
         }
 
         // Cleanup when client disconnects
-        if !device_id.is_empty() {
-            info!("Device {} disconnected from {}", device_id, room_id);
-            let mut rooms = state.write().await;
-            if let Some(room) = rooms.get_mut(&room_id) {
-                room.clients.remove(&device_id);
+        let d_id = device_id_recv.read().await.clone();
+        if !d_id.is_empty() {
+            info!("Device {} disconnected from {}", d_id, room_id_recv);
+            let mut rooms = state_recv.write().await;
+            if let Some(room) = rooms.get_mut(&room_id_recv) {
+                room.clients.remove(&d_id);
                 // Notify remaining peer
                 for (_, client) in room.clients.iter() {
                     let msg = SignalMessage::PeerDisconnected {
-                        device_id: device_id.clone(),
+                        device_id: d_id.clone(),
                     };
                     let _ = client
                         .sender
@@ -169,8 +201,8 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                 }
 
                 if room.clients.is_empty() {
-                    rooms.remove(&room_id);
-                    info!("Room {} deleted", room_id);
+                    rooms.remove(&room_id_recv);
+                    info!("Room {} deleted", room_id_recv);
                 }
             }
         }

@@ -62,8 +62,9 @@
            rounded="lg"
            class="text-center siegu-field"
            @keyup.enter="joinWebRTC"
+           :disabled="loading || isConnected"
          ></v-text-field>
-         <v-btn variant="flat" @click="joinWebRTC" class="siegu-btn py-6" block>
+         <v-btn variant="flat" @click="joinWebRTC" class="siegu-btn py-6" block :loading="loading" :disabled="!joinPassphrase || isConnected">
             <div class="d-flex align-center">
               <div class="siegu-icon-circle mr-3">
                 <v-icon size="14" color="white">mdi-link-variant</v-icon>
@@ -82,12 +83,12 @@
       <v-divider class="opacity-10 my-4"></v-divider>
 
       <v-card-actions class="justify-center">
-        <v-btn variant="flat" class="siegu-btn px-6" @click="dialog = false">
+        <v-btn variant="flat" color="#18181b" class="siegu-btn px-6" @click="dialog = false">
            <div class="d-flex align-center">
              <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
                <v-icon size="12" color="white">mdi-close</v-icon>
              </div>
-             <span class="text-white">Cancel</span>
+             <span class="text-white font-weight-bold">Cancel</span>
            </div>
         </v-btn>
       </v-card-actions>
@@ -122,6 +123,7 @@ export default {
     joinPassphrase: "",
     connectionStatus: "",
     isConnected: false,
+    loading: false,
     unlisten: null,
   }),
   watch: {
@@ -131,9 +133,13 @@ export default {
           this.connectionStatus = event.payload;
           if (event.payload === "Connected" || event.payload === "connected") {
             this.isConnected = true;
+            this.loading = false;
           }
-          if (event.payload === "disconnected" || event.payload === "failed") {
+          if (event.payload.toLowerCase().includes("error") || 
+              event.payload.toLowerCase().includes("failed") || 
+              event.payload.toLowerCase().includes("disconnected")) {
             this.isConnected = false;
+            this.loading = false;
           }
         });
         this.initialize();
@@ -142,6 +148,7 @@ export default {
           this.unlisten();
           this.unlisten = null;
         }
+        this.loading = false;
       }
     },
     mode(newMode) {
@@ -168,10 +175,11 @@ export default {
     },
     async listen(roomId) {
       this.connectionStatus = "Waiting for partner device to scan or type phrase...";
+      const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io/ws";
       const args = {
           roomId: roomId,
-          isInitiator: true,
-          signalingUrl: "wss://siegu.denzyl.io"
+          isInitiator: false,
+          signalingUrl: signalingUrl
       };
       try {
           await invoke("start_webrtc_session", args);
@@ -181,18 +189,21 @@ export default {
       }
     },
     async joinWebRTC() {
-        if (!this.joinPassphrase) return;
+        if (!this.joinPassphrase || this.loading) return;
+        this.loading = true;
         this.connectionStatus = "Joining room...";
+        const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io/ws";
         try {
            const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
            const args = {
               roomId: roomId,
-              isInitiator: false,
-              signalingUrl: "wss://siegu.denzyl.io"
+              isInitiator: true,
+              signalingUrl: signalingUrl
            };
            await invoke("start_webrtc_session", args);
            this.connectionStatus = "Signaling channel requested. Awaiting WebRTC Receiver connection.";
         } catch(error) {
+           this.loading = false;
            this.connectionStatus = "Error joining: " + error;
         }
     }

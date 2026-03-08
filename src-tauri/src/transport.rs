@@ -65,6 +65,8 @@ pub enum SyncMessage {
 pub enum SignalMessage {
     #[serde(rename = "join")]
     Join { device_id: String },
+    #[serde(rename = "joined")]
+    Joined { device_id: String, room_id: String, peer_count: usize },
     #[serde(rename = "offer")]
     Offer { payload: String, target: String },
     #[serde(rename = "answer")]
@@ -73,6 +75,8 @@ pub enum SignalMessage {
     IceCandidate { payload: String, target: String },
     #[serde(rename = "peer_disconnected")]
     PeerDisconnected { device_id: String },
+    #[serde(rename = "peer_joined")]
+    PeerJoined { device_id: String },
     #[serde(rename = "error")]
     Error { message: String },
 }
@@ -195,14 +199,19 @@ impl WebRtcClient {
     }
 
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+        println!("Attempting to connect to signaling at {} for room {}", self.signaling_url, self.room_id);
         self.emit("webrtc-state", "Connecting to signaling...");
         let url_str = format!("{}/ws/{}", self.signaling_url, self.room_id);
         let req = url_str.into_client_request()?;
 
         let (ws_stream, _) = match connect_async(req).await {
-            Ok(s) => s,
+            Ok(s) => {
+                println!("Successfully connected to signaling server!");
+                s
+            },
             Err(e) => {
                 let err_msg = format!("Signaling connection failed: {e}");
+                println!("Signaling connection failed: {}", e);
                 self.emit("webrtc-state", err_msg);
                 return Err(e.into());
             }
@@ -215,6 +224,7 @@ impl WebRtcClient {
         let write = Arc::new(Mutex::new(write));
 
         let my_device_id = uuid::Uuid::new_v4().to_string();
+        println!("Joining network with device ID: {}", my_device_id);
         let join_msg = SignalMessage::Join {
             device_id: my_device_id.clone(),
         };
@@ -520,6 +530,7 @@ impl WebRtcClient {
         let app_handle_opt_state = self.app_handle.clone();
         peer_connection.on_peer_connection_state_change(Box::new(
             move |s: RTCPeerConnectionState| {
+                println!("Peer Connection State changed to: {:?}", s);
                 let status = match s {
                     RTCPeerConnectionState::Connected => "Connected",
                     RTCPeerConnectionState::Connecting => "Connecting WebRTC...",
@@ -536,12 +547,73 @@ impl WebRtcClient {
         ));
 
         let pc = Arc::clone(&peer_connection);
+
+        if self.is_initiator {
+            println!("Initiator: Sending WebRTC Offer immediately after join...");
+            let offer = pc.create_offer(None).await?;
+            pc.set_local_description(offer.clone()).await?;
+            let offer_msg = SignalMessage::Offer {
+                payload: serde_json::to_string(&offer)?,
+                target: "peer".to_string(),
+            };
+            write
+                .lock()
+                .await
+                .send(Message::Text(Utf8Bytes::from(serde_json::to_string(
+                    &offer_msg,
+                )?)))
+                .await?;
+            println!("Initiator: WebRTC Offer sent");
+        }
+
         while let Some(msg) = read.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
+                    println!("Received signaling message: {}", text);
                     if let Ok(signal) = serde_json::from_str::<SignalMessage>(&text) {
                         match signal {
+                            SignalMessage::Joined { peer_count, .. } => {
+                                println!("Confirmed room entry! Peer count: {}", peer_count);
+                                if self.is_initiator && peer_count == 2 {
+                                    println!("Initiator: Room full on entry. Creating WebRTC Offer...");
+                                    let offer = pc.create_offer(None).await?;
+                                    pc.set_local_description(offer.clone()).await?;
+                                    let offer_msg = SignalMessage::Offer {
+                                        payload: serde_json::to_string(&offer)?,
+                                        target: "peer".to_string(),
+                                    };
+                                    write
+                                        .lock()
+                                        .await
+                                        .send(Message::Text(Utf8Bytes::from(serde_json::to_string(
+                                            &offer_msg,
+                                        )?)))
+                                        .await?;
+                                    println!("Initiator: WebRTC Offer sent");
+                                }
+                            }
+                            SignalMessage::PeerJoined { .. } => {
+                                println!("Peer joined the room!");
+                                if self.is_initiator {
+                                    println!("Initiator: Creating WebRTC Offer...");
+                                    let offer = pc.create_offer(None).await?;
+                                    pc.set_local_description(offer.clone()).await?;
+                                    let offer_msg = SignalMessage::Offer {
+                                        payload: serde_json::to_string(&offer)?,
+                                        target: "peer".to_string(),
+                                    };
+                                    write
+                                        .lock()
+                                        .await
+                                        .send(Message::Text(Utf8Bytes::from(serde_json::to_string(
+                                            &offer_msg,
+                                        )?)))
+                                        .await?;
+                                    println!("Initiator: WebRTC Offer sent");
+                                }
+                            }
                             SignalMessage::Offer { payload, .. } => {
+                                println!("Received WebRTC Offer");
                                 let sdp: RTCSessionDescription = serde_json::from_str(&payload)?;
                                 pc.set_remote_description(sdp).await?;
                                 let answer = pc.create_answer(None).await?;
@@ -550,6 +622,7 @@ impl WebRtcClient {
                                     payload: serde_json::to_string(&answer)?,
                                     target: "peer".to_string(),
                                 };
+                                println!("Sending WebRTC Answer");
                                 write
                                     .lock()
                                     .await
@@ -559,25 +632,32 @@ impl WebRtcClient {
                                     .await?;
                             }
                             SignalMessage::Answer { payload, .. } => {
+                                println!("Received WebRTC Answer");
                                 let sdp: RTCSessionDescription = serde_json::from_str(&payload)?;
                                 pc.set_remote_description(sdp).await?;
                             }
                             SignalMessage::IceCandidate { payload, .. } => {
+                                println!("Received Ice Candidate");
                                 let candidate: RTCIceCandidateInit =
                                     serde_json::from_str(&payload)?;
                                 pc.add_ice_candidate(candidate).await?;
                             }
                             SignalMessage::PeerDisconnected { .. } => {
+                                println!("Peer disconnected via signaling");
                                 self.emit("webrtc-state", "Peer disconnected");
                             }
                             SignalMessage::Error { message } => {
+                                println!("Signaling Error: {}", message);
                                 self.emit("webrtc-state", format!("Signaling error: {message}"));
                             }
-                            _ => {}
+                            _ => {
+                                println!("Received unhandled signaling message type");
+                            }
                         }
                     }
                 }
                 Err(e) => {
+                    println!("WebSocket Error in read loop: {}", e);
                     self.emit("webrtc-state", format!("WebSocket error: {e}"));
                     break;
                 }
