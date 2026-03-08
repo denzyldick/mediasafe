@@ -21,28 +21,73 @@ fn compute_text_embeddings(
     tokenizer: &tokenizers::Tokenizer,
 ) -> Vec<(String, Vec<f32>)> {
     let search_vocabulary = vec![
-        "a passport", "a driver's license", "an id card", "a document", "a receipt",
-        "a screenshot", "a meme", "a text message", "a cat", "a dog", "a pet",
-        "an animal", "a car", "a vehicle", "a motorcycle", "a bicycle", "a person",
-        "a selfie", "a group of people", "a crowd", "a building", "a house",
-        "architecture", "a city", "a landscape", "nature", "a mountain", "a beach",
-        "water", "food", "a meal", "a drink", "coffee", "a laptop", "a computer",
-        "a phone", "a screen", "electronics", "a piece of furniture", "a room interior",
-        "a sunset", "the sky", "clouds", "art", "a drawing", "a painting",
+        "a passport",
+        "a driver's license",
+        "an id card",
+        "a document",
+        "a receipt",
+        "a screenshot",
+        "a meme",
+        "a text message",
+        "a cat",
+        "a dog",
+        "a pet",
+        "an animal",
+        "a car",
+        "a vehicle",
+        "a motorcycle",
+        "a bicycle",
+        "a person",
+        "a selfie",
+        "a group of people",
+        "a crowd",
+        "a building",
+        "a house",
+        "architecture",
+        "a city",
+        "a landscape",
+        "nature",
+        "a mountain",
+        "a beach",
+        "water",
+        "food",
+        "a meal",
+        "a drink",
+        "coffee",
+        "a laptop",
+        "a computer",
+        "a phone",
+        "a screen",
+        "electronics",
+        "a piece of furniture",
+        "a room interior",
+        "a sunset",
+        "the sky",
+        "clouds",
+        "art",
+        "a drawing",
+        "a painting",
     ];
 
     let mut embeddings = Vec::new();
     for text_label in search_vocabulary {
         if let Ok(encoding) = tokenizer.encode(format!("a photo of {text_label}"), true) {
             let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
-            if let Ok(input_ids_arr) = ndarray::Array2::from_shape_vec((1, input_ids.len()), input_ids) {
+            if let Ok(input_ids_arr) =
+                ndarray::Array2::from_shape_vec((1, input_ids.len()), input_ids)
+            {
                 if let Ok(id_tensor) = ort::value::Value::from_array(input_ids_arr) {
                     if let Ok(outputs) = text_model.run(ort::inputs!["input_ids" => &id_tensor]) {
-                        if let Ok((_shape, text_emb_tensor)) = outputs[0].try_extract_tensor::<f32>() {
+                        if let Ok((_shape, text_emb_tensor)) =
+                            outputs[0].try_extract_tensor::<f32>()
+                        {
                             let mut text_embedding = vec![0.0; 512];
                             text_embedding.copy_from_slice(text_emb_tensor);
-                            let text_norm: f32 = text_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                            for v in text_embedding.iter_mut() { *v /= text_norm; }
+                            let text_norm: f32 =
+                                text_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+                            for v in text_embedding.iter_mut() {
+                                *v /= text_norm;
+                            }
                             embeddings.push((text_label.to_string(), text_embedding));
                         }
                     }
@@ -85,12 +130,22 @@ pub fn start_background_worker(
 
         let db = Arc::new(Mutex::new(Database::new(&db_path)));
         let config = db.lock().unwrap().get_state();
-        let num_threads: usize = config.get("scan_threads")
+        let num_threads: usize = config
+            .get("scan_threads")
             .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| { if cfg!(any(target_os = "android", target_os = "ios")) { 2 } else { 4 } });
-        
+            .unwrap_or_else(|| {
+                if cfg!(any(target_os = "android", target_os = "ios")) {
+                    2
+                } else {
+                    4
+                }
+            });
+
         println!("ML Worker: Initializing with {} threads", num_threads);
-        let pool = rayon::ThreadPoolBuilder::new().num_threads(num_threads).build().unwrap();
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(num_threads)
+            .build()
+            .unwrap();
         let memory_semaphore = Arc::new(Semaphore::new(num_threads * 2));
 
         while let Some(photo_id) = rx.blocking_recv() {
@@ -107,30 +162,53 @@ pub fn start_background_worker(
                     ort_initialized = true;
                 }
 
-                let is_ok = |p: &Path| p.exists() && p.metadata().map(|m| m.len()).unwrap_or(0) > 1024 * 1024;
-                
-                tokenizer = tokenizers::Tokenizer::from_file(&clip_tokenizer_path).ok().map(Arc::new);
-                clip_visual = if is_ok(&clip_visual_path) {
-                    Session::builder().unwrap()
-                        .with_optimization_level(GraphOptimizationLevel::Level1).unwrap()
-                        .with_intra_threads(1).unwrap()
-                        .commit_from_file(&clip_visual_path).ok().map(|s| Arc::new(Mutex::new(s)))
-                } else { None };
+                let is_ok = |p: &Path| {
+                    p.exists() && p.metadata().map(|m| m.len()).unwrap_or(0) > 1024 * 1024
+                };
 
-                if let (Ok(mut text_session), Some(ref tok)) = (Session::builder().unwrap()
-                    .with_optimization_level(GraphOptimizationLevel::Level1).unwrap()
-                    .with_intra_threads(1).unwrap()
-                    .commit_from_file(&clip_text_path), &tokenizer) 
-                {
+                tokenizer = tokenizers::Tokenizer::from_file(&clip_tokenizer_path)
+                    .ok()
+                    .map(Arc::new);
+                clip_visual = if is_ok(&clip_visual_path) {
+                    Session::builder()
+                        .unwrap()
+                        .with_optimization_level(GraphOptimizationLevel::Level1)
+                        .unwrap()
+                        .with_intra_threads(1)
+                        .unwrap()
+                        .commit_from_file(&clip_visual_path)
+                        .ok()
+                        .map(|s| Arc::new(Mutex::new(s)))
+                } else {
+                    None
+                };
+
+                if let (Ok(mut text_session), Some(ref tok)) = (
+                    Session::builder()
+                        .unwrap()
+                        .with_optimization_level(GraphOptimizationLevel::Level1)
+                        .unwrap()
+                        .with_intra_threads(1)
+                        .unwrap()
+                        .commit_from_file(&clip_text_path),
+                    &tokenizer,
+                ) {
                     text_embeddings = Arc::new(compute_text_embeddings(&mut text_session, tok));
                 }
 
                 face_detector = if is_ok(&ultraface_path) {
-                    Session::builder().unwrap()
-                        .with_optimization_level(GraphOptimizationLevel::Level1).unwrap()
-                        .with_intra_threads(1).unwrap()
-                        .commit_from_file(&ultraface_path).ok().map(|s| Arc::new(Mutex::new(s)))
-                } else { None };
+                    Session::builder()
+                        .unwrap()
+                        .with_optimization_level(GraphOptimizationLevel::Level1)
+                        .unwrap()
+                        .with_intra_threads(1)
+                        .unwrap()
+                        .commit_from_file(&ultraface_path)
+                        .ok()
+                        .map(|s| Arc::new(Mutex::new(s)))
+                } else {
+                    None
+                };
 
                 let people_vec = db.lock().unwrap().get_all_people_with_embeddings();
                 if let Ok(mut lock) = known_people.lock() {
@@ -138,7 +216,9 @@ pub fn start_background_worker(
                 }
 
                 println!("ML Worker: Models ready.");
-                if photo_id == "__RELOAD_MODELS__" { continue; }
+                if photo_id == "__RELOAD_MODELS__" {
+                    continue;
+                }
             }
 
             let photo_id_task = photo_id.clone();
@@ -153,10 +233,10 @@ pub fn start_background_worker(
             let sem_task = Arc::clone(&memory_semaphore);
 
             pool.spawn(move || {
-                let _permit = sem_task.try_acquire(); 
+                let _permit = sem_task.try_acquire();
                 let mut provided_frames = Vec::new();
                 let mut actual_id = photo_id_task.clone();
-                
+
                 if photo_id_task.starts_with("__VIDEO_FRAMES__:") {
                     let parts: Vec<&str> = photo_id_task.split("|||").collect();
                     if parts.len() > 1 {
@@ -214,14 +294,14 @@ pub fn start_background_worker(
                                             img_embedding.copy_from_slice(img_emb_tensor);
                                             let img_norm: f32 = img_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
                                             if img_norm > 0.0 { for v in img_embedding.iter_mut() { *v /= img_norm; } }
-                                            
+
                                             let mut similarities = Vec::new();
                                             for (text_label, text_embedding) in text_embeddings_task.iter() {
                                                 let dot_product: f32 = img_embedding.iter().zip(text_embedding.iter()).map(|(a, b)| a * b).sum();
                                                 similarities.push((text_label, dot_product));
                                             }
                                             similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-                                            
+
                                             let lock = db_task.lock().unwrap();
                                             for (class_name, score) in similarities.iter().take(5) {
                                                 let _ = lock.connection.execute("INSERT INTO object (photo_id, class, probability) VALUES(?1, ?2, ?3)", (&actual_id, class_name, &score.to_string()));
@@ -326,7 +406,7 @@ pub fn start_background_worker(
                                                             let mut buffer = std::io::Cursor::new(Vec::new());
                                                             let _ = face_crop.write_to(&mut buffer, image::ImageOutputFormat::Jpeg(80));
                                                             let encoded = format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(buffer.get_ref()));
-                                                            
+
                                                             let lock = db_task.lock().unwrap();
                                                             lock.store_face(Face { photo_id: actual_id.clone(), face_id: face_id.clone(), crop_path, encoded, embedding: face_embedding, person_id: assigned_person_id });
                                                         }
@@ -338,7 +418,7 @@ pub fn start_background_worker(
                                 }
                             }
                         }
-                        drop(img); 
+                        drop(img);
                     }
                 }
                 let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);

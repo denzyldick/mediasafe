@@ -17,7 +17,7 @@
       <div class="text-h6 text-zinc-secondary font-weight-bold">No connected devices</div>
       <p class="text-body-2 text-zinc-muted mt-1 max-w-400 mx-auto">Link your mobile devices or other computers to sync and access your media library from anywhere.</p>
     </div>
-    
+
     <v-row v-else>
       <v-col cols="12" sm="6" md="4" v-for="device in devices" :key="device.title">
         <v-card variant="flat" height="100%" class="device-card border-subtle ga-2" rounded="xl" color="#ffffff">
@@ -29,7 +29,7 @@
             </template>
             <v-card-title class="text-zinc-primary text-subtitle-1 font-weight-bold">{{ device.title }}</v-card-title>
             <v-card-subtitle class="text-zinc-secondary text-caption">{{ device.subtitle || 'Connected' }}</v-card-subtitle>
-            
+
             <template v-slot:append>
                <v-icon
                 v-if="device.up_to_date && !device.syncing"
@@ -53,7 +53,7 @@
               ></v-icon>
             </template>
           </v-card-item>
-          
+
           <v-card-text class="pt-0">
                <div v-if="device.syncing" class="mt-2">
                    <div class="d-flex align-center justify-space-between mb-1">
@@ -126,7 +126,7 @@ export default {
   }),
   async mounted() {
       await this.list_devices();
-      
+
       listen("refresh-devices", () => {
           this.list_devices();
       });
@@ -135,7 +135,7 @@ export default {
       listen("sync-progress", (event) => {
           const payload = event.payload;
           this.syncStates[payload.device_id] = payload;
-          
+
           // Update device in list if it exists
           const device = this.devices.find(d => d.id === payload.device_id);
           if (device) {
@@ -157,7 +157,7 @@ export default {
       try {
         const realDevicesStr = await invoke("list_devices");
         const realDevices = JSON.parse(realDevicesStr);
-        
+
         this.devices = (realDevices || []).map(d => ({
             ...d,
             syncing: false,

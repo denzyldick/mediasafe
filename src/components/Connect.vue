@@ -17,7 +17,7 @@
         </div>
       </v-btn>
     </template>
-    
+
     <v-card class="border-subtle pa-6 text-center bg-siegu-white" rounded="xl" min-width="350" max-width="400">
       <div class="text-h5 font-weight-bold text-zinc-primary mb-2">Link Device</div>
       <div class="text-body-2 text-zinc-secondary mb-6">
@@ -135,8 +135,8 @@ export default {
             this.isConnected = true;
             this.loading = false;
           }
-          if (event.payload.toLowerCase().includes("error") || 
-              event.payload.toLowerCase().includes("failed") || 
+          if (event.payload.toLowerCase().includes("error") ||
+              event.payload.toLowerCase().includes("failed") ||
               event.payload.toLowerCase().includes("disconnected")) {
             this.isConnected = false;
             this.loading = false;
@@ -175,7 +175,7 @@ export default {
     },
     async listen(roomId) {
       this.connectionStatus = "Waiting for partner device to scan or type phrase...";
-      const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io/ws";
+      const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io";
       const args = {
           roomId: roomId,
           isInitiator: false,
@@ -192,7 +192,7 @@ export default {
         if (!this.joinPassphrase || this.loading) return;
         this.loading = true;
         this.connectionStatus = "Joining room...";
-        const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io/ws";
+        const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io";
         try {
            const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
            const args = {

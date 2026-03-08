@@ -195,7 +195,7 @@
               </v-list-item>
             </v-list>
           </v-card-text>
-          
+
           <v-card-actions class="pa-4 bg-zinc-50">
              <v-spacer></v-spacer>
              <v-btn
@@ -228,7 +228,7 @@
             </template>
             <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Maintenance</v-card-title>
           </v-card-item>
-          
+
           <v-card-text class="pt-2">
             <v-list lines="two" class="bg-transparent">
               <v-list-item class="px-0">
@@ -357,7 +357,7 @@ export default {
     this.isAndroid = (await platform()) === 'android';
     await this.checkExistingModels();
     await this.loadPerformanceConfig();
-    
+
     const bgSyncVal = await invoke("get_config", { key: "bg_sync" });
     this.bgSync = bgSyncVal === "true";
     this.fetchLogs();
@@ -385,12 +385,12 @@ export default {
     async loadPerformanceConfig() {
       const configStr = await invoke("get_config");
       const config = JSON.parse(configStr);
-      
+
       if (config.scan_threads) {
         const val = parseInt(config.scan_threads);
         if (!isNaN(val)) this.performance.scanThreads = val;
       }
-      
+
       if (config.indexing_mode) {
         this.performance.indexingMode = config.indexing_mode;
       }

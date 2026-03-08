@@ -4,7 +4,7 @@
       <v-layout class="fill-height">
         <!-- Main Viewer Area -->
         <v-main class="fill-height position-relative d-flex flex-column align-center justify-center p-0" style="background-color: #fafafa;">
-          
+
           <!-- Top Controls -->
           <v-btn icon="mdi-close" variant="text" color="#18181b" class="viewer-nav-btn top-left" @click="close"></v-btn>
           <v-btn
@@ -16,9 +16,9 @@
           ></v-btn>
 
           <!-- Interaction Layer -->
-          <div class="touch-overlay" 
-               v-touch="{ 
-                 left: () => next(), 
+          <div class="touch-overlay"
+               v-touch="{
+                 left: () => next(),
                  right: () => prev(),
                  down: () => close()
                }">
@@ -27,15 +27,15 @@
           <!-- Content Layer -->
           <div class="viewer-content-container">
             <v-btn v-if="!isMobile" icon="mdi-chevron-left" variant="text" color="#18181b" size="x-large" @click="prev" class="side-nav-btn left"></v-btn>
-            
+
             <div class="media-wrapper">
               <img v-if="currentPhoto && !isVideo" :src="currentPhotoSrc" class="viewer-image" />
-              <video 
-                v-if="currentPhoto && isVideo" 
-                :src="videoUrl" 
-                class="viewer-image" 
-                controls 
-                autoplay 
+              <video
+                v-if="currentPhoto && isVideo"
+                :src="videoUrl"
+                class="viewer-image"
+                controls
+                autoplay
                 style="z-index: 10; position: relative;"
               ></video>
             </div>
@@ -46,8 +46,8 @@
           <!-- Bottom Thumbnail Rail -->
           <div class="thumbnail-rail-container">
             <div class="thumbnail-rail" ref="thumbnailRail">
-              <div 
-                v-for="(photo, i) in photos" 
+              <div
+                v-for="(photo, i) in photos"
                 :key="photo.id"
                 class="rail-item"
                 :class="{ 'active': i === index }"
@@ -92,7 +92,7 @@
 
           <div class="mb-6" v-if="hasExif">
             <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">Camera Settings</div>
-            
+
             <div class="d-flex align-center mb-4" v-if="exifData.make || exifData.model">
               <v-icon size="small" color="#71717a" class="mr-2">mdi-camera</v-icon>
               <span class="text-body-2 text-zinc-secondary">{{ exifData.make }} {{ exifData.model }}</span>
@@ -126,11 +126,11 @@
 
           <div class="mb-6">
             <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">AI Insights</div>
-            
+
             <div v-if="aiTags.length === 0" class="text-body-2 text-zinc-muted font-italic">
               No AI insights generated yet.
             </div>
-            
+
             <div v-for="tag in aiTags" :key="tag.name" class="mb-4">
               <div class="d-flex align-center justify-space-between w-100">
                 <span class="text-body-2 text-zinc-secondary text-capitalize">{{ tag.name }}</span>
@@ -289,16 +289,16 @@ export default {
     }
   },
   watch: {
-    index() { 
+    index() {
       this.fetchFullPhoto();
       this.scrollToActiveThumb();
     },
     visible(val) {
-      if (val) { 
-        this.fetchFullPhoto(); 
+      if (val) {
+        this.fetchFullPhoto();
         this.scrollToActiveThumb();
-      } else { 
-        this.fullPhotoB64 = ''; 
+      } else {
+        this.fullPhotoB64 = '';
       }
     }
   },
@@ -347,7 +347,7 @@ export default {
   top: 0;
   left: 0;
   right: 0;
-  bottom: 100px; 
+  bottom: 100px;
   z-index: 5;
 }
 

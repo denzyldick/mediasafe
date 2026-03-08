@@ -73,14 +73,14 @@
           <v-icon size="80" color="#f4f4f5">mdi-image-multiple-outline</v-icon>
         </template>
       </div>
-      
+
       <h3 class="text-h5 font-weight-bold text-zinc-primary mb-2">
         {{ searchQuery ? 'No results found' : (filters.favoritesOnly ? 'No favorites yet' : 'Your library is empty') }}
       </h3>
       <p class="text-body-1 text-zinc-secondary max-w-400 mx-auto mb-8">
         {{ searchQuery ? `We couldn't find any photos matching "${searchQuery}"` : (filters.favoritesOnly ? 'Tap the heart on any photo to add it to your favorites' : 'Add a folder in settings to start indexing your memories') }}
       </p>
-      
+
       <v-btn v-if="searchQuery" variant="flat" class="siegu-btn-modern px-8 py-6" @click="$emit('clear-search')">
         Clear search query
       </v-btn>
@@ -143,7 +143,7 @@ export default {
     groupedImages() {
       const groups = {};
       const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-      
+
       this.images.forEach(image => {
         if (!image._groupKey) {
             let date;
@@ -151,7 +151,7 @@ export default {
                 // Handle both YYYY:MM:DD and YYYY-MM-DD formats
                 const datePart = image.created.split(' ')[0];
                 const dateParts = datePart.includes(':') ? datePart.split(':') : datePart.split('-');
-                
+
                 if (dateParts.length >= 2) {
                     const year = dateParts[0];
                     const monthIdx = parseInt(dateParts[1]) - 1;
@@ -208,20 +208,20 @@ export default {
         if (this.scanBuffer.length > 0) {
             const batch = [...this.scanBuffer];
             this.scanBuffer = [];
-            
+
             const newImages = [...this.images];
             batch.forEach(newPhoto => {
                 if (!newImages.find(p => p.id === newPhoto.id)) {
                     newImages.push(newPhoto);
                 }
             });
-            
+
             newImages.sort((a, b) => {
                 if (!a.created) return 1;
                 if (!b.created) return -1;
                 return b.created.localeCompare(a.created);
             });
-            
+
             this.images = newImages;
         }
     }, 1000);
@@ -279,18 +279,18 @@ export default {
         if (entries[0].isIntersecting && !this.loading && !this.allLoaded) {
           this.list_files();
         }
-      }, { 
+      }, {
         threshold: 0.01,
         rootMargin: '600px'
       });
-      
+
       const sentinel = document.getElementById('scroll-sentinel');
       if (sentinel) this.observer.observe(sentinel);
     },
     list_files: async function () {
       if (this.loading) return;
       this.loading = true;
-      
+
       try {
         let response;
         if (this.isPersonFilter && this.searchQuery) {
@@ -306,15 +306,15 @@ export default {
             videosOnly: this.filters.videosOnly,
           });
         }
-        
+
         const new_images = JSON.parse(response);
-        
+
         if (this.paging.offset === 0) {
           this.images = new_images;
         } else {
           this.images.push(...new_images);
         }
-        
+
         if (!this.isPersonFilter) {
           if (new_images.length < this.paging.limit) {
             this.allLoaded = true;

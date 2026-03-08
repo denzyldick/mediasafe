@@ -1,6 +1,6 @@
 <template>
-  <div 
-    class="image-item-container" 
+  <div
+    class="image-item-container"
     :class="{ 'is-selected': selected, 'selection-active': selectionMode }"
     @click="handleClick"
   >
@@ -19,7 +19,7 @@
           <v-icon color="#d4d4d8" size="48">mdi-image-outline</v-icon>
         </div>
       </template>
-      
+
       <div class="scrim-overlay"></div>
 
       <!-- Video Indicator -->
@@ -68,7 +68,7 @@ export default {
   computed: {
     imageSrc() {
       if (!this.path) return '';
-      
+
       // 1. ALWAYS prioritize the generated base64 thumbnail (encoded)
       if (this.path.encoded && this.path.encoded.length > 100) {
           return this.path.encoded;
@@ -237,7 +237,7 @@ export default {
   z-index: 5;
 }
 
-.image-item-container:hover .action-btn, 
+.image-item-container:hover .action-btn,
 .action-btn.is-fav {
   opacity: 1;
   transform: translateY(0);

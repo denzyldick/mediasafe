@@ -25,7 +25,7 @@
                 Indexing: {{ indexingCount }} remaining
               </div>
             </div>
-            
+
             <v-chip class="px-4 py-5 font-weight-bold border-subtle" variant="flat" color="white" rounded="lg">
               <v-icon start size="18" color="#18181b">mdi-account-check</v-icon>
               {{ people.length }} Named
@@ -42,35 +42,35 @@
           <h2 class="text-h5 font-weight-black text-zinc-primary pr-6">Your People</h2>
           <v-divider class="border-subtle border-opacity-100"></v-divider>
         </div>
-        
+
         <v-row class="ga-y-6">
           <v-col cols="6" sm="4" md="3" lg="2" xl="1" v-for="person in people" :key="person.id">
-            <v-card 
-              class="person-card-reimagined overflow-hidden border-subtle" 
-              variant="flat" 
+            <v-card
+              class="person-card-reimagined overflow-hidden border-subtle"
+              variant="flat"
               color="white"
               rounded="xl"
               @click="viewPerson(person)"
             >
               <div class="image-wrapper pos-rel">
-                <v-img 
-                  :src="getFaceImageSrc(person.representative_crop, person.encoded)" 
-                  aspect-ratio="1" 
-                  cover 
+                <v-img
+                  :src="getFaceImageSrc(person.representative_crop, person.encoded)"
+                  aspect-ratio="1"
+                  cover
                   class="hover-scale transition-slow"
                 ></v-img>
               </div>
-              
+
               <div class="pa-3 bg-white text-center">
                 <h3 class="text-subtitle-2 font-weight-bold text-zinc-primary text-truncate">{{ person.name }}</h3>
               </div>
-              
+
               <div class="card-action-overlay">
-                <v-btn 
-                  icon="mdi-pencil" 
-                  size="x-small" 
-                  color="white" 
-                  variant="flat" 
+                <v-btn
+                  icon="mdi-pencil"
+                  size="x-small"
+                  color="white"
+                  variant="flat"
                   class="shadow-sm border-subtle"
                   @click.stop="openManageDialog(person)"
                 ></v-btn>
@@ -89,25 +89,25 @@
 
         <v-row class="ga-y-6">
           <v-col cols="6" sm="4" md="3" lg="2" xl="1" v-for="group in unnamedFaces" :key="group.id">
-            <v-card 
-              class="unnamed-card-reimagined overflow-hidden border-subtle" 
-              variant="flat" 
-              color="white" 
+            <v-card
+              class="unnamed-card-reimagined overflow-hidden border-subtle"
+              variant="flat"
+              color="white"
               rounded="xl"
             >
               <div class="image-wrapper pos-rel">
-                <v-img 
-                  :src="getFaceImageSrc(group.representative_crop, group.encoded)" 
-                  aspect-ratio="1" 
-                  cover 
+                <v-img
+                  :src="getFaceImageSrc(group.representative_crop, group.encoded)"
+                  aspect-ratio="1"
+                  cover
                   class="hover-scale transition-slow"
                 ></v-img>
               </div>
               <div class="pa-2 bg-white">
-                <v-btn 
-                  block 
-                  variant="flat" 
-                  color="#f4f4f5" 
+                <v-btn
+                  block
+                  variant="flat"
+                  color="#f4f4f5"
                   size="small"
                   class="text-none font-weight-bold rounded-lg py-4 text-zinc-primary border-subtle"
                   @click="promptName(group)"
@@ -173,11 +173,11 @@
             </template>
           </v-combobox>
 
-          <v-btn 
-            block 
-            size="x-large" 
-            color="#18181b" 
-            variant="flat" 
+          <v-btn
+            block
+            size="x-large"
+            color="#18181b"
+            variant="flat"
             class="rounded-xl text-none font-weight-bold text-white shadow-lg py-7"
             :disabled="!newName"
             @click="saveName"
@@ -213,12 +213,12 @@
                 hide-details
                 @keyup.enter="renamePerson"
               ></v-text-field>
-              
-              <v-btn 
-                block 
-                size="x-large" 
-                color="#18181b" 
-                variant="flat" 
+
+              <v-btn
+                block
+                size="x-large"
+                color="#18181b"
+                variant="flat"
                 class="rounded-xl text-none font-weight-bold py-7 shadow-lg text-white"
                 @click="renamePerson"
               >
@@ -246,13 +246,13 @@
                 hide-details
               ></v-select>
 
-              <v-btn 
-                block 
-                size="x-large" 
-                color="#18181b" 
-                variant="flat" 
+              <v-btn
+                block
+                size="x-large"
+                color="#18181b"
+                variant="flat"
                 class="rounded-xl text-none font-weight-bold py-7 shadow-sm text-white"
-                :disabled="!mergeTargetId" 
+                :disabled="!mergeTargetId"
                 @click="mergePerson"
               >
                 Confirm Merge
@@ -291,7 +291,7 @@ export default {
   },
   async mounted() {
     this.fetchData();
-    
+
     // Check initial indexing status
     invoke("get_indexing_status").then(count => {
       this.indexingCount = count;
@@ -336,7 +336,7 @@ export default {
     },
     async saveName() {
       if (!this.newName || !this.activeFace) return;
-      
+
       try {
         // Naming the representative face will now automatically name the entire cluster in the backend
         await invoke("assign_name_to_face", { faceId: this.activeFace.representative_face_id, name: this.newName });

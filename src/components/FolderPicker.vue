@@ -26,7 +26,7 @@
                 </div>
              </v-list-item>
         </v-list>
-        
+
         <v-list v-else lines="one">
           <!-- Go Up Option -->
           <v-list-item v-if="canGoUp" @click="goUp" color="primary">
@@ -53,7 +53,7 @@
                 <v-list-item-title>{{ folder.name }}</v-list-item-title>
               </v-list-item>
           </template>
-          
+
           <div v-else class="text-center py-8 text-medium-emphasis">
             <v-icon color="grey-lighten-1" size="large" class="mb-2">mdi-folder-open-outline</v-icon>
             <div>No subfolders found</div>
@@ -118,12 +118,12 @@ export default {
       try {
         console.log("Reading directory:", path);
         const entries = await readDir(path);
-        
+
         // Filter only directories and sort them
         this.folders = entries
             .filter(entry => entry.isDirectory)
             .sort((a, b) => a.name.localeCompare(b.name));
-            
+
         this.currentPath = path;
       } catch (err) {
         console.error("Error reading directory:", err);
@@ -135,14 +135,14 @@ export default {
       }
     },
     async navigate(folderName) {
-        const newPath = this.currentPath.endsWith('/') 
-            ? this.currentPath + folderName 
+        const newPath = this.currentPath.endsWith('/')
+            ? this.currentPath + folderName
             : this.currentPath + '/' + folderName;
-            
-        // Or better use join API if available and reliable, 
+
+        // Or better use join API if available and reliable,
         // but simple string concat is often safer for known Android paths
-        // await join(this.currentPath, folderName); 
-        
+        // await join(this.currentPath, folderName);
+
         await this.loadDirectory(newPath);
     },
     async goUp() {

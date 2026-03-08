@@ -15,12 +15,12 @@
         <v-progress-circular indeterminate color="white" size="32" width="3"></v-progress-circular>
       </div>
     </div>
-    
-    <l-map 
-      ref="map" 
-      v-model:zoom="zoom" 
-      :center="initialCenter" 
-      @ready="onMapReady" 
+
+    <l-map
+      ref="map"
+      v-model:zoom="zoom"
+      :center="initialCenter"
+      @ready="onMapReady"
       :minZoom="2"
       :options="{ zoomControl: false, attributionControl: false }"
       style="height: 100%; width: 100%;"
@@ -34,7 +34,7 @@
 
     </l-map>
 
-    <PhotoViewer 
+    <PhotoViewer
       v-model="viewerOpen"
       :photos="viewerPhotos"
       v-model:index="currentPhotoIndex"
@@ -86,22 +86,22 @@ export default {
     },
     async loadHeatmapData() {
         if (!this.map) return;
-        
+
         try {
             const photosJson = await invoke("get_heatmap_data");
             this.photos = JSON.parse(photosJson);
-            
+
             if (this.photos.length === 0) {
                 this.loading = false;
                 return;
             }
 
             const heatData = this.photos.map(p => [p.latitude, p.longitude, 5]);
-            
+
             if (this.heatLayer) {
                 this.map.removeLayer(this.heatLayer);
             }
-            
+
             // Final check: ensure map has a valid size before adding heat layer
             const size = this.map.getSize();
             if (size.x > 0 && size.y > 0) {
@@ -125,13 +125,13 @@ export default {
                     buckets[key].count++;
                     buckets[key].latSum += p.latitude;
                     buckets[key].lngSum += p.longitude;
-                    
+
                     if (buckets[key].count > maxCount) {
                         maxCount = buckets[key].count;
                         bestKey = key;
                     }
                 });
-                
+
                 if (bestKey) {
                     const bucket = buckets[bestKey];
                     const center = [bucket.latSum / bucket.count, bucket.lngSum / bucket.count];
@@ -141,7 +141,7 @@ export default {
 
             // Add click listener to map to find photos near click logic
             this.map.on('click', this.handleMapClick);
-            
+
         } catch (e) {
             console.error("Failed to load map data", e);
         } finally {
@@ -153,7 +153,7 @@ export default {
         const clickLat = e.latlng.lat;
         const clickLng = e.latlng.lng;
         const radius = 0.5;
-        
+
         const nearbyPhotos = this.photos.filter(p => {
             const dLat = Math.abs(p.latitude - clickLat);
             const dLng = Math.abs(p.longitude - clickLng);

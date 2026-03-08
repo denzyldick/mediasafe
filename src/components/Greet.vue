@@ -20,7 +20,7 @@ export default {
           <v-avatar size="120" color="transparent" class="mb-8 elevation-0">
             <v-img :src="logoUrl"></v-img>
           </v-avatar>
-          
+
           <h1 class="text-h2 font-weight-black mb-4 tracking-tighter text-black-pure">
             Siegu
           </h1>
@@ -29,9 +29,9 @@ export default {
           </p>
 
           <div class="d-flex flex-column ga-4">
-            <v-card 
-              variant="flat" 
-              class="siegu-btn py-4 px-6" 
+            <v-card
+              variant="flat"
+              class="siegu-btn py-4 px-6"
               @click="$emit('setup-local')"
             >
               <div class="d-flex align-center">
@@ -45,9 +45,9 @@ export default {
               </div>
             </v-card>
 
-            <v-card 
-              variant="flat" 
-              class="siegu-btn py-4 px-6" 
+            <v-card
+              variant="flat"
+              class="siegu-btn py-4 px-6"
               @click="$emit('setup-sync')"
             >
               <div class="d-flex align-center">

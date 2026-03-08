@@ -21,7 +21,11 @@ enum SignalMessage {
     #[serde(rename = "join")]
     Join { device_id: String },
     #[serde(rename = "joined")]
-    Joined { device_id: String, room_id: String, peer_count: usize },
+    Joined {
+        device_id: String,
+        room_id: String,
+        peer_count: usize,
+    },
     #[serde(rename = "offer")]
     Offer { payload: String, target: String },
     #[serde(rename = "answer")]
@@ -123,13 +127,17 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                             let err = SignalMessage::Error {
                                 message: "Room is full".to_string(),
                             };
-                            let _ =
-                                tx_recv.send(Message::Text(serde_json::to_string(&err).unwrap().into()));
+                            let _ = tx_recv
+                                .send(Message::Text(serde_json::to_string(&err).unwrap().into()));
                             break;
                         }
 
-                        room.clients
-                            .insert(d_id.clone(), Client { sender: tx_recv.clone() });
+                        room.clients.insert(
+                            d_id.clone(),
+                            Client {
+                                sender: tx_recv.clone(),
+                            },
+                        );
 
                         // Notify other peer that someone joined
                         for (id, client) in room.clients.iter() {
@@ -137,7 +145,9 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                                 let msg = SignalMessage::PeerJoined {
                                     device_id: d_id.clone(),
                                 };
-                                let _ = client.sender.send(Message::Text(serde_json::to_string(&msg).unwrap().into()));
+                                let _ = client.sender.send(Message::Text(
+                                    serde_json::to_string(&msg).unwrap().into(),
+                                ));
                             }
                         }
 
@@ -148,7 +158,9 @@ async fn handle_socket(socket: WebSocket, room_id: String, state: AppState) {
                             room_id: room_id_recv.clone(),
                             peer_count,
                         };
-                        let _ = tx_recv.send(Message::Text(serde_json::to_string(&joined).unwrap().into()));
+                        let _ = tx_recv.send(Message::Text(
+                            serde_json::to_string(&joined).unwrap().into(),
+                        ));
                     }
                     SignalMessage::Offer { payload, target } => {
                         let d_id = device_id_recv.read().await.clone();
