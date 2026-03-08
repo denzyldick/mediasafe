@@ -177,7 +177,7 @@ impl WebRtcClient {
         .await?;
 
         // 2. Send Chunks
-        let mut buffer = vec![0u8; 16384]; // 16KB chunks
+        let mut buffer = vec![0u8; 65536]; // 64KB chunks
         loop {
             let n = file.read(&mut buffer).await?;
             if n == 0 {
@@ -193,8 +193,10 @@ impl WebRtcClient {
             )
             .await?;
 
-            // Small sleep to prevent overwhelming the data channel buffer
-            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            // Flow control: Wait if buffer is too full (e.g. > 1MB)
+            while dc.buffered_amount().await > 1_000_000 {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
         }
 
         // 3. Send End
@@ -570,13 +572,23 @@ impl WebRtcClient {
         ));
 
         let pc = Arc::clone(&peer_connection);
+        let pending_ice_candidates = Arc::new(Mutex::new(Vec::new()));
 
         if self.is_initiator {
             println!("Initiator: Waiting 1s before sending WebRTC Offer...");
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             println!("Initiator: Sending WebRTC Offer...");
-            let offer = pc.create_offer(None).await?;
-            pc.set_local_description(offer.clone()).await?;
+            let offer = match pc.create_offer(None).await {
+                Ok(o) => o,
+                Err(e) => {
+                    println!("Error creating offer: {}", e);
+                    return Err(e.into());
+                }
+            };
+            if let Err(e) = pc.set_local_description(offer.clone()).await {
+                println!("Error setting local description: {}", e);
+                return Err(e.into());
+            }
             let offer_msg = SignalMessage::Offer {
                 payload: serde_json::to_string(&offer)?,
                 target: "peer".to_string(),
@@ -602,8 +614,19 @@ impl WebRtcClient {
                                     println!("Confirmed room entry! Peer count: {}", peer_count);
                                     if self.is_initiator && peer_count == 2 {
                                         println!("Initiator: Room full on entry. Creating WebRTC Offer...");
-                                        let offer = pc.create_offer(None).await?;
-                                        pc.set_local_description(offer.clone()).await?;
+                                        let offer = match pc.create_offer(None).await {
+                                            Ok(o) => o,
+                                            Err(e) => {
+                                                println!("Error creating offer: {}", e);
+                                                continue;
+                                            }
+                                        };
+                                        if let Err(e) =
+                                            pc.set_local_description(offer.clone()).await
+                                        {
+                                            println!("Error setting local description: {}", e);
+                                            continue;
+                                        }
                                         let offer_msg = SignalMessage::Offer {
                                             payload: serde_json::to_string(&offer)?,
                                             target: "peer".to_string(),
@@ -622,8 +645,19 @@ impl WebRtcClient {
                                     println!("Peer joined the room!");
                                     if self.is_initiator {
                                         println!("Initiator: Creating WebRTC Offer...");
-                                        let offer = pc.create_offer(None).await?;
-                                        pc.set_local_description(offer.clone()).await?;
+                                        let offer = match pc.create_offer(None).await {
+                                            Ok(o) => o,
+                                            Err(e) => {
+                                                println!("Error creating offer: {}", e);
+                                                continue;
+                                            }
+                                        };
+                                        if let Err(e) =
+                                            pc.set_local_description(offer.clone()).await
+                                        {
+                                            println!("Error setting local description: {}", e);
+                                            continue;
+                                        }
                                         let offer_msg = SignalMessage::Offer {
                                             payload: serde_json::to_string(&offer)?,
                                             target: "peer".to_string(),
@@ -642,9 +676,28 @@ impl WebRtcClient {
                                     println!("Received WebRTC Offer");
                                     let sdp: RTCSessionDescription =
                                         serde_json::from_str(&payload)?;
-                                    pc.set_remote_description(sdp).await?;
-                                    let answer = pc.create_answer(None).await?;
-                                    pc.set_local_description(answer.clone()).await?;
+                                    if let Err(e) = pc.set_remote_description(sdp).await {
+                                        println!("Error setting remote description: {}", e);
+                                        continue;
+                                    }
+
+                                    // Add pending ICE candidates
+                                    let mut pending = pending_ice_candidates.lock().await;
+                                    for candidate in pending.drain(..) {
+                                        let _ = pc.add_ice_candidate(candidate).await;
+                                    }
+
+                                    let answer = match pc.create_answer(None).await {
+                                        Ok(a) => a,
+                                        Err(e) => {
+                                            println!("Error creating answer: {}", e);
+                                            continue;
+                                        }
+                                    };
+                                    if let Err(e) = pc.set_local_description(answer.clone()).await {
+                                        println!("Error setting local description (answer): {}", e);
+                                        continue;
+                                    }
                                     let answer_msg = SignalMessage::Answer {
                                         payload: serde_json::to_string(&answer)?,
                                         target: "peer".to_string(),
@@ -662,13 +715,33 @@ impl WebRtcClient {
                                     println!("Received WebRTC Answer");
                                     let sdp: RTCSessionDescription =
                                         serde_json::from_str(&payload)?;
-                                    pc.set_remote_description(sdp).await?;
+                                    if let Err(e) = pc.set_remote_description(sdp).await {
+                                        println!(
+                                            "Error setting remote description (answer): {}",
+                                            e
+                                        );
+                                        continue;
+                                    }
+
+                                    // Add pending ICE candidates
+                                    let mut pending = pending_ice_candidates.lock().await;
+                                    for candidate in pending.drain(..) {
+                                        let _ = pc.add_ice_candidate(candidate).await;
+                                    }
                                 }
                                 SignalMessage::IceCandidate { payload, .. } => {
                                     println!("Received Ice Candidate");
                                     let candidate: RTCIceCandidateInit =
                                         serde_json::from_str(&payload)?;
-                                    pc.add_ice_candidate(candidate).await?;
+
+                                    if pc.remote_description().await.is_none() {
+                                        println!("Buffering ICE candidate as remote description is not set yet");
+                                        pending_ice_candidates.lock().await.push(candidate);
+                                    } else {
+                                        if let Err(e) = pc.add_ice_candidate(candidate).await {
+                                            println!("Error adding ICE candidate: {}", e);
+                                        }
+                                    }
                                 }
                                 SignalMessage::PeerDisconnected { .. } => {
                                     println!("Peer disconnected via signaling");
