@@ -257,6 +257,7 @@ pub fn start_background_worker(
                 };
 
                 if mode == "manual" {
+                    println!("ML Worker: Manual mode enabled, skipping {}", actual_id);
                     let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
                     let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
                     return;
@@ -270,7 +271,15 @@ pub fn start_background_worker(
                     }
                 }
 
-                if !photo_loc.is_empty() && Path::new(&photo_loc).exists() {
+                if !photo_loc.is_empty() {
+                    let path = Path::new(&photo_loc);
+                    if !path.exists() {
+                        println!("ML Worker: File not found at {}, skipping", photo_loc);
+                        let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
+                        let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
+                        return;
+                    }
+                    
                     let frames = if !provided_frames.is_empty() {
                         provided_frames
                     } else {

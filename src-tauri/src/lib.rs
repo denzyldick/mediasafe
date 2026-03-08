@@ -425,6 +425,12 @@ async fn index_faces(
         return Err("Config error".to_string());
     }
     let db = database::Database::new(&path);
+    
+    // Force indexing_mode to immediate so the worker actually processes the items
+    let mut state_map = std::collections::HashMap::new();
+    state_map.insert("indexing_mode".to_string(), "immediate".to_string());
+    db.set_state(state_map);
+
     let mut photo_ids = Vec::new();
     if let Ok(mut stmt) = db.connection.prepare("SELECT id FROM photo") {
         if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
@@ -433,6 +439,7 @@ async fn index_faces(
             }
         }
     }
+    println!("Found {} photos to index", photo_ids.len());
     if let Ok(tx) = state.tx.lock() {
         let count = photo_ids.len();
         let total = state
