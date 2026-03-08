@@ -474,8 +474,7 @@ impl Database {
             .connection
             .prepare("SELECT id FROM photo WHERE location LIKE ?1")
         {
-            if let Ok(rows) = stmt.query_map([format!("{path}%")], |row| row.get::<_, String>(0))
-            {
+            if let Ok(rows) = stmt.query_map([format!("{path}%")], |row| row.get::<_, String>(0)) {
                 for id in rows.flatten() {
                     photo_ids.push(id);
                 }

@@ -716,9 +716,7 @@ impl WebRtcClient {
                                     let sdp: RTCSessionDescription =
                                         serde_json::from_str(&payload)?;
                                     if let Err(e) = pc.set_remote_description(sdp).await {
-                                        println!(
-                                            "Error setting remote description (answer): {e}"
-                                        );
+                                        println!("Error setting remote description (answer): {e}");
                                         continue;
                                     }
 

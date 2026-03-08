@@ -70,9 +70,10 @@ async fn check_models(app: tauri::AppHandle) -> bool {
     for name in required {
         let p = models_dir.join(name);
         if (!p.exists() || p.metadata().map(|m| m.len()).unwrap_or(0) < 1024 * 1024)
-            && name != "tokenizer.json" {
-                return false;
-            }
+            && name != "tokenizer.json"
+        {
+            return false;
+        }
     }
     true
 }
@@ -162,6 +163,11 @@ async fn remove_directory(app: tauri::AppHandle, path: String) {
 
 #[tauri::command]
 async fn read_file_base64(path: String) -> String {
+    file::read_file_base64(path)
+}
+
+#[tauri::command]
+async fn get_raw_photo(path: String) -> String {
     file::read_file_base64(path)
 }
 
@@ -532,6 +538,7 @@ pub fn run() {
             list_directories,
             remove_directory,
             read_file_base64,
+            get_raw_photo,
             get_people,
             get_unnamed_faces,
             assign_name_to_face,
