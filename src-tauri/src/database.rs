@@ -38,7 +38,7 @@ impl Database {
     }
 
     pub fn new(config_path: &str) -> Self {
-        let path = format!("{}/siegu.db", config_path);
+        let path = format!("{config_path}/siegu.db");
         let _ = fs::create_dir_all(config_path);
         let conn = Connection::open(&path).expect("Failed to open database connection");
 
@@ -138,7 +138,7 @@ impl Database {
         let mut objects = Vec::new();
         let sql = "SELECT class FROM object WHERE class LIKE ?1 UNION SELECT value FROM properties WHERE (key LIKE '%City%' OR key LIKE '%Country%' OR key LIKE '%State%') AND value LIKE ?1 GROUP BY 1";
         if let Ok(mut stmt) = self.connection.prepare(sql) {
-            if let Ok(iter) = stmt.query_map([format!("%{}%", query)], |row| row.get(0)) {
+            if let Ok(iter) = stmt.query_map([format!("%{query}%")], |row| row.get(0)) {
                 for item in iter.flatten() {
                     objects.push(item);
                 }
@@ -179,12 +179,12 @@ impl Database {
             ""
         };
 
-        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE 1=1 {} {} {} ORDER BY p.created DESC LIMIT ?1, ?2", fav_filter, video_filter, q_filter);
+        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE 1=1 {fav_filter} {video_filter} {q_filter} ORDER BY p.created DESC LIMIT ?1, ?2");
         if let Ok(mut stmt) = self.connection.prepare(&sql) {
             let q_param = if is_uuid {
                 query.to_string()
             } else {
-                format!("%{}%", query)
+                format!("%{query}%")
             };
             let params: Vec<&dyn rusqlite::ToSql> = if !query.is_empty() {
                 vec![&offset, &limit, &q_param]
@@ -474,7 +474,7 @@ impl Database {
             .connection
             .prepare("SELECT id FROM photo WHERE location LIKE ?1")
         {
-            if let Ok(rows) = stmt.query_map([format!("{}%", path)], |row| row.get::<_, String>(0))
+            if let Ok(rows) = stmt.query_map([format!("{path}%")], |row| row.get::<_, String>(0))
             {
                 for id in rows.flatten() {
                     photo_ids.push(id);

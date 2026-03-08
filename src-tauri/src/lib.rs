@@ -1,4 +1,3 @@
-use serde_json;
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::SystemTime;
@@ -70,11 +69,10 @@ async fn check_models(app: tauri::AppHandle) -> bool {
     ];
     for name in required {
         let p = models_dir.join(name);
-        if !p.exists() || p.metadata().map(|m| m.len()).unwrap_or(0) < 1024 * 1024 {
-            if name != "tokenizer.json" {
+        if (!p.exists() || p.metadata().map(|m| m.len()).unwrap_or(0) < 1024 * 1024)
+            && name != "tokenizer.json" {
                 return false;
             }
-        }
     }
     true
 }
@@ -347,7 +345,7 @@ fn get_indexing_status(state: tauri::State<'_, ml::MlContext>) -> usize {
 
 #[tauri::command]
 async fn join_network(app: tauri::AppHandle, ip: String, name: String) {
-    println!("Adding new device: {} at {}", name, ip);
+    println!("Adding new device: {name} at {ip}");
     let path = get_config_path(&app);
     if path.is_empty() {
         return;
@@ -396,7 +394,7 @@ fn process_video_frames(
     id: String,
     frames: Vec<String>,
 ) {
-    let mut payload = format!("__VIDEO_FRAMES__:{}", id);
+    let mut payload = format!("__VIDEO_FRAMES__:{id}");
     for frame in frames {
         payload.push_str("|||");
         payload.push_str(&frame);
@@ -425,7 +423,7 @@ async fn index_faces(
         return Err("Config error".to_string());
     }
     let db = database::Database::new(&path);
-    
+
     // Force indexing_mode to immediate so the worker actually processes the items
     let mut state_map = std::collections::HashMap::new();
     state_map.insert("indexing_mode".to_string(), "immediate".to_string());
@@ -492,7 +490,7 @@ async fn get_config(app: tauri::AppHandle) -> String {
 }
 
 pub fn emit_log(app: &tauri::AppHandle, message: String) {
-    println!("{}", message);
+    println!("{message}");
     let _ = app.emit("log-message", message);
 }
 

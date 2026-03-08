@@ -221,7 +221,7 @@ impl WebRtcClient {
             }
             Err(e) => {
                 let err_msg = format!("Signaling connection failed: {e}");
-                println!("Signaling connection failed: {}", e);
+                println!("Signaling connection failed: {e}");
                 self.emit("webrtc-state", err_msg);
                 return Err(e.into());
             }
@@ -234,7 +234,7 @@ impl WebRtcClient {
         let write = Arc::new(Mutex::new(write));
 
         let my_device_id = uuid::Uuid::new_v4().to_string();
-        println!("Joining network with device ID: {}", my_device_id);
+        println!("Joining network with device ID: {my_device_id}");
         let join_msg = SignalMessage::Join {
             device_id: my_device_id.clone(),
         };
@@ -543,7 +543,7 @@ impl WebRtcClient {
 
         peer_connection.on_peer_connection_state_change(Box::new(
             move |s: RTCPeerConnectionState| {
-                println!("Peer Connection State changed to: {:?}", s);
+                println!("Peer Connection State changed to: {s:?}");
                 let status = match s {
                     RTCPeerConnectionState::Connected => "Connected",
                     RTCPeerConnectionState::Connecting => "Connecting WebRTC...",
@@ -581,12 +581,12 @@ impl WebRtcClient {
             let offer = match pc.create_offer(None).await {
                 Ok(o) => o,
                 Err(e) => {
-                    println!("Error creating offer: {}", e);
+                    println!("Error creating offer: {e}");
                     return Err(e.into());
                 }
             };
             if let Err(e) = pc.set_local_description(offer.clone()).await {
-                println!("Error setting local description: {}", e);
+                println!("Error setting local description: {e}");
                 return Err(e.into());
             }
             let offer_msg = SignalMessage::Offer {
@@ -606,25 +606,25 @@ impl WebRtcClient {
         while let Some(msg) = read.next().await {
             match msg {
                 Ok(Message::Text(text)) => {
-                    println!("Received signaling message: {}", text);
+                    println!("Received signaling message: {text}");
                     match serde_json::from_str::<SignalMessage>(&text) {
                         Ok(signal) => {
                             match signal {
                                 SignalMessage::Joined { peer_count, .. } => {
-                                    println!("Confirmed room entry! Peer count: {}", peer_count);
+                                    println!("Confirmed room entry! Peer count: {peer_count}");
                                     if self.is_initiator && peer_count == 2 {
                                         println!("Initiator: Room full on entry. Creating WebRTC Offer...");
                                         let offer = match pc.create_offer(None).await {
                                             Ok(o) => o,
                                             Err(e) => {
-                                                println!("Error creating offer: {}", e);
+                                                println!("Error creating offer: {e}");
                                                 continue;
                                             }
                                         };
                                         if let Err(e) =
                                             pc.set_local_description(offer.clone()).await
                                         {
-                                            println!("Error setting local description: {}", e);
+                                            println!("Error setting local description: {e}");
                                             continue;
                                         }
                                         let offer_msg = SignalMessage::Offer {
@@ -648,14 +648,14 @@ impl WebRtcClient {
                                         let offer = match pc.create_offer(None).await {
                                             Ok(o) => o,
                                             Err(e) => {
-                                                println!("Error creating offer: {}", e);
+                                                println!("Error creating offer: {e}");
                                                 continue;
                                             }
                                         };
                                         if let Err(e) =
                                             pc.set_local_description(offer.clone()).await
                                         {
-                                            println!("Error setting local description: {}", e);
+                                            println!("Error setting local description: {e}");
                                             continue;
                                         }
                                         let offer_msg = SignalMessage::Offer {
@@ -677,7 +677,7 @@ impl WebRtcClient {
                                     let sdp: RTCSessionDescription =
                                         serde_json::from_str(&payload)?;
                                     if let Err(e) = pc.set_remote_description(sdp).await {
-                                        println!("Error setting remote description: {}", e);
+                                        println!("Error setting remote description: {e}");
                                         continue;
                                     }
 
@@ -690,12 +690,12 @@ impl WebRtcClient {
                                     let answer = match pc.create_answer(None).await {
                                         Ok(a) => a,
                                         Err(e) => {
-                                            println!("Error creating answer: {}", e);
+                                            println!("Error creating answer: {e}");
                                             continue;
                                         }
                                     };
                                     if let Err(e) = pc.set_local_description(answer.clone()).await {
-                                        println!("Error setting local description (answer): {}", e);
+                                        println!("Error setting local description (answer): {e}");
                                         continue;
                                     }
                                     let answer_msg = SignalMessage::Answer {
@@ -717,8 +717,7 @@ impl WebRtcClient {
                                         serde_json::from_str(&payload)?;
                                     if let Err(e) = pc.set_remote_description(sdp).await {
                                         println!(
-                                            "Error setting remote description (answer): {}",
-                                            e
+                                            "Error setting remote description (answer): {e}"
                                         );
                                         continue;
                                     }
@@ -737,10 +736,8 @@ impl WebRtcClient {
                                     if pc.remote_description().await.is_none() {
                                         println!("Buffering ICE candidate as remote description is not set yet");
                                         pending_ice_candidates.lock().await.push(candidate);
-                                    } else {
-                                        if let Err(e) = pc.add_ice_candidate(candidate).await {
-                                            println!("Error adding ICE candidate: {}", e);
-                                        }
+                                    } else if let Err(e) = pc.add_ice_candidate(candidate).await {
+                                        println!("Error adding ICE candidate: {e}");
                                     }
                                 }
                                 SignalMessage::PeerDisconnected { .. } => {
@@ -748,7 +745,7 @@ impl WebRtcClient {
                                     self.emit("webrtc-state", "Peer disconnected");
                                 }
                                 SignalMessage::Error { message } => {
-                                    println!("Signaling Error: {}", message);
+                                    println!("Signaling Error: {message}");
                                     self.emit(
                                         "webrtc-state",
                                         format!("Signaling error: {message}"),
@@ -760,12 +757,12 @@ impl WebRtcClient {
                             }
                         }
                         Err(e) => {
-                            println!("Failed to parse signaling message: {}. Error: {}", text, e);
+                            println!("Failed to parse signaling message: {text}. Error: {e}");
                         }
                     }
                 }
                 Err(e) => {
-                    println!("WebSocket Error in read loop: {}", e);
+                    println!("WebSocket Error in read loop: {e}");
                     self.emit("webrtc-state", format!("WebSocket error: {e}"));
                     break;
                 }

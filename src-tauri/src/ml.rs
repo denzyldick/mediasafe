@@ -133,7 +133,7 @@ pub fn start_background_worker(
         let num_threads: usize = config
             .get("scan_threads")
             .and_then(|s| s.parse().ok())
-            .unwrap_or_else(|| {
+            .unwrap_or({
                 if cfg!(any(target_os = "android", target_os = "ios")) {
                     2
                 } else {
@@ -141,7 +141,7 @@ pub fn start_background_worker(
                 }
             });
 
-        println!("ML Worker: Initializing with {} threads", num_threads);
+        println!("ML Worker: Initializing with {num_threads} threads");
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()
@@ -257,7 +257,7 @@ pub fn start_background_worker(
                 };
 
                 if mode == "manual" {
-                    println!("ML Worker: Manual mode enabled, skipping {}", actual_id);
+                    println!("ML Worker: Manual mode enabled, skipping {actual_id}");
                     let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
                     let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
                     return;
@@ -274,12 +274,12 @@ pub fn start_background_worker(
                 if !photo_loc.is_empty() {
                     let path = Path::new(&photo_loc);
                     if !path.exists() {
-                        println!("ML Worker: File not found at {}, skipping", photo_loc);
+                        println!("ML Worker: File not found at {photo_loc}, skipping");
                         let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
                         let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
                         return;
                     }
-                    
+
                     let frames = if !provided_frames.is_empty() {
                         provided_frames
                     } else {

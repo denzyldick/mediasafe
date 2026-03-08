@@ -1,0 +1,23 @@
+#!/bin/bash
+set -e
+
+echo "Running pre-commit hooks..."
+
+# Format and fix Rust code
+echo "Checking src-tauri..."
+cd src-tauri
+cargo fmt
+cargo clippy --fix --allow-dirty --allow-staged
+cd ..
+
+# Format and fix signaling-server
+echo "Checking signaling-server..."
+cd signaling-server
+cargo fmt
+cargo clippy --fix --allow-dirty --allow-staged
+cd ..
+
+# Re-add changed files if clippy modified them
+git add .
+
+echo "Pre-commit hooks passed!"
