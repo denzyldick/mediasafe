@@ -158,11 +158,15 @@
                 <template v-slot:prepend>
                   <v-checkbox v-model="selectedModels" value="clip" hide-details class="mt-0 siegu-checkbox" color="black"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-zinc-primary">
-                  CLIP Model
-                  <v-chip v-if="downloadedModels.includes('clip')" size="x-small" variant="flat" class="ml-2" color="success">Ready</v-chip>
-                </v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-secondary">Semantic search and content classification (350MB)</v-list-item-subtitle>
+                <template v-slot:title>
+                  <div class="font-weight-bold text-zinc-primary d-flex align-center">
+                    CLIP Model
+                    <v-chip v-if="downloadedModels.includes('clip')" size="x-small" variant="flat" class="ml-2" color="success">Ready</v-chip>
+                  </div>
+                </template>
+                <template v-slot:subtitle>
+                  <span class="text-zinc-secondary">Semantic search and content classification (350MB)</span>
+                </template>
                 <div v-if="downloadProgress.clip" class="mt-2 px-2">
                   <v-progress-linear
                     :model-value="getProgress('clip')"
@@ -178,11 +182,15 @@
                 <template v-slot:prepend>
                   <v-checkbox v-model="selectedModels" value="ultraface" hide-details class="mt-0 siegu-checkbox" color="black"></v-checkbox>
                 </template>
-                <v-list-item-title class="font-weight-bold text-zinc-primary">
-                  UltraFace Model
-                  <v-chip v-if="downloadedModels.includes('ultraface')" size="x-small" variant="flat" class="ml-2" color="success">Ready</v-chip>
-                </v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-secondary">Fast local face detection and grouping (2MB)</v-list-item-subtitle>
+                <template v-slot:title>
+                  <div class="font-weight-bold text-zinc-primary d-flex align-center">
+                    UltraFace Model
+                    <v-chip v-if="downloadedModels.includes('ultraface')" size="x-small" variant="flat" class="ml-2" color="success">Ready</v-chip>
+                  </div>
+                </template>
+                <template v-slot:subtitle>
+                  <span class="text-zinc-secondary">Fast local face detection and grouping (2MB)</span>
+                </template>
                 <div v-if="downloadProgress.ultraface" class="mt-2 px-2">
                   <v-progress-linear
                     :model-value="getProgress('ultraface')"
@@ -232,16 +240,24 @@
           <v-card-text class="pt-2">
             <v-list lines="two" class="bg-transparent">
               <v-list-item class="px-0">
-                <v-list-item-title class="font-weight-bold text-zinc-primary">Background Sync</v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-secondary">Allow syncing when app is in background</v-list-item-subtitle>
+                <template v-slot:title>
+                  <span class="font-weight-bold text-zinc-primary">Background Sync</span>
+                </template>
+                <template v-slot:subtitle>
+                  <span class="text-zinc-secondary">Allow syncing when app is in background</span>
+                </template>
                 <template v-slot:append>
                   <v-switch v-model="bgSync" hide-details color="black" inset density="compact"></v-switch>
                 </template>
               </v-list-item>
 
               <v-list-item class="px-0">
-                <v-list-item-title class="font-weight-bold text-zinc-primary">Cleanup Database</v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-secondary">Optimize storage and remove orphaned entries</v-list-item-subtitle>
+                <template v-slot:title>
+                  <span class="font-weight-bold text-zinc-primary">Cleanup Database</span>
+                </template>
+                <template v-slot:subtitle>
+                  <span class="text-zinc-secondary">Optimize storage and remove orphaned entries</span>
+                </template>
                 <template v-slot:append>
                   <v-btn size="small" variant="flat" @click="cleanupDb" :loading="isCleaning" class="siegu-btn px-4">
                     <div class="d-flex align-center">
