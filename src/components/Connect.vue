@@ -260,9 +260,9 @@ export default {
       this.connectionStatus = "Waiting for partner device to scan or type phrase...";
       const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io/ws";
       const args = {
-          roomId: roomId,
-          isInitiator: false,
-          signalingUrl: signalingUrl
+          room_id: roomId,
+          is_initiator: false,
+          signaling_url: signalingUrl
       };
       try {
           await invoke("start_webrtc_session", args);
@@ -279,9 +279,9 @@ export default {
         try {
            const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
            const args = {
-              roomId: roomId,
-              isInitiator: true,
-              signalingUrl: signalingUrl
+              room_id: roomId,
+              is_initiator: true,
+              signaling_url: signalingUrl
            };
            await invoke("start_webrtc_session", args);
            this.connectionStatus = "Signaling channel requested. Awaiting WebRTC Receiver connection.";
