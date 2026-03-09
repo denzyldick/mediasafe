@@ -623,6 +623,9 @@ impl WebRtcClient {
                             match signal {
                                 SignalMessage::Joined { peer_count, .. } => {
                                     println!("Confirmed room entry! Peer count: {peer_count}");
+                                    if peer_count == 2 {
+                                        self.emit("webrtc-state", "Peer Joined");
+                                    }
                                     if self.is_initiator && peer_count == 2 {
                                         println!("Initiator: Room full on entry. Creating WebRTC Offer...");
                                         let offer = match pc.create_offer(None).await {
@@ -654,6 +657,7 @@ impl WebRtcClient {
                                 }
                                 SignalMessage::PeerJoined { .. } => {
                                     println!("Peer joined the room!");
+                                    self.emit("webrtc-state", "Peer Joined");
                                     if self.is_initiator {
                                         println!("Initiator: Creating WebRTC Offer...");
                                         let offer = match pc.create_offer(None).await {
