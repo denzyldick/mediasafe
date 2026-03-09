@@ -36,13 +36,13 @@
         <div class="d-flex justify-center mb-6" v-if="uuid && mode === 'host'">
           <v-sheet class="bg-siegu-white rounded-xl pa-6 shadow-lg border-subtle position-relative overflow-hidden">
                 <v-fade-transition hide-on-leave>
-                  <div v-if="connectionStatus === 'Peer Joined' || connectionStatus.includes('WebRTC')" class="overlay-connecting d-flex flex-column align-center justify-center">
+                  <div v-if="uuid && (connectionStatus === 'Peer Joined' || connectionStatus === 'Connected' || connectionStatus === 'connected')" class="overlay-connecting d-flex flex-column align-center justify-center">
                      <v-progress-circular indeterminate color="black" size="48" width="4" class="mb-4"></v-progress-circular>
                      <div class="text-subtitle-2 font-weight-bold text-zinc-primary animate-pulse">Device Found!</div>
                      <div class="text-caption text-zinc-secondary">Establishing secure link...</div>
                   </div>
                 </v-fade-transition>
-                <qrcode-vue :value="uuid" :size="200" level="H" :class="{'opacity-20 blur-sm transition-all': connectionStatus === 'Peer Joined' || connectionStatus.includes('WebRTC')}" />
+                <qrcode-vue :value="uuid" :size="200" level="H" :class="{'opacity-20 blur-sm transition-all': uuid && (connectionStatus === 'Peer Joined' || connectionStatus === 'Connected' || connectionStatus === 'connected')}" />
           </v-sheet>
         </div>
 
@@ -116,13 +116,13 @@
       <div class="d-flex justify-center mb-6" v-if="uuid && mode === 'host'">
         <v-sheet class="bg-siegu-white rounded-xl pa-6 shadow-lg border-subtle position-relative overflow-hidden">
               <v-fade-transition hide-on-leave>
-                <div v-if="connectionStatus === 'Peer Joined' || connectionStatus.includes('WebRTC')" class="overlay-connecting d-flex flex-column align-center justify-center">
+                <div v-if="uuid && (connectionStatus === 'Peer Joined' || connectionStatus === 'Connected' || connectionStatus === 'connected')" class="overlay-connecting d-flex flex-column align-center justify-center">
                    <v-progress-circular indeterminate color="black" size="48" width="4" class="mb-4"></v-progress-circular>
                    <div class="text-subtitle-2 font-weight-bold text-zinc-primary animate-pulse">Device Found!</div>
                    <div class="text-caption text-zinc-secondary">Establishing secure link...</div>
                 </div>
               </v-fade-transition>
-              <qrcode-vue :value="uuid" :size="200" level="H" :class="{'opacity-20 blur-sm transition-all': connectionStatus === 'Peer Joined' || connectionStatus.includes('WebRTC')}" />
+              <qrcode-vue :value="uuid" :size="200" level="H" :class="{'opacity-20 blur-sm transition-all': uuid && (connectionStatus === 'Peer Joined' || connectionStatus === 'Connected' || connectionStatus === 'connected')}" />
         </v-sheet>
       </div>
 
