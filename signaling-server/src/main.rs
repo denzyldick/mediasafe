@@ -80,9 +80,9 @@ async fn main() {
 }
 
 async fn ws_handler(
-    ws: WebSocketUpgrade,
     Path(room_id): Path<String>,
     State(state): State<AppState>,
+    ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
     ws.on_upgrade(move |socket| handle_socket(socket, room_id, state))
 }
