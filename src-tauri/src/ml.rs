@@ -21,6 +21,7 @@ use tract_onnx::prelude::*;
 pub struct MlContext {
     pub tx: std::sync::Mutex<UnboundedSender<String>>,
     pub pending_count: Arc<AtomicUsize>,
+    pub abort: Arc<std::sync::atomic::AtomicBool>,
 }
 
 // Model wrappers to handle different engine types
@@ -217,10 +218,16 @@ fn compute_text_embeddings(
 pub fn start_background_worker(
     app: &AppHandle,
     config_path: String,
-) -> (UnboundedSender<String>, Arc<AtomicUsize>) {
+) -> (
+    UnboundedSender<String>,
+    Arc<AtomicUsize>,
+    Arc<std::sync::atomic::AtomicBool>,
+) {
     let (tx, mut rx) = unbounded_channel::<String>();
     let pending_count = Arc::new(AtomicUsize::new(0));
     let pending_count_clone = Arc::clone(&pending_count);
+    let abort = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let abort_clone = Arc::clone(&abort);
     let app_handle = app.clone();
     let db_path = config_path.clone();
 
@@ -262,7 +269,17 @@ pub fn start_background_worker(
                 continue;
             }
 
+            if photo_id == "__ABORT__" {
+                abort_clone.store(true, Ordering::SeqCst);
+                pending_count_clone.store(0, Ordering::SeqCst);
+                // Clear the channel
+                while rx.try_recv().is_ok() {}
+                let _ = app_handle.emit("indexing-progress", 0);
+                continue;
+            }
+
             if !engine_initialized || photo_id == "__RELOAD_MODELS__" {
+                abort_clone.store(false, Ordering::SeqCst);
                 emit_log(
                     &app_handle,
                     "ML Worker: Initializing AI Engine...".to_string(),
@@ -457,8 +474,12 @@ pub fn start_background_worker(
             let faces_dir_task = faces_dir.clone();
             let db_task = Arc::clone(&db);
             let sem_task = Arc::clone(&memory_semaphore);
+            let abort_task = Arc::clone(&abort_clone);
 
             pool.spawn(move || {
+                if abort_task.load(Ordering::SeqCst) {
+                    return;
+                }
                 let _permit = sem_task.try_acquire();
                 let mut provided_frames = Vec::new();
                 let mut actual_id = photo_id_task.clone();
@@ -468,6 +489,7 @@ pub fn start_background_worker(
                     if parts.len() > 1 {
                         actual_id = parts[0].replace("__VIDEO_FRAMES__:", "").to_string();
                         for b64_raw in parts.iter().skip(1) {
+                            if abort_task.load(Ordering::SeqCst) { return; }
                             let b64 = b64_raw.replace("data:image/jpeg;base64,", "").replace("data:image/png;base64,", "");
                             if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(&b64) {
                                 if let Ok(img) = image::load_from_memory(&bytes) { provided_frames.push(img.to_rgb8()); }
@@ -475,6 +497,8 @@ pub fn start_background_worker(
                         }
                     }
                 }
+
+                if abort_task.load(Ordering::SeqCst) { return; }
 
                 let mut photo_loc = String::new();
                 {
@@ -492,6 +516,7 @@ pub fn start_background_worker(
                     else { image::open(&photo_loc).map(|img| vec![img.to_rgb8()]).unwrap_or_default() };
 
                     for img in frames {
+                        if abort_task.load(Ordering::SeqCst) { return; }
                         if let Some(ref visual_model) = clip_visual_task {
                             let resized = image::imageops::resize(&img, 224, 224, image::imageops::FilterType::Triangle);
                             let mut input_img = Array4::<f32>::zeros((1, 3, 224, 224));
@@ -642,5 +667,5 @@ pub fn start_background_worker(
             });
         }
     });
-    (tx, pending_count)
+    (tx, pending_count, abort)
 }

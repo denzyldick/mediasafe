@@ -50,7 +50,16 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     let video_extensions = ["mp4", "mkv", "mov", "avi", "webm"];
     let image_extensions = ["png", "jpg", "jpeg", "webp", "heic", "avif"];
 
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let abort_flag = app
+        .try_state::<MlContext>()
+        .map(|s| s.abort.clone())
+        .unwrap_or_else(|| Arc::new(AtomicBool::new(false)));
+
     for entry in WalkDir::new(directory).follow_links(false) {
+        if abort_flag.load(Ordering::SeqCst) {
+            return;
+        }
         if let Ok(entry) = entry {
             let path = entry.path();
             if let Some(extension) = path.extension() {
@@ -69,6 +78,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     use std::sync::{Arc, Mutex};
     let database = Arc::new(Mutex::new(database));
     let app_handle = Arc::new(app.clone());
+    let abort_flag_task = Arc::clone(&abort_flag);
 
     // Create a local thread pool for this scan to avoid blocking the global one if requested
     let pool = rayon::ThreadPoolBuilder::new()
@@ -79,6 +89,9 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     use rayon::prelude::*;
     pool.install(|| {
         image_paths.into_par_iter().for_each(|path| {
+            if abort_flag_task.load(Ordering::SeqCst) {
+                return;
+            }
             let db = database.lock().unwrap();
             let path_str = path.display().to_string();
             if db.path_exists(&path_str) {

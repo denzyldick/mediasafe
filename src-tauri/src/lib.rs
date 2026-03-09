@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::SystemTime;
 use tauri::Emitter;
 use tauri::Manager;
@@ -32,10 +33,19 @@ fn scan_files(app: tauri::AppHandle) {
     }
     let database = database::Database::new(&path);
     let folders = database.list_directories();
+    let state = app.state::<ml::MlContext>();
+    state
+        .abort
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+
+    let abort_flag = Arc::clone(&state.abort);
 
     std::thread::spawn(move || {
         let total = folders.len();
         for (i, folder) in folders.iter().enumerate() {
+            if abort_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                return;
+            }
             let progress = (i as f32 / total as f32 * 100.0) as u32;
             let _ = app.emit("scan-progress", serde_json::json!({ "status": "scanning", "progress": progress, "current": i + 1, "total": total, "current_directory": folder }));
             file::scan_folder(&app, folder.clone(), &path);
@@ -182,19 +192,22 @@ async fn download_models(
                 continue;
             }
             let total_size = response.content_length();
-            let mut file = match tokio::fs::File::create(&path).await {
+            let tmp_path = path.with_extension("tmp");
+            let mut file = match tokio::fs::File::create(&tmp_path).await {
                 Ok(f) => f,
                 Err(e) => {
                     emit_log(
                         &app,
-                        format!("ERROR: Failed to create file {filename}: {e}"),
+                        format!("ERROR: Failed to create temp file {filename}: {e}"),
                     );
                     continue;
                 }
             };
             let mut downloaded: u64 = 0;
+            let mut success = true;
             while let Ok(Some(chunk)) = response.chunk().await {
                 if (file.write_all(&chunk).await).is_err() {
+                    success = false;
                     break;
                 }
                 downloaded += chunk.len() as u64;
@@ -207,7 +220,19 @@ async fn download_models(
                     },
                 );
             }
-            emit_log(&app, format!("SUCCESS: Finished downloading {filename}"));
+
+            if success {
+                drop(file);
+                if let Err(e) = tokio::fs::rename(&tmp_path, &path).await {
+                    emit_log(&app, format!("ERROR: Failed to move {filename}: {e}"));
+                    let _ = tokio::fs::remove_file(&tmp_path).await;
+                } else {
+                    emit_log(&app, format!("SUCCESS: Finished downloading {filename}"));
+                }
+            } else {
+                let _ = tokio::fs::remove_file(&tmp_path).await;
+                emit_log(&app, format!("ERROR: Download interrupted for {filename}"));
+            }
         }
         let _ = tx.send("__RELOAD_MODELS__".to_string());
         let _ = app.emit("download-complete", ());
@@ -460,8 +485,10 @@ async fn cleanup_database(app: tauri::AppHandle) {
     if path.is_empty() {
         return;
     }
-    let db = database::Database::new(&path);
-    let _ = db.connection.execute("VACUUM", ());
+    let db_path = std::path::Path::new(&path).join("siegu.db");
+    if db_path.exists() {
+        let _ = std::fs::remove_file(db_path);
+    }
 }
 
 #[tauri::command]
@@ -478,9 +505,9 @@ async fn remove_directory_full(app: tauri::AppHandle, path: String) {
 async fn start_webrtc_session(
     app: tauri::AppHandle,
     state: tauri::State<'_, WebRtcState>,
-    roomId: String,
-    isInitiator: bool,
-    signalingUrl: String,
+    room_id: String,
+    is_initiator: bool,
+    signaling_url: String,
 ) -> Result<(), String> {
     let app_handle = app.clone();
     let config_path = get_config_path(&app);
@@ -497,9 +524,9 @@ async fn start_webrtc_session(
 
         let handle = tauri::async_runtime::spawn(async move {
             let client = transport::WebRtcClient {
-                room_id: roomId,
-                is_initiator: isInitiator,
-                signaling_url: signalingUrl,
+                room_id,
+                is_initiator,
+                signaling_url,
                 app_handle: Some(app_handle),
                 config_path,
             };
@@ -540,7 +567,27 @@ async fn list_devices(app: tauri::AppHandle) -> String {
         return "[]".to_string();
     }
     let db = database::Database::new(&path);
-    serde_json::to_string(&db.list_devices()).unwrap_or("[]".to_string())
+    let mut devices = db.list_devices();
+
+    // Add current host
+    let hostname = std::env::var("HOSTNAME").unwrap_or_else(|_| "localhost".to_string());
+    let (photo_count, video_count) = db.get_media_counts();
+
+    devices.insert(
+        0,
+        database::DeviceInfo {
+            id: "host".to_string(),
+            title: format!("Siegu ({hostname})"),
+            icon: "mdi-laptop".to_string(),
+            up_to_date: true,
+            host: true,
+            photo_count,
+            video_count,
+            os: std::env::consts::OS.to_string(),
+        },
+    );
+
+    serde_json::to_string(&devices).unwrap_or("[]".to_string())
 }
 
 #[tauri::command]
@@ -629,6 +676,18 @@ async fn index_faces(
 }
 
 #[tauri::command]
+async fn abort_indexing(state: tauri::State<'_, ml::MlContext>) -> Result<(), String> {
+    if let Ok(tx) = state.tx.lock() {
+        let _ = tx.send("__ABORT__".to_string());
+    }
+    state.abort.store(true, std::sync::atomic::Ordering::SeqCst);
+    state
+        .pending_count
+        .store(0, std::sync::atomic::Ordering::SeqCst);
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_heatmap_data(app: tauri::AppHandle) -> String {
     let path = get_config_path(&app);
     if path.is_empty() {
@@ -711,11 +770,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let config_path = get_config_path(app.handle());
-            let (tx, pending_count) =
+            let (tx, pending_count, abort) =
                 ml::start_background_worker(app.handle(), config_path.clone());
             app.manage(ml::MlContext {
                 tx: std::sync::Mutex::new(tx),
                 pending_count,
+                abort,
             });
 
             let media_server_port = transport::start_media_server(config_path);
@@ -768,6 +828,7 @@ pub fn run() {
             remove_directory_full,
             get_media_server_port,
             index_faces,
+            abort_indexing,
             get_os,
             save_config,
             get_config,

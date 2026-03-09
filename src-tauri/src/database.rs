@@ -602,6 +602,12 @@ impl Database {
         );
     }
 
+    pub fn get_media_counts(&self) -> (i64, i64) {
+        let photo_count: i64 = self.connection.query_row("SELECT COUNT(*) FROM photo WHERE NOT (location LIKE '%.mp4' OR location LIKE '%.mkv' OR location LIKE '%.mov' OR location LIKE '%.avi' OR location LIKE '%.webm')", [], |r| r.get(0)).unwrap_or(0);
+        let video_count: i64 = self.connection.query_row("SELECT COUNT(*) FROM photo WHERE (location LIKE '%.mp4' OR location LIKE '%.mkv' OR location LIKE '%.mov' OR location LIKE '%.avi' OR location LIKE '%.webm')", [], |r| r.get(0)).unwrap_or(0);
+        (photo_count, video_count)
+    }
+
     pub fn list_devices(&self) -> Vec<DeviceInfo> {
         let mut results = Vec::new();
         if let Ok(mut stmt) = self.connection.prepare("SELECT ip, name FROM device") {
@@ -611,6 +617,10 @@ impl Database {
                     title: row.get::<_, String>(1)?,
                     icon: "mdi-cellphone".to_string(), // Default icon
                     up_to_date: true,
+                    host: false,
+                    photo_count: 0,
+                    video_count: 0,
+                    os: "unknown".to_string(),
                 })
             }) {
                 for d in iter.flatten() {
@@ -692,4 +702,8 @@ pub struct DeviceInfo {
     pub title: String,
     pub icon: String,
     pub up_to_date: bool,
+    pub host: bool,
+    pub photo_count: i64,
+    pub video_count: i64,
+    pub os: String,
 }

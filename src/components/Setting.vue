@@ -201,12 +201,20 @@
                   <span class="text-zinc-secondary">Optimize storage and remove orphaned entries</span>
                 </template>
                 <template v-slot:append>
-                  <v-btn size="small" variant="flat" @click="cleanupDb" :loading="isCleaning" class="siegu-btn px-4">
+                  <v-btn 
+                    size="small" 
+                    variant="flat" 
+                    color="#000000"
+                    theme="dark"
+                    @click="cleanupDb" 
+                    :loading="isCleaning" 
+                    class="siegu-btn px-4"
+                  >
                     <div class="d-flex align-center">
                       <div class="siegu-icon-circle siegu-icon-circle-md mr-3">
                         <v-icon color="#ffffff" size="small">mdi-wrench-outline</v-icon>
                       </div>
-                      <span class="text-white">Run</span>
+                      <span class="text-white font-weight-bold">Clean</span>
                     </div>
                   </v-btn>
                 </template>
@@ -215,89 +223,77 @@
 
             <v-divider class="my-4 border-subtle"></v-divider>
 
-            <!-- Advanced Performance (Hidden for normal users) -->
-            <v-expansion-panels variant="flat" class="advanced-perf">
-              <v-expansion-panel bg-color="transparent">
-                <v-expansion-panel-title class="px-0 text-zinc-muted text-caption font-weight-bold">
-                  ADVANCED PERFORMANCE SETTINGS
-                </v-expansion-panel-title>
-                <v-expansion-panel-text class="px-0">
-                  <div class="pt-2">
-                    <div class="d-flex justify-space-between align-center mb-2">
-                      <div class="text-caption font-weight-bold text-zinc-primary">Scanning Threads</div>
-                      <v-chip size="x-small" color="#000000" variant="flat" class="font-weight-bold text-white">{{ performance.scanThreads }}</v-chip>
-                    </div>
-                    <v-slider
-                      v-model="performance.scanThreads"
-                      :min="1"
-                      :max="maxThreads"
-                      :step="1"
-                      hide-details
-                      color="black"
-                      track-color="#f4f4f5"
-                      @update:model-value="savePerformanceConfig"
-                    ></v-slider>
+            <!-- Advanced Performance -->
+            <div class="mb-6">
+              <div class="text-caption font-weight-bold text-zinc-muted mb-4 tracking-widest uppercase">Advanced Performance</div>
+              <div class="pt-2">
+                <div class="d-flex justify-space-between align-center mb-2">
+                  <div class="text-caption font-weight-bold text-zinc-primary">Scanning Threads</div>
+                  <v-chip size="x-small" color="#000000" variant="flat" class="font-weight-bold text-white">{{ performance.scanThreads }}</v-chip>
+                </div>
+                <v-slider
+                  v-model="performance.scanThreads"
+                  :min="1"
+                  :max="maxThreads"
+                  :step="1"
+                  hide-details
+                  color="black"
+                  track-color="#f4f4f5"
+                  @update:model-value="savePerformanceConfig"
+                ></v-slider>
 
-                    <v-list-item class="px-0 mt-4">
-                      <v-list-item-title class="text-caption font-weight-bold text-zinc-primary">Indexing Mode</v-list-item-title>
-                      <template v-slot:append>
-                        <v-menu offset-y>
-                          <template v-slot:activator="{ props }">
-                            <v-btn variant="tonal" size="x-small" color="black" v-bind="props" class="font-weight-bold">
-                              {{ getModeLabel(performance.indexingMode) }}
-                              <v-icon size="12" class="ml-1">mdi-chevron-down</v-icon>
-                            </v-btn>
-                          </template>
-                          <v-list density="compact" class="siegu-list">
-                            <v-list-item v-for="mode in indexingModes" :key="mode.value" @click="setIndexingMode(mode.value)">
-                              <v-list-item-title class="text-caption" :class="{'font-weight-bold': performance.indexingMode === mode.value}">{{ mode.title }}</v-list-item-title>
-                            </v-list-item>
-                          </v-list>
-                        </v-menu>
+                <v-list-item class="px-0 mt-4">
+                  <v-list-item-title class="text-caption font-weight-bold text-zinc-primary">Indexing Mode</v-list-item-title>
+                  <template v-slot:append>
+                    <v-menu offset-y>
+                      <template v-slot:activator="{ props }">
+                        <v-btn variant="tonal" size="x-small" color="black" v-bind="props" class="font-weight-bold">
+                          {{ getModeLabel(performance.indexingMode) }}
+                          <v-icon size="12" class="ml-1">mdi-chevron-down</v-icon>
+                        </v-btn>
                       </template>
-                    </v-list-item>
-                  </div>
-                </v-expansion-panel-text>
-              </v-expansion-panel>
-            </v-expansion-panels>
-          </v-card-text>
-        </v-card>
-
-        <!-- Debug Logs Expansion Panel -->
-        <v-expansion-panels v-if="!embedded" class="mb-6 siegu-expansion">
-          <v-expansion-panel bg-color="#ffffff" class="text-zinc-primary font-weight-bold border-subtle">
-            <template v-slot:title>
-              <div class="d-flex align-center justify-space-between w-100">
-                <span>Debug Logs</span>
+                      <v-list density="compact" class="siegu-list">
+                        <v-list-item v-for="mode in indexingModes" :key="mode.value" @click="setIndexingMode(mode.value)">
+                          <v-list-item-title class="text-caption" :class="{'font-weight-bold': performance.indexingMode === mode.value}">{{ mode.title }}</v-list-item-title>
+                        </v-list-item>
+                      </v-list>
+                    </v-menu>
+                  </template>
+                </v-list-item>
               </div>
-            </template>
-            <template v-slot:text>
-               <v-sheet
+            </div>
+
+            <v-divider class="my-6 border-subtle" v-if="!embedded"></v-divider>
+
+            <!-- Debug Logs -->
+            <div v-if="!embedded">
+              <div class="text-caption font-weight-bold text-zinc-muted mb-4 tracking-widest uppercase">System Logs</div>
+              <v-sheet
                 color="#f4f4f5"
-                class="pa-4 rounded-lg overflow-y-auto border-subtle debug-logs-sheet"
-                max-height="400"
+                class="pa-4 rounded-lg overflow-y-auto border-subtle debug-logs-sheet mb-4"
+                max-height="300"
               >
-                <div v-for="(log, i) in logs" :key="i" :class="log.type === 'error' ? 'text-error' : 'text-zinc-secondary'" class="mb-1">
+                <div v-for="(log, i) in logs" :key="i" :class="log.type === 'error' ? 'text-error' : 'text-zinc-secondary'" class="mb-1" style="font-family: monospace; font-size: 11px;">
                   <span class="text-zinc-muted">[{{ log.time }}]</span> {{ log.message }}
                 </div>
-                <div v-if="logs.length === 0" class="text-zinc-muted text-center py-4">No logs recorded yet.</div>
-                
-                <div v-if="logs.length > 0" class="mt-6 d-flex justify-center">
-                  <v-btn 
-                    variant="text" 
-                    size="small" 
-                    class="text-none font-weight-bold" 
-                    color="error"
-                    prepend-icon="mdi-trash-can-outline"
-                    @click.stop="clearLogs"
-                  >
-                    Clear Log History
-                  </v-btn>
-                </div>
+                <div v-if="logs.length === 0" class="text-zinc-muted text-center py-4 text-caption">No logs recorded yet.</div>
               </v-sheet>
-            </template>
-          </v-expansion-panel>
-        </v-expansion-panels>
+              
+              <div v-if="logs.length > 0" class="d-flex justify-center">
+                <v-btn 
+                  variant="text" 
+                  size="small" 
+                  class="text-none font-weight-bold" 
+                  color="error"
+                  prepend-icon="mdi-trash-can-outline"
+                  @click.stop="clearLogs"
+                >
+                  Clear Log History
+                </v-btn>
+              </div>
+            </div>
+          </v-card-text>
+        </v-card>
       </v-col>
     </v-row>
     <!-- Download Confirmation Dialog -->
@@ -321,6 +317,54 @@
         <v-card-actions class="pa-4 bg-zinc-50 border-top-subtle ga-2">
           <v-btn variant="tonal" block color="zinc-muted" @click="downloadDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
           <v-btn variant="flat" block color="black" @click="startConfirmedDownload" class="siegu-btn flex-grow-1" height="44">Download</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="cleanupDialog.show" max-width="400" persistent rounded="xl">
+      <v-card color="#ffffff" border class="border-subtle overflow-hidden">
+        <v-card-item class="bg-zinc-100 py-4">
+          <template v-slot:prepend>
+            <div class="siegu-icon-circle-dark mr-3">
+              <v-icon color="#ffffff" size="small">mdi-wrench-outline</v-icon>
+            </div>
+          </template>
+          <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Clear Database?</v-card-title>
+        </v-card-item>
+        
+        <v-card-text class="py-6 text-center">
+          <div class="text-subtitle-1 text-zinc-secondary px-2">
+            This will only delete the indexed information and not the actual photos. Do you want to continue?
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 bg-zinc-50 border-top-subtle ga-2">
+          <v-btn variant="tonal" block color="zinc-muted" @click="cleanupDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
+          <v-btn variant="flat" block color="black" @click="startConfirmedCleanup" class="siegu-btn flex-grow-1" height="44">Clear</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="removeFolderDialog.show" max-width="400" persistent rounded="xl">
+      <v-card color="#ffffff" border class="border-subtle overflow-hidden">
+        <v-card-item class="bg-zinc-100 py-4">
+          <template v-slot:prepend>
+            <div class="siegu-icon-circle-dark mr-3">
+              <v-icon color="#ffffff" size="small">mdi-folder-remove-outline</v-icon>
+            </div>
+          </template>
+          <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Wipe & Remove?</v-card-title>
+        </v-card-item>
+        
+        <v-card-text class="py-6 text-center">
+          <div class="text-subtitle-1 text-zinc-secondary px-2">
+            This will remove the folder reference and <strong>permanently delete all indexed AI data</strong> for these files. Your actual photos will not be touched.
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 bg-zinc-50 border-top-subtle ga-2">
+          <v-btn variant="tonal" block color="zinc-muted" @click="removeFolderDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
+          <v-btn variant="flat" block color="black" @click="startConfirmedRemoveFolder" class="siegu-btn flex-grow-1" height="44">Wipe Data</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -379,6 +423,13 @@ export default {
       message: "",
       models: []
     },
+    cleanupDialog: {
+      show: false
+    },
+    removeFolderDialog: {
+      show: false,
+      path: ""
+    }
   }),
   async mounted() {
     listen("log-message", (event) => {
@@ -519,15 +570,36 @@ export default {
       }
     },
     async cleanupDb() {
+      this.cleanupDialog.show = true;
+    },
+    async startConfirmedCleanup() {
+      this.cleanupDialog.show = false;
       this.isCleaning = true;
-      await invoke("cleanup_database");
-      this.isCleaning = false;
+      try {
+        await invoke("abort_indexing");
+        // Short delay to let threads exit
+        await new Promise(r => setTimeout(r, 500));
+        await invoke("cleanup_database");
+        window.location.reload();
+      } catch (err) {
+        console.error("Failed to cleanup database:", err);
+      } finally {
+        this.isCleaning = false;
+      }
     },
     async remove_directory_full(path) {
-      if (confirm("This will remove the folder AND delete all indexed AI data. Continue?")) {
+      this.removeFolderDialog.path = path;
+      this.removeFolderDialog.show = true;
+    },
+    async startConfirmedRemoveFolder() {
+      const path = this.removeFolderDialog.path;
+      this.removeFolderDialog.show = false;
+      try {
+        await invoke("abort_indexing");
+        await new Promise(r => setTimeout(r, 300));
         await invoke("remove_directory_full", { path });
         this.list_directories();
-      }
+      } catch (err) {}
     },
     async select_directory() {
       if (this.isAndroid) {
@@ -548,6 +620,7 @@ export default {
       invoke("list_directories").then((response) => {
         const dirs = JSON.parse(response);
         this.directories = dirs.map(dir => ({ title: dir.split('/').pop() || dir, value: dir }));
+        this.$emit('folder-added', this.directories);
       });
     },
     remove_directory(path) {
@@ -556,7 +629,6 @@ export default {
     onFolderSelected(path) {
       invoke("add_directory", { path }).then(() => {
         this.list_directories();
-        this.$emit('folder-added', path);
       });
     }
   }

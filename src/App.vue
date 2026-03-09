@@ -7,10 +7,11 @@ import Photos from "./components/Photos.vue";
 import People from "./components/People.vue";
 import Setting from "./components/Setting.vue";
 import Greet from "./components/Greet.vue";
+import Connect from "./components/Connect.vue";
 import logo from "./assets/logo.png";
 
 export default {
-  components: { DeviceList, Map, Photos, People, Setting, Greet },
+  components: { DeviceList, Map, Photos, People, Setting, Greet, Connect },
   data: () => ({
     logoUrl: logo,
     clean_install: false,
@@ -40,6 +41,8 @@ export default {
     isDownloadingModels: false,
     onboardingStep: 'greet',
     downloadedModels: [],
+    deviceConnected: false,
+    showConnectUI: false,
     os: '',
     thumbnailQueue: [],
     isProcessingThumb: false,
@@ -250,7 +253,6 @@ export default {
       <div class="d-flex align-center py-1">
         <v-progress-circular indeterminate size="14" width="2" class="mr-2" color="white"></v-progress-circular>
         <span class="text-caption font-weight-bold">Downloading AI Models...</span>
-        <v-btn variant="text" size="x-small" class="ml-2" @click="current_page = 'settings'; onboardingStep = 'complete'; clean_install = false;">View</v-btn>
       </div>
     </v-system-bar>
 
@@ -262,7 +264,7 @@ export default {
 
     <!-- Guided Onboarding -->
     <template v-if="clean_install">
-      <Greet v-if="onboardingStep === 'greet'" @setup-local="onboardingStep = 'folders'" @setup-sync="clean_install = false; current_page = 'devices';"></Greet>
+      <Greet v-if="onboardingStep === 'greet'" @setup-local="onboardingStep = 'folders'" @setup-sync="onboardingStep = 'sync'"></Greet>
       
       <!-- Step 2: Folders -->
       <v-container v-else-if="onboardingStep === 'folders'" class="fill-height bg-siegu-white" fluid>
@@ -331,21 +333,67 @@ export default {
                 <div class="siegu-icon-circle mx-auto mb-4">
                   <v-icon color="white">mdi-cellphone-link</v-icon>
                 </div>
-                <h2 class="text-h4 font-weight-bold text-zinc-primary">Connect Devices</h2>
-                <p class="text-zinc-secondary">Sync your library across your phone and computer without the cloud.</p>
+                <h2 class="text-h4 font-weight-bold text-zinc-primary">Sync & Protect</h2>
+                <p class="text-zinc-secondary">
+                  Sync your library across your phone and other computers. 
+                  This creates a private, serverless backup of your memories.
+                </p>
               </div>
 
-              <div class="d-flex justify-center mb-8">
-                <Connect :embedded="true" />
+              <!-- Download Links for other platforms -->
+              <div v-if="!showConnectUI" class="mb-8">
+                <div class="text-caption font-weight-bold text-zinc-muted mb-4 tracking-widest uppercase text-center">Get Siegu on other devices</div>
+                <v-row dense>
+                  <v-col cols="6">
+                    <v-btn block variant="flat" class="siegu-btn-sm" href="https://siegu.io/download/android" target="_blank">
+                      <v-icon start size="small">mdi-android</v-icon>
+                      Android
+                    </v-btn>
+                  </v-col>
+                  <v-col cols="6">
+                    <v-btn block variant="flat" class="siegu-btn-sm" href="https://siegu.io/download/ios" target="_blank">
+                      <v-icon start size="small">mdi-apple</v-icon>
+                      iOS
+                    </v-btn>
+                  </v-col>
+                  <v-col cols="12" class="mt-2">
+                    <v-btn block variant="flat" class="siegu-btn-sm" href="https://siegu.io/download" target="_blank">
+                      <v-icon start size="small">mdi-monitor</v-icon>
+                      Other Desktop
+                    </v-btn>
+                  </v-col>
+                </v-row>
               </div>
+
+              <div v-if="showConnectUI" class="d-flex justify-center mb-8">
+                <Connect :embedded="true" @connected="deviceConnected = true" />
+              </div>
+
+              <v-fade-transition>
+                <div v-if="deviceConnected" class="bg-success-light border-success pa-4 rounded-xl mb-6 text-center d-flex align-center justify-center">
+                  <v-icon color="success" class="mr-2">mdi-check-circle</v-icon>
+                  <span class="text-success font-weight-bold">Device Linked Successfully!</span>
+                </div>
+              </v-fade-transition>
 
               <div class="d-flex flex-column ga-3">
-                <v-btn block color="black" height="56" class="siegu-btn" @click="onboardingStep = 'finalize'">
-                  Next
-                </v-btn>
-                <v-btn block variant="text" color="zinc-muted" @click="onboardingStep = 'finalize'">
-                  Skip for now
-                </v-btn>
+                <template v-if="!showConnectUI">
+                  <v-btn block color="black" height="56" class="siegu-btn" @click="showConnectUI = true">
+                    <v-icon start class="mr-2">mdi-link-variant</v-icon>
+                    Link a Device
+                  </v-btn>
+                  <v-btn block variant="text" color="zinc-muted" @click="onboardingStep = 'finalize'">
+                    Skip for now
+                  </v-btn>
+                </template>
+                <template v-else>
+                  <v-btn v-if="deviceConnected" block color="black" height="56" class="siegu-btn" @click="onboardingStep = 'finalize'">
+                    Continue
+                  </v-btn>
+                  <v-btn v-else block variant="text" color="zinc-muted" @click="onboardingStep = 'finalize'">
+                    Skip for now
+                  </v-btn>
+                </template>
               </div>
             </v-card>
           </v-col>

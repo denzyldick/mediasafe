@@ -206,12 +206,22 @@ impl WebRtcClient {
     }
 
     pub async fn start(&self) -> Result<(), Box<dyn std::error::Error>> {
+        if self.room_id.is_empty() {
+            let err_msg = "Room ID is missing".to_string();
+            println!("{err_msg}");
+            self.emit("webrtc-state", err_msg.clone());
+            return Err(err_msg.into());
+        }
+
         println!(
             "Attempting to connect to signaling at {} for room {}",
             self.signaling_url, self.room_id
         );
         self.emit("webrtc-state", "Connecting to signaling...");
-        let url_str = format!("{}/{}", self.signaling_url, self.room_id);
+
+        let base_url = self.signaling_url.trim_end_matches('/');
+        let url_str = format!("{}/{}", base_url, self.room_id);
+
         let req = url_str.into_client_request()?;
 
         let (ws_stream, _) = match connect_async(req).await {

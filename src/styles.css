@@ -44,6 +44,23 @@ body {
   transform: scale(0.98);
 }
 
+.siegu-btn-sm {
+  background: #ffffff !important;
+  border: 1px solid rgba(0, 0, 0, 0.1) !important;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: #18181b !important;
+  text-transform: none !important;
+  height: 40px !important;
+}
+
+.siegu-btn-sm:hover {
+  background: #f4f4f5 !important;
+  border-color: rgba(0, 0, 0, 0.2) !important;
+}
+
 .v-application .siegu-field :deep(.v-field), 
 .v-application .siegu-field.v-field,
 .siegu-field :deep(.v-field), 
@@ -61,6 +78,18 @@ body {
 
 .border-subtle {
   border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.bg-success-light {
+  background-color: #f0fdf4 !important;
+}
+
+.border-success {
+  border: 1px solid #bbf7d0 !important;
+}
+
+.text-success {
+  color: #166534 !important;
 }
 
 .border-bottom-subtle {

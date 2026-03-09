@@ -27,19 +27,22 @@
                 <v-icon color="#ffffff" size="small">{{ device.icon }}</v-icon>
               </div>
             </template>
-            <v-card-title class="text-zinc-primary text-subtitle-1 font-weight-bold">{{ device.title }}</v-card-title>
-            <v-card-subtitle class="text-zinc-secondary text-caption">{{ device.subtitle || 'Connected' }}</v-card-subtitle>
+            <v-card-title class="text-zinc-primary text-subtitle-1 font-weight-bold d-flex align-center">
+              {{ device.title }}
+              <v-chip v-if="device.host" size="x-small" variant="flat" color="black" class="text-white ml-2 font-weight-bold" style="height: 18px">This Device</v-chip>
+            </v-card-title>
+            <v-card-subtitle class="text-zinc-secondary text-caption">{{ device.host ? 'Local Environment' : (device.subtitle || 'Connected') }}</v-card-subtitle>
 
             <template v-slot:append>
                <v-icon
-                v-if="device.up_to_date && !device.syncing"
+                v-if="(device.up_to_date || device.host) && !device.syncing"
                 color="#18181b"
                 size="small"
                 class="opacity-50"
                 icon="mdi-check-circle-outline"
               ></v-icon>
               <v-icon
-                v-if="!device.up_to_date && !device.syncing"
+                v-if="!device.up_to_date && !device.host && !device.syncing"
                 color="#71717a"
                 size="small"
                 icon="mdi-alert-circle-outline"
@@ -55,6 +58,28 @@
           </v-card-item>
 
           <v-card-text class="pt-0">
+               <!-- Device Details -->
+               <div class="bg-zinc-50 rounded-lg pa-3 mb-4 border-subtle">
+                  <div class="d-flex align-center mb-2">
+                    <v-icon size="14" color="zinc-muted" class="mr-2">mdi-desktop-tower-monitor</v-icon>
+                    <span class="text-caption text-zinc-secondary font-weight-bold uppercase tracking-wider">System:</span>
+                    <v-spacer></v-spacer>
+                    <span class="text-caption text-zinc-primary font-weight-bold capitalize">{{ device.os }}</span>
+                  </div>
+                  <div class="d-flex align-center mb-2">
+                    <v-icon size="14" color="zinc-muted" class="mr-2">mdi-image-multiple-outline</v-icon>
+                    <span class="text-caption text-zinc-secondary">Photos:</span>
+                    <v-spacer></v-spacer>
+                    <span class="text-caption text-zinc-primary font-weight-bold">{{ device.photo_count }}</span>
+                  </div>
+                  <div class="d-flex align-center">
+                    <v-icon size="14" color="zinc-muted" class="mr-2">mdi-video-outline</v-icon>
+                    <span class="text-caption text-zinc-secondary">Videos:</span>
+                    <v-spacer></v-spacer>
+                    <span class="text-caption text-zinc-primary font-weight-bold">{{ device.video_count }}</span>
+                  </div>
+               </div>
+
                <div v-if="device.syncing" class="mt-2">
                    <div class="d-flex align-center justify-space-between mb-1">
                        <span class="text-caption text-zinc-muted">Synchronizing...</span>
@@ -72,8 +97,8 @@
                <div v-else class="d-flex align-center mt-2">
                    <div class="text-caption text-zinc-muted">Status</div>
                    <v-spacer></v-spacer>
-                   <v-chip size="x-small" color="#f4f4f5" variant="flat" class="text-none border-subtle text-zinc-secondary">
-                       {{ device.up_to_date ? 'Up to date' : 'Idle' }}
+                   <v-chip size="x-small" :color="device.host ? 'success' : '#f4f4f5'" variant="flat" :class="device.host ? 'text-white' : 'text-zinc-secondary'" class="text-none border-subtle">
+                       {{ device.host ? 'Online' : (device.up_to_date ? 'Up to date' : 'Idle') }}
                    </v-chip>
                </div>
           </v-card-text>
@@ -107,6 +132,15 @@
 
 .max-w-400 {
   max-width: 400px;
+}
+.uppercase {
+  text-transform: uppercase;
+}
+.tracking-wider {
+  letter-spacing: 0.05em;
+}
+.capitalize {
+  text-transform: capitalize;
 }
 </style>
 
