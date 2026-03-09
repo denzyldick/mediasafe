@@ -248,8 +248,8 @@ async fn list_files(
     limit: usize,
     query: String,
     scan: bool,
-    favorites_only: bool,
-    videos_only: bool,
+    favoritesOnly: bool,
+    videosOnly: bool,
 ) -> Result<String, String> {
     let path = get_config_path(&app);
     if path.is_empty() {
@@ -263,8 +263,8 @@ async fn list_files(
         &query,
         offset,
         limit,
-        favorites_only,
-        videos_only,
+        favoritesOnly,
+        videosOnly,
     ))
     .unwrap_or("[]".to_string()))
 }
@@ -505,9 +505,9 @@ async fn remove_directory_full(app: tauri::AppHandle, path: String) {
 async fn start_webrtc_session(
     app: tauri::AppHandle,
     state: tauri::State<'_, WebRtcState>,
-    room_id: String,
-    is_initiator: bool,
-    signaling_url: String,
+    roomId: String,
+    isInitiator: bool,
+    signalingUrl: String,
 ) -> Result<(), String> {
     let app_handle = app.clone();
     let config_path = get_config_path(&app);
@@ -524,9 +524,9 @@ async fn start_webrtc_session(
 
         let handle = tauri::async_runtime::spawn(async move {
             let client = transport::WebRtcClient {
-                room_id,
-                is_initiator,
-                signaling_url,
+                room_id: roomId,
+                is_initiator: isInitiator,
+                signaling_url: signalingUrl,
                 app_handle: Some(app_handle),
                 config_path,
             };
