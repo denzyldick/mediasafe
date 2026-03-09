@@ -43,8 +43,8 @@ Siegu follows a high-contrast, tactile design system:
 ### Installation
 1.  **Clone & Enter**:
     ```bash
-    git clone https://github.com/denzyldick/mediasafe.git
-    cd mediasafe
+    git clone https://github.com/denzyldick/siegu.git
+    cd siegu
     ```
 2.  **Install**:
     ```bash
