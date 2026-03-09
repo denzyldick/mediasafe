@@ -258,7 +258,7 @@ export default {
     },
     async listen(roomId) {
       this.connectionStatus = "Waiting for partner device to scan or type phrase...";
-      const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io";
+      const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io/ws";
       const args = {
           roomId: roomId,
           isInitiator: false,
@@ -275,7 +275,7 @@ export default {
         if (!this.joinPassphrase || this.loading) return;
         this.loading = true;
         this.connectionStatus = "Joining room...";
-        const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io";
+        const signalingUrl = import.meta.env.VITE_SIGNALING_URL || "wss://siegu.io/ws";
         try {
            const roomId = await invoke("hash_pairing_code", { input: this.joinPassphrase });
            const args = {
