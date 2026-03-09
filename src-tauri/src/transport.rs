@@ -1,5 +1,6 @@
 use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{
@@ -20,7 +21,6 @@ use webrtc::{
 
 use crate::database::{Database, PhotoSyncInfo};
 use std::collections::HashMap;
-use std::path::Path;
 use tauri::Emitter;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -51,6 +51,8 @@ pub enum SyncMessage {
         created: String,
         latitude: Option<f64>,
         longitude: Option<f64>,
+        objects: String,
+        faces: String,
     },
     FileChunk {
         id: String,
@@ -105,6 +107,8 @@ struct IncomingFile {
     created: String,
     latitude: Option<f64>,
     longitude: Option<f64>,
+    objects: String,
+    faces: String,
     file: tokio::fs::File,
 }
 
@@ -159,6 +163,8 @@ impl WebRtcClient {
         created: String,
         latitude: Option<f64>,
         longitude: Option<f64>,
+        objects: String,
+        faces: String,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new(&file_path);
         if !path.exists() {
@@ -180,6 +186,8 @@ impl WebRtcClient {
                 created,
                 latitude,
                 longitude,
+                objects,
+                faces,
             },
         )
         .await?;
@@ -370,6 +378,8 @@ impl WebRtcClient {
                                     created,
                                     latitude,
                                     longitude,
+                                    objects,
+                                    faces,
                                 } => {
                                     let save_path =
                                         Path::new(&config_path).join("sync_temp").join(&filename);
@@ -387,6 +397,8 @@ impl WebRtcClient {
                                                 created,
                                                 latitude,
                                                 longitude,
+                                                objects,
+                                                faces,
                                                 file,
                                             },
                                         );
@@ -425,11 +437,14 @@ impl WebRtcClient {
                                             .join("sync_temp")
                                             .join(&file_state.filename);
                                         let db = Database::new(&config_path);
+                                        let sync_path = db.get_state().get("sync_path").cloned();
                                         let dirs = db.list_directories();
-                                        let target_dir = if !dirs.is_empty() {
-                                            Path::new(&dirs[0])
+                                        let target_dir = if let Some(sp) = sync_path {
+                                            PathBuf::from(sp)
+                                        } else if !dirs.is_empty() {
+                                            PathBuf::from(&dirs[0])
                                         } else {
-                                            &Path::new(&config_path).join("Siegu")
+                                            Path::new(&config_path).join("Siegu")
                                         };
                                         let _ = tokio::fs::create_dir_all(&target_dir).await;
                                         let final_path = target_dir.join(&file_state.filename);
@@ -442,6 +457,8 @@ impl WebRtcClient {
                                                 &file_state.created,
                                                 file_state.latitude,
                                                 file_state.longitude,
+                                                &file_state.objects,
+                                                &file_state.faces,
                                             );
                                         }
                                     }
@@ -457,8 +474,11 @@ impl WebRtcClient {
                                 }
                                 SyncMessage::FileRequest { id } => {
                                     let db = Database::new(&config_path);
-                                    if let Ok((path, created, lat, lon)) = db.connection.query_row(
-                                        "SELECT location, created, latitude, longitude FROM photo WHERE id = ?1",
+                                    if let Ok((path, created, lat, lon, objects, faces)) = db.connection.query_row(
+                                        "SELECT p.location, p.created, p.latitude, p.longitude, 
+                                         (SELECT json_group_array(json_object('class', class, 'probability', probability)) FROM object WHERE photo_id = p.id),
+                                         (SELECT json_group_array(json_object('face_id', face_id, 'crop_path', crop_path, 'encoded', encoded, 'person_id', person_id)) FROM faces WHERE photo_id = p.id)
+                                         FROM photo p WHERE p.id = ?1",
                                         [&id],
                                         |row| {
                                             Ok((
@@ -466,13 +486,15 @@ impl WebRtcClient {
                                                 row.get::<_, String>(1)?,
                                                 row.get::<_, Option<f64>>(2)?,
                                                 row.get::<_, Option<f64>>(3)?,
+                                                row.get::<_, String>(4).unwrap_or("[]".to_string()),
+                                                row.get::<_, String>(5).unwrap_or("[]".to_string()),
                                             ))
                                         },
                                     ) {
                                         let dc_send = Arc::clone(&dc);
                                         tokio::spawn(async move {
                                             let _ =
-                                                Self::send_file(dc_send, id, path, created, lat, lon).await;
+                                                Self::send_file(dc_send, id, path, created, lat, lon, objects, faces).await;
                                         });
                                     }
                                 }
@@ -518,17 +540,36 @@ impl WebRtcClient {
                                 }
                                 SyncMessage::FileRequest { id } => {
                                     let db = Database::new(&config_path);
-                                    if let Ok((path, created, lat, lon)) = db.connection.query_row("SELECT location, created, latitude, longitude FROM photo WHERE id = ?1", [&id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<f64>>(2)?, row.get::<_, Option<f64>>(3)?))) {
+                                    if let Ok((path, created, lat, lon, objects, faces)) = db.connection.query_row(
+                                        "SELECT p.location, p.created, p.latitude, p.longitude, 
+                                         (SELECT json_group_array(json_object('class', class, 'probability', probability)) FROM object WHERE photo_id = p.id),
+                                         (SELECT json_group_array(json_object('face_id', face_id, 'crop_path', crop_path, 'encoded', encoded, 'person_id', person_id)) FROM faces WHERE photo_id = p.id)
+                                         FROM photo p WHERE p.id = ?1",
+                                        [&id],
+                                        |row| {
+                                            Ok((
+                                                row.get::<_, String>(0)?,
+                                                row.get::<_, String>(1)?,
+                                                row.get::<_, Option<f64>>(2)?,
+                                                row.get::<_, Option<f64>>(3)?,
+                                                row.get::<_, String>(4).unwrap_or("[]".to_string()),
+                                                row.get::<_, String>(5).unwrap_or("[]".to_string()),
+                                            ))
+                                        },
+                                    ) {
                                         let dc_send = Arc::clone(&dc);
-                                        tokio::spawn(async move { let _ = Self::send_file(dc_send, id, path, created, lat, lon).await; });
+                                        tokio::spawn(async move {
+                                            let _ =
+                                                Self::send_file(dc_send, id, path, created, lat, lon, objects, faces).await;
+                                        });
                                     }
                                 }
-                                SyncMessage::FileHeader { id, filename, size, created, latitude, longitude } => {
+                                SyncMessage::FileHeader { id, filename, size, created, latitude, longitude, objects, faces } => {
                                     let save_path = Path::new(&config_path).join("sync_temp").join(&filename);
                                     let _ = tokio::fs::create_dir_all(save_path.parent().unwrap()).await;
                                     if let Ok(file) = tokio::fs::File::create(&save_path).await {
                                         let mut incoming = incoming_files.lock().await;
-                                        incoming.insert(id.clone(), IncomingFile { id, filename, size, received: 0, created, latitude, longitude, file });
+                                        incoming.insert(id.clone(), IncomingFile { id, filename, size, received: 0, created, latitude, longitude, objects, faces, file });
                                     }
                                 }
                                 SyncMessage::FileChunk { id, data } => {
@@ -550,12 +591,19 @@ impl WebRtcClient {
                                     if let Some(file_state) = incoming.remove(&id) {
                                         let temp_path = Path::new(&config_path).join("sync_temp").join(&file_state.filename);
                                         let db = Database::new(&config_path);
+                                        let sync_path = db.get_state().get("sync_path").cloned();
                                         let dirs = db.list_directories();
-                                        let target_dir = if !dirs.is_empty() { Path::new(&dirs[0]) } else { &Path::new(&config_path).join("Siegu") };
+                                        let target_dir = if let Some(sp) = sync_path {
+                                            PathBuf::from(sp)
+                                        } else if !dirs.is_empty() {
+                                            PathBuf::from(&dirs[0])
+                                        } else {
+                                            Path::new(&config_path).join("Siegu")
+                                        };
                                         let _ = tokio::fs::create_dir_all(&target_dir).await;
                                         let final_path = target_dir.join(&file_state.filename);
                                         if let Ok(_) = tokio::fs::rename(&temp_path, &final_path).await {
-                                            db.import_photo(&file_state.id, &final_path.to_string_lossy(), &file_state.created, file_state.latitude, file_state.longitude);
+                                            db.import_photo(&file_state.id, &final_path.to_string_lossy(), &file_state.created, file_state.latitude, file_state.longitude, &file_state.objects, &file_state.faces);
                                         }
                                     }
                                 }

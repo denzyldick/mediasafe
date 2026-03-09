@@ -16,6 +16,22 @@ pub struct PhotoSyncInfo {
     pub created: String,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub objects: String, // JSON array of {class, probability}
+    pub faces: String,   // JSON array of {face_id, crop_path, encoded, person_id}
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct SyncObject {
+    pub class: String,
+    pub probability: String,
+}
+
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
+pub struct SyncFace {
+    pub face_id: String,
+    pub crop_path: String,
+    pub encoded: String,
+    pub person_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -34,12 +50,53 @@ impl Database {
         let sql = "SELECT id, location, created, latitude, longitude FROM photo";
         if let Ok(mut stmt) = self.connection.prepare(sql) {
             let iter = stmt.query_map([], |row| {
+                let id: String = row.get(0)?;
+
+                // Fetch objects for this photo
+                let mut objects = Vec::new();
+                if let Ok(mut obj_stmt) = self
+                    .connection
+                    .prepare("SELECT class, probability FROM object WHERE photo_id = ?1")
+                {
+                    if let Ok(obj_rows) = obj_stmt.query_map([&id], |r| {
+                        Ok(SyncObject {
+                            class: r.get(0)?,
+                            probability: r.get(1)?,
+                        })
+                    }) {
+                        for obj in obj_rows.flatten() {
+                            objects.push(obj);
+                        }
+                    }
+                }
+
+                // Fetch faces for this photo
+                let mut faces = Vec::new();
+                if let Ok(mut face_stmt) = self.connection.prepare(
+                    "SELECT face_id, crop_path, encoded, person_id FROM faces WHERE photo_id = ?1",
+                ) {
+                    if let Ok(face_rows) = face_stmt.query_map([&id], |r| {
+                        Ok(SyncFace {
+                            face_id: r.get(0)?,
+                            crop_path: r.get(1)?,
+                            encoded: r.get(2)?,
+                            person_id: r.get(3)?,
+                        })
+                    }) {
+                        for face in face_rows.flatten() {
+                            faces.push(face);
+                        }
+                    }
+                }
+
                 Ok(PhotoSyncInfo {
-                    id: row.get(0)?,
+                    id,
                     location: row.get(1)?,
                     created: row.get(2).unwrap_or_default(),
                     latitude: row.get(3).ok(),
                     longitude: row.get(4).ok(),
+                    objects: serde_json::to_string(&objects).unwrap_or("[]".to_string()),
+                    faces: serde_json::to_string(&faces).unwrap_or("[]".to_string()),
                 })
             });
             if let Ok(iter) = iter {
@@ -606,11 +663,33 @@ impl Database {
         created: &str,
         latitude: Option<f64>,
         longitude: Option<f64>,
+        objects_json: &str,
+        faces_json: &str,
     ) {
         let _ = self.connection.execute(
             "INSERT OR REPLACE INTO photo (id, location, created, latitude, longitude) VALUES (?1, ?2, ?3, ?4, ?5)",
             (id, location, created, latitude, longitude),
         );
+
+        // Import objects
+        if let Ok(objects) = serde_json::from_str::<Vec<SyncObject>>(objects_json) {
+            for obj in objects {
+                let _ = self.connection.execute(
+                    "INSERT INTO object (photo_id, class, probability) VALUES (?1, ?2, ?3)",
+                    (id, obj.class, obj.probability),
+                );
+            }
+        }
+
+        // Import faces
+        if let Ok(faces) = serde_json::from_str::<Vec<SyncFace>>(faces_json) {
+            for face in faces {
+                let _ = self.connection.execute(
+                    "INSERT OR REPLACE INTO faces (photo_id, face_id, crop_path, encoded, person_id) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    (id, face.face_id, face.crop_path, face.encoded, face.person_id),
+                );
+            }
+        }
     }
 
     pub fn get_media_counts(&self) -> (i64, i64) {

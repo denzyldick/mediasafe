@@ -8,10 +8,11 @@ import People from "./components/People.vue";
 import Setting from "./components/Setting.vue";
 import Greet from "./components/Greet.vue";
 import Connect from "./components/Connect.vue";
+import FolderPicker from "./components/FolderPicker.vue";
 import logo from "./assets/logo.png";
 
 export default {
-  components: { DeviceList, Map, Photos, People, Setting, Greet, Connect },
+  components: { DeviceList, Map, Photos, People, Setting, Greet, Connect, FolderPicker },
   data: () => ({
     logoUrl: logo,
     clean_install: false,
@@ -36,6 +37,8 @@ export default {
       folder: null,
     },
     directories: [],
+    syncPath: '',
+    showSyncPicker: false,
     current_page: "home",
     downloadProgress: {},
     isDownloadingModels: false,
@@ -176,6 +179,10 @@ export default {
       this.search = person.name;
       this.query = person.name;
       this.current_page = "home";
+    },
+    async setSyncPath(path) {
+      this.syncPath = path;
+      await invoke("save_config", { config: { sync_path: path } });
     },
     async checkModels() {
       const downloaded = await invoke("check_models");
@@ -347,6 +354,23 @@ export default {
                   This creates a private, serverless backup of your memories.
                 </p>
               </div>
+
+              <!-- Sync Path Selection -->
+              <div class="mb-8">
+                <div class="text-caption font-weight-bold text-zinc-muted mb-4 tracking-widest uppercase text-center">Target Sync Folder</div>
+                <v-card variant="flat" class="bg-zinc-50 border-subtle pa-4 rounded-xl d-flex align-center">
+                  <v-icon color="zinc-secondary" class="mr-3">mdi-folder-sync</v-icon>
+                  <div class="flex-grow-1 overflow-hidden">
+                    <div class="text-caption text-zinc-secondary">Where to store synced photos</div>
+                    <div class="text-body-2 font-weight-bold text-zinc-primary text-truncate">{{ syncPath || 'Auto-select (Default Folder)' }}</div>
+                  </div>
+                  <v-btn variant="flat" size="small" color="black" class="siegu-btn-sm ml-4" @click="showSyncPicker = true">
+                    Change
+                  </v-btn>
+                </v-card>
+              </div>
+
+              <FolderPicker v-model="showSyncPicker" @select="setSyncPath" />
 
               <!-- Download Links for other platforms -->
               <div v-if="!showConnectUI" class="mb-8">
