@@ -219,8 +219,10 @@ impl WebRtcClient {
         );
         self.emit("webrtc-state", "Connecting to signaling...");
 
-        let base_url = self.signaling_url.trim_end_matches('/');
-        let url_str = format!("{}/ws/{}", base_url, self.room_id);
+        // Robust URL construction using the url crate
+        let mut url = url::Url::parse(&self.signaling_url)?;
+        url.set_path(&format!("/ws/{}", self.room_id));
+        let url_str = url.to_string();
 
         println!("Final WebSocket URL: {url_str}");
 
