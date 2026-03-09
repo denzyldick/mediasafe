@@ -185,6 +185,14 @@ export default {
       this.clean_install = false;
       this.onboardingStep = 'complete';
       this.current_page = 'home';
+      
+      // If we linked a device during onboarding, we are a Guest
+      // We don't need to scan local folders, we are receiving from host
+      if (this.deviceConnected) {
+        console.log("Device linked during onboarding, skipping local scan.");
+        return;
+      }
+
       // Give UI time to switch before starting heavy scan
       setTimeout(() => {
         invoke("scan_files", { scan: true });
@@ -414,8 +422,8 @@ export default {
               </p>
 
               <v-btn block color="black" height="64" class="siegu-btn mb-4" @click="finishSetupAndScan">
-                <v-icon start class="mr-2">mdi-magnify-scan</v-icon>
-                Start Initial Scan
+                <v-icon start class="mr-2">{{ deviceConnected ? 'mdi-sync' : 'mdi-magnify-scan' }}</v-icon>
+                {{ deviceConnected ? 'Finish Setup & Sync' : 'Start Initial Scan' }}
               </v-btn>
               
               <div class="text-caption text-zinc-muted">

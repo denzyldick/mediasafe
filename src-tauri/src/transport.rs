@@ -49,6 +49,8 @@ pub enum SyncMessage {
         filename: String,
         size: u64,
         created: String,
+        latitude: Option<f64>,
+        longitude: Option<f64>,
     },
     FileChunk {
         id: String,
@@ -101,6 +103,8 @@ struct IncomingFile {
     size: u64,
     received: u64,
     created: String,
+    latitude: Option<f64>,
+    longitude: Option<f64>,
     file: tokio::fs::File,
 }
 
@@ -153,6 +157,8 @@ impl WebRtcClient {
         photo_id: String,
         file_path: String,
         created: String,
+        latitude: Option<f64>,
+        longitude: Option<f64>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         let path = Path::new(&file_path);
         if !path.exists() {
@@ -172,6 +178,8 @@ impl WebRtcClient {
                 filename,
                 size,
                 created,
+                latitude,
+                longitude,
             },
         )
         .await?;
@@ -360,6 +368,8 @@ impl WebRtcClient {
                                     filename,
                                     size,
                                     created,
+                                    latitude,
+                                    longitude,
                                 } => {
                                     let save_path =
                                         Path::new(&config_path).join("sync_temp").join(&filename);
@@ -375,6 +385,8 @@ impl WebRtcClient {
                                                 size,
                                                 received: 0,
                                                 created,
+                                                latitude,
+                                                longitude,
                                                 file,
                                             },
                                         );
@@ -428,6 +440,8 @@ impl WebRtcClient {
                                                 &file_state.id,
                                                 &final_path.to_string_lossy(),
                                                 &file_state.created,
+                                                file_state.latitude,
+                                                file_state.longitude,
                                             );
                                         }
                                     }
@@ -443,17 +457,22 @@ impl WebRtcClient {
                                 }
                                 SyncMessage::FileRequest { id } => {
                                     let db = Database::new(&config_path);
-                                    if let Ok((path, created)) = db.connection.query_row(
-                                        "SELECT location, created FROM photo WHERE id = ?1",
+                                    if let Ok((path, created, lat, lon)) = db.connection.query_row(
+                                        "SELECT location, created, latitude, longitude FROM photo WHERE id = ?1",
                                         [&id],
                                         |row| {
-                                            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+                                            Ok((
+                                                row.get::<_, String>(0)?,
+                                                row.get::<_, String>(1)?,
+                                                row.get::<_, Option<f64>>(2)?,
+                                                row.get::<_, Option<f64>>(3)?,
+                                            ))
                                         },
                                     ) {
                                         let dc_send = Arc::clone(&dc);
                                         tokio::spawn(async move {
                                             let _ =
-                                                Self::send_file(dc_send, id, path, created).await;
+                                                Self::send_file(dc_send, id, path, created, lat, lon).await;
                                         });
                                     }
                                 }
@@ -499,17 +518,17 @@ impl WebRtcClient {
                                 }
                                 SyncMessage::FileRequest { id } => {
                                     let db = Database::new(&config_path);
-                                    if let Ok((path, created)) = db.connection.query_row("SELECT location, created FROM photo WHERE id = ?1", [&id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))) {
+                                    if let Ok((path, created, lat, lon)) = db.connection.query_row("SELECT location, created, latitude, longitude FROM photo WHERE id = ?1", [&id], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<f64>>(2)?, row.get::<_, Option<f64>>(3)?))) {
                                         let dc_send = Arc::clone(&dc);
-                                        tokio::spawn(async move { let _ = Self::send_file(dc_send, id, path, created).await; });
+                                        tokio::spawn(async move { let _ = Self::send_file(dc_send, id, path, created, lat, lon).await; });
                                     }
                                 }
-                                SyncMessage::FileHeader { id, filename, size, created } => {
+                                SyncMessage::FileHeader { id, filename, size, created, latitude, longitude } => {
                                     let save_path = Path::new(&config_path).join("sync_temp").join(&filename);
                                     let _ = tokio::fs::create_dir_all(save_path.parent().unwrap()).await;
                                     if let Ok(file) = tokio::fs::File::create(&save_path).await {
                                         let mut incoming = incoming_files.lock().await;
-                                        incoming.insert(id.clone(), IncomingFile { id, filename, size, received: 0, created, file });
+                                        incoming.insert(id.clone(), IncomingFile { id, filename, size, received: 0, created, latitude, longitude, file });
                                     }
                                 }
                                 SyncMessage::FileChunk { id, data } => {
@@ -536,7 +555,7 @@ impl WebRtcClient {
                                         let _ = tokio::fs::create_dir_all(&target_dir).await;
                                         let final_path = target_dir.join(&file_state.filename);
                                         if let Ok(_) = tokio::fs::rename(&temp_path, &final_path).await {
-                                            db.import_photo(&file_state.id, &final_path.to_string_lossy(), &file_state.created);
+                                            db.import_photo(&file_state.id, &final_path.to_string_lossy(), &file_state.created, file_state.latitude, file_state.longitude);
                                         }
                                     }
                                 }

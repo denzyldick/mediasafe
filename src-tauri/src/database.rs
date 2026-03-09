@@ -14,6 +14,8 @@ pub struct PhotoSyncInfo {
     pub id: String,
     pub location: String,
     pub created: String,
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -29,13 +31,15 @@ pub struct FaceWithPerson {
 impl Database {
     pub fn get_photo_sync_info(&self) -> Vec<PhotoSyncInfo> {
         let mut results = Vec::new();
-        let sql = "SELECT id, location, created FROM photo";
+        let sql = "SELECT id, location, created, latitude, longitude FROM photo";
         if let Ok(mut stmt) = self.connection.prepare(sql) {
             let iter = stmt.query_map([], |row| {
                 Ok(PhotoSyncInfo {
                     id: row.get(0)?,
                     location: row.get(1)?,
                     created: row.get(2).unwrap_or_default(),
+                    latitude: row.get(3).ok(),
+                    longitude: row.get(4).ok(),
                 })
             });
             if let Ok(iter) = iter {
@@ -595,10 +599,17 @@ impl Database {
             .unwrap_or(false)
     }
 
-    pub fn import_photo(&self, id: &str, location: &str, created: &str) {
+    pub fn import_photo(
+        &self,
+        id: &str,
+        location: &str,
+        created: &str,
+        latitude: Option<f64>,
+        longitude: Option<f64>,
+    ) {
         let _ = self.connection.execute(
-            "INSERT OR REPLACE INTO photo (id, location, created) VALUES (?1, ?2, ?3)",
-            (id, location, created),
+            "INSERT OR REPLACE INTO photo (id, location, created, latitude, longitude) VALUES (?1, ?2, ?3, ?4, ?5)",
+            (id, location, created, latitude, longitude),
         );
     }
 
