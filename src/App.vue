@@ -127,6 +127,11 @@ export default {
     });
 
     this.list_directories();
+    listen("start-sync", () => {
+      console.log("Peer requested sync start.");
+      this.finishSetupAndScan();
+    });
+
     this.checkModels();
 
     invoke("get_top_tags").then(response => {
@@ -184,6 +189,10 @@ export default {
     async setSyncPath(path) {
       this.syncPath = path;
       await invoke("save_config", { config: { sync_path: path } });
+    },
+    async triggerSync() {
+      await invoke("request_start_sync");
+      this.finishSetupAndScan();
     },
     async checkModels() {
       const downloaded = await invoke("check_models");
@@ -280,7 +289,10 @@ export default {
 
     <!-- Guided Onboarding -->
     <template v-if="clean_install">
-      <Greet v-if="onboardingStep === 'greet'" @setup-local="onboardingStep = 'folders'" @setup-sync="onboardingStep = 'sync'"></Greet>
+      <Greet v-if="onboardingStep === 'greet'" 
+        @setup-local="onboardingStep = 'folders'" 
+        @setup-sync="onboardingStep = 'sync'; connectionMode = 'join'; showConnectUI = true"
+      ></Greet>
       
       <!-- Step 2: Folders -->
       <v-container v-else-if="onboardingStep === 'folders'" class="fill-height bg-siegu-white" fluid>
@@ -401,7 +413,7 @@ export default {
               </div>
 
               <div v-if="showConnectUI" class="d-flex justify-center mb-8">
-                <Connect :embedded="true" @connected="deviceConnected = true" @mode-change="connectionMode = $event" />
+                <Connect :embedded="true" :initial-mode="connectionMode" @connected="deviceConnected = true" @mode-change="connectionMode = $event" />
               </div>
 
               <v-fade-transition>
@@ -422,8 +434,9 @@ export default {
                   </v-btn>
                 </template>
                 <template v-else>
-                  <v-btn v-if="deviceConnected" block color="black" height="56" class="siegu-btn" @click="onboardingStep = 'finalize'">
-                    Continue
+                  <v-btn v-if="deviceConnected" block color="black" height="56" class="siegu-btn" @click="triggerSync">
+                    <v-icon start class="mr-2">mdi-sync</v-icon>
+                    Start Syncing
                   </v-btn>
                   <v-btn v-else block variant="text" color="zinc-muted" @click="onboardingStep = 'finalize'">
                     Skip for now

@@ -16,6 +16,8 @@ mod transport;
 
 struct WebRtcState {
     active_session: std::sync::Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
+    sync_tx:
+        Arc<tokio::sync::Mutex<Option<tokio::sync::mpsc::UnboundedSender<transport::SyncMessage>>>>,
 }
 
 fn get_config_path(app: &tauri::AppHandle) -> String {
@@ -522,6 +524,8 @@ async fn start_webrtc_session(
             handle.abort();
         }
 
+        let sync_tx_inner = Arc::clone(&state.sync_tx);
+
         let handle = tauri::async_runtime::spawn(async move {
             let client = transport::WebRtcClient {
                 room_id: roomId,
@@ -529,6 +533,7 @@ async fn start_webrtc_session(
                 signaling_url: signalingUrl,
                 app_handle: Some(app_handle),
                 config_path,
+                sync_tx: sync_tx_inner,
             };
             let _ = client.start().await;
         });
@@ -761,6 +766,16 @@ pub fn emit_log(app: &tauri::AppHandle, message: String) {
     }
 }
 
+#[tauri::command]
+async fn request_start_sync(state: tauri::State<'_, WebRtcState>) -> Result<(), String> {
+    let mut tx_lock = state.sync_tx.lock().await;
+    if let Some(tx) = tx_lock.as_mut() {
+        tx.send(transport::SyncMessage::StartSync)
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -785,6 +800,7 @@ pub fn run() {
 
             app.manage(WebRtcState {
                 active_session: std::sync::Mutex::new(None),
+                sync_tx: Arc::new(tokio::sync::Mutex::new(None)),
             });
 
             Ok(())
@@ -820,6 +836,7 @@ pub fn run() {
             server::generate_pairing_codes,
             server::hash_pairing_code,
             start_webrtc_session,
+            request_start_sync,
             update_video_thumbnail,
             process_video_frames,
             merge_people,

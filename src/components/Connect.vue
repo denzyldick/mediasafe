@@ -61,6 +61,29 @@
         </div>
 
         <div class="d-flex justify-center mb-6 flex-column ga-4" v-if="mode === 'join'">
+            <v-card variant="flat" class="bg-zinc-50 border-subtle pa-6 rounded-xl mb-2 text-center w-100">
+              <div v-if="!isScanning">
+                <div class="siegu-icon-circle mx-auto mb-4">
+                  <v-icon color="white">mdi-qrcode-scan</v-icon>
+                </div>
+                <div class="text-h6 font-weight-bold text-zinc-primary mb-2">Scan QR Code</div>
+                <p class="text-caption text-zinc-secondary mb-6">Point your camera at the host's QR code.</p>
+                <v-btn color="black" block height="56" class="siegu-btn" @click="startScanner">
+                  Open Camera
+                </v-btn>
+              </div>
+              
+              <div v-else class="position-relative">
+                <video ref="scannerVideo" style="width: 100%; border-radius: 12px; background: black; max-height: 250px; object-fit: cover;"></video>
+                <v-btn icon size="small" color="white" class="position-absolute" @click="stopScanner" style="position: absolute; top: 8px; right: 8px; z-index: 20;">
+                  <v-icon>mdi-close</v-icon>
+                </v-btn>
+                <div class="scanner-overlay"></div>
+              </div>
+            </v-card>
+
+            <div class="text-caption text-zinc-muted text-center uppercase tracking-widest">Or enter manually</div>
+
             <v-text-field
               v-model="joinPassphrase"
               placeholder="Enter 4-word phrase"
@@ -141,6 +164,29 @@
       </div>
 
       <div class="d-flex justify-center mb-6 flex-column ga-4" v-if="mode === 'join'">
+          <v-card variant="flat" class="bg-zinc-50 border-subtle pa-6 rounded-xl mb-2 text-center w-100">
+            <div v-if="!isScanning">
+              <div class="siegu-icon-circle mx-auto mb-4">
+                <v-icon color="white">mdi-qrcode-scan</v-icon>
+              </div>
+              <div class="text-h6 font-weight-bold text-zinc-primary mb-2">Scan QR Code</div>
+              <p class="text-caption text-zinc-secondary mb-6">Point your camera at the host's QR code.</p>
+              <v-btn color="black" block height="56" class="siegu-btn" @click="startScanner">
+                Open Camera
+              </v-btn>
+            </div>
+            
+            <div v-else class="position-relative">
+              <video ref="scannerVideo" style="width: 100%; border-radius: 12px; background: black; max-height: 250px; object-fit: cover;"></video>
+              <v-btn icon size="small" color="white" class="position-absolute" @click="stopScanner" style="position: absolute; top: 8px; right: 8px; z-index: 20;">
+                <v-icon>mdi-close</v-icon>
+              </v-btn>
+              <div class="scanner-overlay"></div>
+            </div>
+          </v-card>
+
+          <div class="text-caption text-zinc-muted text-center uppercase tracking-widest">Or enter manually</div>
+
           <v-text-field
             v-model="joinPassphrase"
             placeholder="Enter 4-word phrase"
@@ -224,16 +270,18 @@
 <script>
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import QrcodeVue from 'qrcode.vue'
+import QrcodeVue from 'qrcode.vue';
+import { BrowserQRCodeReader } from '@zxing/library';
 
 export default {
   name: "Connect",
-  emits: ["connected"],
+  emits: ["connected", "mode-change"],
   components: {
     QrcodeVue,
   },
   props: {
-    embedded: { type: Boolean, default: false }
+    embedded: { type: Boolean, default: false },
+    initialMode: { type: String, default: 'host' }
   },
   data: () => ({
     dialog: false,
@@ -245,6 +293,8 @@ export default {
     isConnected: false,
     loading: false,
     unlisten: null,
+    codeReader: new BrowserQRCodeReader(),
+    isScanning: false,
   }),
   watch: {
     mode(newMode) {
@@ -256,7 +306,33 @@ export default {
        }
     },
     async dialog(val) {
+      if (val) {
+        this.unlisten = await listen("webrtc-state", (event) => {
+          this.connectionStatus = event.payload;
+          if (event.payload === "Connected" || event.payload === "connected") {
+            this.isConnected = true;
+            this.loading = false;
+            this.$emit('connected');
+          }
+          if (event.payload.toLowerCase().includes("error") ||
+              event.payload.toLowerCase().includes("failed") ||
+              event.payload.toLowerCase().includes("disconnected")) {
+            this.isConnected = false;
+            this.loading = false;
+          }
+        });
+        this.initialize();
+      } else {
+        if (this.unlisten) {
+          this.unlisten();
+          this.unlisten = null;
+        }
+        this.loading = false;
+      }
+    }
+  },
   async mounted() {
+    this.mode = this.initialMode;
     if (this.embedded) {
       this.unlisten = await listen("webrtc-state", (event) => {
         this.connectionStatus = event.payload;
@@ -319,6 +395,26 @@ export default {
            this.loading = false;
            this.connectionStatus = "Error joining: " + error;
         }
+    },
+    async startScanner() {
+      this.isScanning = true;
+      try {
+        const videoElement = this.$refs.scannerVideo;
+        await this.codeReader.decodeFromVideoDevice(undefined, videoElement, (result, error) => {
+          if (result) {
+            this.joinPassphrase = result.getText();
+            this.stopScanner();
+            this.joinWebRTC();
+          }
+        });
+      } catch (err) {
+        console.error("Scanner Error:", err);
+        this.isScanning = false;
+      }
+    },
+    stopScanner() {
+      this.codeReader.reset();
+      this.isScanning = false;
     }
   },
 };

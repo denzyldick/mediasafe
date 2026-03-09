@@ -2,6 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::Mutex;
 use tokio_tungstenite::{
     connect_async, tungstenite::client::IntoClientRequest, tungstenite::protocol::Message,
@@ -61,6 +62,10 @@ pub enum SyncMessage {
     FileEnd {
         id: String,
     },
+    SyncFile {
+        photo: PhotoSyncInfo,
+    },
+    StartSync,
 }
 
 // Use the same SignalMessage structure as the axum server
@@ -95,6 +100,7 @@ pub struct WebRtcClient {
     pub signaling_url: String,
     pub app_handle: Option<AppHandle>,
     pub config_path: String,
+    pub sync_tx: Arc<Mutex<Option<UnboundedSender<SyncMessage>>>>,
 }
 
 use tauri::AppHandle;
@@ -260,6 +266,13 @@ impl WebRtcClient {
         let (write, mut read) = ws_stream.split();
         let write = Arc::new(Mutex::new(write));
 
+        let (sync_msg_tx, sync_msg_rx) = tokio::sync::mpsc::unbounded_channel::<SyncMessage>();
+        {
+            let mut tx_lock = self.sync_tx.lock().await;
+            *tx_lock = Some(sync_msg_tx);
+        }
+        let sync_msg_rx = Arc::new(tokio::sync::Mutex::new(sync_msg_rx));
+
         let my_device_id = uuid::Uuid::new_v4().to_string();
         println!("Joining network with device ID: {my_device_id}");
         let join_msg = SignalMessage::Join {
@@ -331,14 +344,20 @@ impl WebRtcClient {
             let dc_clone = Arc::clone(&data_channel);
             let app_handle_opt = self.app_handle.clone();
 
+            let sync_msg_rx_initiator = Arc::clone(&sync_msg_rx);
             data_channel.on_open(Box::new(move || {
                 println!("Data channel opened! Requesting manifest...");
                 if let Some(app) = &app_handle_opt {
                     let _ = app.emit("webrtc-state", "Secure Data Channel Ready");
                 }
                 let dc_inner = Arc::clone(&dc_clone);
+                let sync_msg_rx_inner = Arc::clone(&sync_msg_rx_initiator);
                 Box::pin(async move {
                     let _ = Self::send_sync_message(&dc_inner, &SyncMessage::ManifestRequest).await;
+                    let mut rx = sync_msg_rx_inner.lock().await;
+                    while let Some(msg) = rx.recv().await {
+                        let _ = Self::send_sync_message(&dc_inner, &msg).await;
+                    }
                 })
             }));
 
@@ -440,11 +459,11 @@ impl WebRtcClient {
                                         let sync_path = db.get_state().get("sync_path").cloned();
                                         let dirs = db.list_directories();
                                         let target_dir = if let Some(sp) = sync_path {
-                                            PathBuf::from(sp)
+                                            PathBuf::from(sp).join("siegu")
                                         } else if !dirs.is_empty() {
-                                            PathBuf::from(&dirs[0])
+                                            PathBuf::from(&dirs[0]).join("siegu")
                                         } else {
-                                            Path::new(&config_path).join("Siegu")
+                                            Path::new(&config_path).join("Siegu").join("siegu")
                                         };
                                         let _ = tokio::fs::create_dir_all(&target_dir).await;
                                         let final_path = target_dir.join(&file_state.filename);
@@ -460,7 +479,30 @@ impl WebRtcClient {
                                                 &file_state.objects,
                                                 &file_state.faces,
                                             );
+
+                                            // Notify UI immediately so photo appears in gallery
+                                            if let Some(app) = &app_handle {
+                                                let _ = app.emit("photo-scanned", crate::database::Photo {
+                                                    id: file_state.id,
+                                                    encoded: String::new(), // UI will fetch thumbnail if needed
+                                                    location: final_path.to_string_lossy().to_string(),
+                                                    created: file_state.created,
+                                                    objects: HashMap::new(), // UI will refresh from DB if needed
+                                                    properties: HashMap::new(),
+                                                    latitude: file_state.latitude.unwrap_or(0.0),
+                                                    longitude: file_state.longitude.unwrap_or(0.0),
+                                                    favorite: false,
+                                                });
+                                            }
                                         }
+                                    }
+                                }
+                                SyncMessage::SyncFile { photo } => {
+                                    let _ = Self::send_sync_message(&dc, &SyncMessage::FileRequest { id: photo.id }).await;
+                                }
+                                SyncMessage::StartSync => {
+                                    if let Some(app) = &app_handle {
+                                        let _ = app.emit("start-sync", ());
                                     }
                                 }
                                 SyncMessage::ManifestRequest => {
@@ -475,7 +517,7 @@ impl WebRtcClient {
                                 SyncMessage::FileRequest { id } => {
                                     let db = Database::new(&config_path);
                                     if let Ok((path, created, lat, lon, objects, faces)) = db.connection.query_row(
-                                        "SELECT p.location, p.created, p.latitude, p.longitude, 
+                                        "SELECT p.location, p.created, p.latitude, p.longitude,
                                          (SELECT json_group_array(json_object('class', class, 'probability', probability)) FROM object WHERE photo_id = p.id),
                                          (SELECT json_group_array(json_object('face_id', face_id, 'crop_path', crop_path, 'encoded', encoded, 'person_id', person_id)) FROM faces WHERE photo_id = p.id)
                                          FROM photo p WHERE p.id = ?1",
@@ -507,12 +549,14 @@ impl WebRtcClient {
             let app_handle_opt = self.app_handle.clone();
             let incoming_files_clone = Arc::clone(&incoming_files);
             let config_path_dc = config_path_clone.clone();
+            let sync_msg_rx_receiver = Arc::clone(&sync_msg_rx);
 
             peer_connection.on_data_channel(Box::new(move |d: Arc<webrtc::data_channel::RTCDataChannel>| {
                 let dc_clone = Arc::clone(&d);
                 let incoming_files = Arc::clone(&incoming_files_clone);
                 let config_path = config_path_dc.clone();
                 let app_handle = app_handle_opt.clone();
+                let sync_msg_rx_inner_shared = Arc::clone(&sync_msg_rx_receiver);
 
                 d.on_message(Box::new(move |msg: webrtc::data_channel::data_channel_message::DataChannelMessage| {
                     let dc = Arc::clone(&dc_clone);
@@ -524,6 +568,14 @@ impl WebRtcClient {
                         let text = String::from_utf8_lossy(&msg.data);
                         if let Ok(sync_msg) = serde_json::from_str::<SyncMessage>(&text) {
                             match sync_msg {
+                                SyncMessage::SyncFile { photo } => {
+                                    let _ = Self::send_sync_message(&dc, &SyncMessage::FileRequest { id: photo.id }).await;
+                                }
+                                SyncMessage::StartSync => {
+                                    if let Some(app) = &app_handle {
+                                        let _ = app.emit("start-sync", ());
+                                    }
+                                }
                                 SyncMessage::ManifestRequest => {
                                     let db = Database::new(&config_path);
                                     let photos = db.get_photo_sync_info();
@@ -594,16 +646,30 @@ impl WebRtcClient {
                                         let sync_path = db.get_state().get("sync_path").cloned();
                                         let dirs = db.list_directories();
                                         let target_dir = if let Some(sp) = sync_path {
-                                            PathBuf::from(sp)
+                                            PathBuf::from(sp).join("siegu")
                                         } else if !dirs.is_empty() {
-                                            PathBuf::from(&dirs[0])
+                                            PathBuf::from(&dirs[0]).join("siegu")
                                         } else {
-                                            Path::new(&config_path).join("Siegu")
+                                            Path::new(&config_path).join("Siegu").join("siegu")
                                         };
                                         let _ = tokio::fs::create_dir_all(&target_dir).await;
                                         let final_path = target_dir.join(&file_state.filename);
                                         if let Ok(_) = tokio::fs::rename(&temp_path, &final_path).await {
                                             db.import_photo(&file_state.id, &final_path.to_string_lossy(), &file_state.created, file_state.latitude, file_state.longitude, &file_state.objects, &file_state.faces);
+
+                                            if let Some(app) = &app_handle {
+                                                let _ = app.emit("photo-scanned", crate::database::Photo {
+                                                    id: file_state.id,
+                                                    encoded: String::new(),
+                                                    location: final_path.to_string_lossy().to_string(),
+                                                    created: file_state.created,
+                                                    objects: HashMap::new(),
+                                                    properties: HashMap::new(),
+                                                    latitude: file_state.latitude.unwrap_or(0.0),
+                                                    longitude: file_state.longitude.unwrap_or(0.0),
+                                                    favorite: false,
+                                                });
+                                            }
                                         }
                                     }
                                 }
@@ -611,10 +677,24 @@ impl WebRtcClient {
                         }
                     })
                 }));
+
+                let dc_open = Arc::clone(&d);
+                let sync_msg_rx_inner = Arc::clone(&sync_msg_rx_inner_shared);
+                d.on_open(Box::new(move || {
+                    println!("Data channel opened!");
+                    let dc_inner = Arc::clone(&dc_open);
+                    let sync_msg_rx_final = Arc::clone(&sync_msg_rx_inner);
+                    Box::pin(async move {
+                        let mut rx = sync_msg_rx_final.lock().await;
+                        while let Some(msg) = rx.recv().await {
+                            let _ = Self::send_sync_message(&dc_inner, &msg).await;
+                        }
+                    })
+                }));
+
                 Box::pin(async move {})
             }));
         }
-
         let app_handle_opt_state = self.app_handle.clone();
         let config_path_state = self.config_path.clone();
         let room_id_state = self.room_id.clone();

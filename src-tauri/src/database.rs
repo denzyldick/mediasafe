@@ -108,6 +108,62 @@ impl Database {
         results
     }
 
+    pub fn get_photo_sync_info_by_id(&self, photo_id: &str) -> Result<PhotoSyncInfo, String> {
+        let sql = "SELECT id, location, created, latitude, longitude FROM photo WHERE id = ?1";
+        self.connection
+            .query_row(sql, [photo_id], |row| {
+                let id: String = row.get(0)?;
+
+                // Fetch objects for this photo
+                let mut objects = Vec::new();
+                if let Ok(mut obj_stmt) = self
+                    .connection
+                    .prepare("SELECT class, probability FROM object WHERE photo_id = ?1")
+                {
+                    if let Ok(obj_rows) = obj_stmt.query_map([&id], |r| {
+                        Ok(SyncObject {
+                            class: r.get(0)?,
+                            probability: r.get(1)?,
+                        })
+                    }) {
+                        for obj in obj_rows.flatten() {
+                            objects.push(obj);
+                        }
+                    }
+                }
+
+                // Fetch faces for this photo
+                let mut faces = Vec::new();
+                if let Ok(mut face_stmt) = self.connection.prepare(
+                    "SELECT face_id, crop_path, encoded, person_id FROM faces WHERE photo_id = ?1",
+                ) {
+                    if let Ok(face_rows) = face_stmt.query_map([&id], |r| {
+                        Ok(SyncFace {
+                            face_id: r.get(0)?,
+                            crop_path: r.get(1)?,
+                            encoded: r.get(2)?,
+                            person_id: r.get(3)?,
+                        })
+                    }) {
+                        for face in face_rows.flatten() {
+                            faces.push(face);
+                        }
+                    }
+                }
+
+                Ok(PhotoSyncInfo {
+                    id,
+                    location: row.get(1)?,
+                    created: row.get(2).unwrap_or_default(),
+                    latitude: row.get(3).ok(),
+                    longitude: row.get(4).ok(),
+                    objects: serde_json::to_string(&objects).unwrap_or("[]".to_string()),
+                    faces: serde_json::to_string(&faces).unwrap_or("[]".to_string()),
+                })
+            })
+            .map_err(|e| e.to_string())
+    }
+
     pub fn new(config_path: &str) -> Self {
         let path = format!("{config_path}/siegu.db");
         let _ = fs::create_dir_all(config_path);

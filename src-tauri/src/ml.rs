@@ -6,8 +6,8 @@ use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use tauri::AppHandle;
 use tauri::Emitter;
+use tauri::{AppHandle, Manager};
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::Semaphore;
 
@@ -658,6 +658,19 @@ pub fn start_background_worker(
                                         }
                                     }
                                 }
+                            }
+                        }
+                    }
+
+                    // Proactively notify peer with FULL AI data now that ML is done
+                    if let Some(state) = app_handle_task.try_state::<crate::WebRtcState>() {
+                        let mut tx_lock = state.sync_tx.blocking_lock();
+                        if let Some(tx) = tx_lock.as_mut() {
+                            let db = db_task.lock().unwrap();
+                            if let Ok(info) = db.get_photo_sync_info_by_id(&actual_id) {
+                                let _ = tx.send(crate::transport::SyncMessage::SyncFile {
+                                    photo: info
+                                });
                             }
                         }
                     }
