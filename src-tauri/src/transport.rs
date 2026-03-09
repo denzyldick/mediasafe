@@ -220,11 +220,7 @@ impl WebRtcClient {
         self.emit("webrtc-state", "Connecting to signaling...");
 
         let base_url = self.signaling_url.trim_end_matches('/');
-        let url_str = if base_url.ends_with("/ws") {
-            format!("{}/{}", base_url, self.room_id)
-        } else {
-            format!("{}/ws/{}", base_url, self.room_id)
-        };
+        let url_str = format!("{}/ws/{}", base_url, self.room_id);
 
         println!("Final WebSocket URL: {url_str}");
 
