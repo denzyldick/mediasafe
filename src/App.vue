@@ -36,8 +36,41 @@ export default {
     },
     directories: [],
     current_page: "home",
+    downloadProgress: {},
+    isDownloadingModels: false,
+    onboardingStep: 'greet',
+    downloadedModels: [],
+    os: '',
+    thumbnailQueue: [],
+    isProcessingThumb: false,
+    thumbRequests: new Set(),
   }),
   async mounted() {
+    invoke("get_os").then(os => this.os = os);
+    
+    // Global Thumbnail Worker
+    window.addEventListener('request-thumbnail', (e) => {
+      const { id } = e.detail;
+      if (this.thumbRequests.has(id)) return;
+      this.thumbRequests.add(id);
+      this.thumbnailQueue.push(e.detail);
+      this.processThumbnailQueue();
+    });
+
+    listen("download-progress", (event) => {
+      const { model, downloaded, total } = event.payload;
+      this.isDownloadingModels = true;
+      this.downloadProgress = { ...this.downloadProgress, [model]: { downloaded, total } };
+    });
+
+    listen("download-complete", () => {
+      // Check if all selected models are done (simplified: just clear after a delay)
+      setTimeout(() => {
+        this.isDownloadingModels = false;
+        this.downloadProgress = {};
+      }, 2000);
+    });
+
     const initialized = await invoke("is_initialized");
     this.clean_install = !initialized;
 
@@ -87,6 +120,7 @@ export default {
     });
 
     this.list_directories();
+    this.checkModels();
 
     invoke("get_top_tags").then(response => {
       try {
@@ -96,6 +130,9 @@ export default {
     });
   },
   computed: {
+    isMobile() {
+      return this.os === 'android' || this.os === 'ios';
+    },
     hasActiveFilters() {
       return this.filters.favoritesOnly || this.filters.dateRange !== 'all' || this.filters.folder;
     },
@@ -137,6 +174,66 @@ export default {
       this.query = person.name;
       this.current_page = "home";
     },
+    async checkModels() {
+      const downloaded = await invoke("check_models");
+      this.downloadedModels = downloaded;
+    },
+    async finishSetupAndScan() {
+      this.clean_install = false;
+      this.onboardingStep = 'complete';
+      this.current_page = 'home';
+      // Give UI time to switch before starting heavy scan
+      setTimeout(() => {
+        invoke("scan_files", { scan: true });
+      }, 500);
+    },
+    async processThumbnailQueue() {
+      if (this.isProcessingThumb || this.thumbnailQueue.length === 0) return;
+      
+      this.isProcessingThumb = true;
+      const item = this.thumbnailQueue.shift();
+      const video = this.$refs.thumbVideo;
+      const canvas = this.$refs.thumbCanvas;
+
+      if (!video || !canvas) {
+        this.isProcessingThumb = false;
+        return;
+      }
+
+      video.src = item.videoUrl;
+      video.onloadedmetadata = () => {
+        video.currentTime = Math.min(1, video.duration / 2);
+      };
+
+      video.onseeked = async () => {
+        try {
+          const ctx = canvas.getContext('2d');
+          canvas.width = 400;
+          canvas.height = (video.videoHeight / video.videoWidth) * 400;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const b64 = canvas.toDataURL('image/jpeg', 0.7);
+          
+          // Save to backend DB permanently
+          await invoke("update_video_thumbnail", { id: item.id, b64 });
+          
+          // Notify any listening image components
+          window.dispatchEvent(new CustomEvent(`thumbnail-ready-${item.id}`, { detail: { b64 } }));
+        } catch (e) {
+          console.error("Worker failed to capture thumb", e);
+        }
+        
+        // Clean up and process next
+        video.src = "";
+        this.isProcessingThumb = false;
+        this.processThumbnailQueue();
+      };
+
+      video.onerror = () => {
+        video.src = "";
+        this.isProcessingThumb = false;
+        this.processThumbnailQueue();
+      };
+    },
   },
   watch: {
     query(val) {
@@ -148,55 +245,220 @@ export default {
 
 <template>
   <v-app class="bg-siegu-main">
-    <Greet v-if="clean_install" @setup-local="clean_install = false; current_page = 'settings';" @setup-sync="clean_install = false; current_page = 'devices';"></Greet>
+    <!-- Global Download Bar -->
+    <v-system-bar v-if="isDownloadingModels" color="black" theme="dark" class="justify-center py-1" height="auto">
+      <div class="d-flex align-center py-1">
+        <v-progress-circular indeterminate size="14" width="2" class="mr-2" color="white"></v-progress-circular>
+        <span class="text-caption font-weight-bold">Downloading AI Models...</span>
+        <v-btn variant="text" size="x-small" class="ml-2" @click="current_page = 'settings'; onboardingStep = 'complete'; clean_install = false;">View</v-btn>
+      </div>
+    </v-system-bar>
+
+    <!-- Hidden Thumbnail Worker -->
+    <div style="display: none;">
+      <video ref="thumbVideo" muted preload="metadata"></video>
+      <canvas ref="thumbCanvas"></canvas>
+    </div>
+
+    <!-- Guided Onboarding -->
+    <template v-if="clean_install">
+      <Greet v-if="onboardingStep === 'greet'" @setup-local="onboardingStep = 'folders'" @setup-sync="clean_install = false; current_page = 'devices';"></Greet>
+      
+      <!-- Step 2: Folders -->
+      <v-container v-else-if="onboardingStep === 'folders'" class="fill-height bg-siegu-white" fluid>
+        <v-row justify="center">
+          <v-col cols="12" sm="10" md="8" lg="6">
+            <v-card variant="flat" rounded="xl" class="pa-8 border-subtle">
+              <div class="text-center mb-8">
+                <div class="siegu-icon-circle mx-auto mb-4">
+                  <v-icon color="white">mdi-folder-plus</v-icon>
+                </div>
+                <h2 class="text-h4 font-weight-bold text-zinc-primary">Add your media</h2>
+                <p class="text-zinc-secondary">Select the folders where you keep your photos and videos.</p>
+              </div>
+
+              <Setting :embedded="true" hide-ai-section @folder-added="list_directories" />
+
+              <v-btn block color="black" height="56" class="siegu-btn mt-8" :disabled="directories.length === 0" @click="onboardingStep = 'models'">
+                Continue to AI Setup
+              </v-btn>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-container>
+
+      <!-- Step 3: Models -->
+      <v-container v-else-if="onboardingStep === 'models'" class="fill-height bg-siegu-white" fluid>
+        <v-row justify="center">
+          <v-col cols="12" sm="10" md="8" lg="6">
+            <v-card variant="flat" rounded="xl" class="pa-8 border-subtle">
+              <div class="text-center mb-8">
+                <div class="siegu-icon-circle-dark mx-auto mb-4">
+                  <v-icon color="white">mdi-auto-fix</v-icon>
+                </div>
+                <h2 class="text-h4 font-weight-bold text-zinc-primary">AI Intelligence</h2>
+                <p class="text-zinc-secondary">Download the neural models to enable face recognition and semantic search.</p>
+              </div>
+
+              <v-alert v-if="!isDownloadingModels && downloadedModels.length < 2" border="start" color="zinc-50" class="border-subtle mb-6">
+                <template v-slot:prepend>
+                  <v-icon color="zinc-primary">mdi-information-outline</v-icon>
+                </template>
+                <div class="text-caption text-zinc-secondary">
+                  The models are approx. 600MB. We recommend using Wi-Fi.
+                </div>
+              </v-alert>
+
+              <Setting :embedded="true" hide-folder-section @models-ready="checkModels" />
+
+              <v-btn block color="black" height="56" class="siegu-btn mt-8" 
+                :loading="isDownloadingModels"
+                :disabled="downloadedModels.length < 2 && !isDownloadingModels" 
+                @click="onboardingStep = 'sync'">
+                {{ downloadedModels.length < 2 ? 'Download Required' : 'Continue' }}
+              </v-btn>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-container>
+
+      <!-- Step 4: Sync & Devices (Skippable) -->
+      <v-container v-else-if="onboardingStep === 'sync'" class="fill-height bg-siegu-white" fluid>
+        <v-row justify="center">
+          <v-col cols="12" sm="10" md="8" lg="6">
+            <v-card variant="flat" rounded="xl" class="pa-8 border-subtle">
+              <div class="text-center mb-8">
+                <div class="siegu-icon-circle mx-auto mb-4">
+                  <v-icon color="white">mdi-cellphone-link</v-icon>
+                </div>
+                <h2 class="text-h4 font-weight-bold text-zinc-primary">Connect Devices</h2>
+                <p class="text-zinc-secondary">Sync your library across your phone and computer without the cloud.</p>
+              </div>
+
+              <div class="d-flex justify-center mb-8">
+                <Connect :embedded="true" />
+              </div>
+
+              <div class="d-flex flex-column ga-3">
+                <v-btn block color="black" height="56" class="siegu-btn" @click="onboardingStep = 'finalize'">
+                  Next
+                </v-btn>
+                <v-btn block variant="text" color="zinc-muted" @click="onboardingStep = 'finalize'">
+                  Skip for now
+                </v-btn>
+              </div>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-container>
+
+      <!-- Step 5: Finalize & Scan -->
+      <v-container v-else-if="onboardingStep === 'finalize'" class="fill-height bg-siegu-white" fluid>
+        <v-row justify="center">
+          <v-col cols="12" sm="10" md="8" lg="6">
+            <v-card variant="flat" rounded="xl" class="pa-8 border-subtle text-center">
+              <div class="success-check-animation mb-8">
+                <v-icon size="80" color="success">mdi-check-decagram</v-icon>
+              </div>
+              <h2 class="text-h3 font-weight-black text-zinc-primary mb-4">Ready to go!</h2>
+              <p class="text-body-1 text-zinc-secondary mb-10">
+                Setup is complete. Now it's time to find your memories.
+              </p>
+
+              <v-btn block color="black" height="64" class="siegu-btn mb-4" @click="finishSetupAndScan">
+                <v-icon start class="mr-2">mdi-magnify-scan</v-icon>
+                Start Initial Scan
+              </v-btn>
+              
+              <div class="text-caption text-zinc-muted">
+                This will find all your photos and start AI processing.
+              </div>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-container>
+    </template>
 
     <v-layout v-else class="bg-siegu-main">
       <v-app-bar elevation="0" v-if="current_page === 'home'" color="#ffffff" class="border-bottom-subtle px-2">
         <v-row class="px-2 align-center no-gutters">
           <v-col cols="auto">
-            <v-menu offset-y>
+            <v-menu offset-y transition="scale-transition">
               <template v-slot:activator="{ props }">
-                <v-btn v-bind="props" color="#000000" theme="dark" variant="flat" class="siegu-btn px-4" height="40">
+                <v-btn v-bind="props" color="#000000" theme="dark" variant="flat" :class="isMobile ? 'px-2' : 'px-4'" height="40" rounded="lg">
                   <div class="d-flex align-center">
-                    <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
-                      <v-progress-circular v-if="scanStatus === 'scanning' || indexingCount > 0" indeterminate size="12" width="2" color="white"></v-progress-circular>
-                      <v-icon v-else size="14" color="white">mdi-sync</v-icon>
+                    <div :class="isMobile ? '' : 'mr-2'">
+                      <v-progress-circular v-if="scanStatus === 'scanning' || indexingCount > 0" indeterminate size="16" width="2" color="white"></v-progress-circular>
+                      <v-icon v-else size="18" color="white">mdi-sync</v-icon>
                     </div>
-                    <span class="text-white font-weight-bold">{{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}</span>
+                    <span v-if="!isMobile" class="text-white font-weight-bold">{{ scanStatus === 'scanning' ? 'Scanning...' : (indexingCount > 0 ? 'Indexing...' : 'Refresh') }}</span>
                   </div>
                 </v-btn>
               </template>
-              <v-card min-width="300" border class="mt-2 border-subtle" color="#ffffff" rounded="xl">
-                <v-card-text>
-                  <div class="text-subtitle-2 mb-2 text-zinc-primary">Library Status</div>
-                  <div class="d-flex align-center mb-4">
-                    <v-chip color="#f4f4f5" size="x-small" variant="flat" class="mr-2 text-zinc-secondary border-subtle">
-                      File Scan: {{ scanStatus === 'scanning' ? 'Active' : 'Ready' }}
-                    </v-chip>
+              <v-card min-width="320" border class="mt-2 border-subtle overflow-hidden" color="#ffffff" rounded="xl">
+                <div class="bg-zinc-50 pa-4 border-bottom-subtle">
+                  <div class="text-overline font-weight-black text-zinc-muted mb-1">LIBRARY STATUS</div>
+                  <div class="d-flex align-center justify-space-between">
+                    <div class="text-subtitle-1 font-weight-bold text-zinc-primary">Siegu Sync</div>
+                    <v-chip v-if="scanStatus === 'scanning'" size="x-small" color="black" variant="flat" class="text-white">ACTIVE</v-chip>
                   </div>
-                  <div v-if="scanStatus === 'scanning'" class="mb-4">
-                    <div class="text-caption mb-1 text-zinc-muted">{{ scanProgress.current }} / {{ scanProgress.total }} folders</div>
-                    <v-progress-linear :model-value="scanProgress.progress" color="#000000" height="2" rounded bg-color="#f4f4f5" bg-opacity="1"></v-progress-linear>
-                  </div>
-                  <div class="d-flex align-center mb-4">
-                    <v-chip color="#f4f4f5" size="x-small" variant="flat" class="mr-2 text-zinc-secondary border-subtle">
-                      AI Indexing: {{ indexingCount > 0 ? 'Active' : 'Complete' }}
-                    </v-chip>
-                    <span v-if="indexingCount > 0" class="text-caption text-zinc-muted">{{ indexingCount }} left</span>
-                  </div>
+                </div>
+
+                <v-card-text class="pa-4">
+                  <v-list density="compact" bg-color="transparent" class="pa-0">
+                    <v-list-item class="px-0 mb-4">
+                      <template v-slot:prepend>
+                        <v-icon color="zinc-muted" class="mr-3">mdi-folder-outline</v-icon>
+                      </template>
+                      <v-list-item-title class="text-zinc-primary font-weight-bold">File Scanner</v-list-item-title>
+                      <v-list-item-subtitle class="text-zinc-secondary">
+                        {{ scanStatus === 'scanning' ? `Processing folder ${scanProgress.current}/${scanProgress.total}` : 'Idle' }}
+                      </v-list-item-subtitle>
+                      <div v-if="scanStatus === 'scanning'" class="mt-2">
+                        <v-progress-linear :model-value="scanProgress.progress" color="black" height="4" rounded></v-progress-linear>
+                      </div>
+                    </v-list-item>
+
+                    <v-list-item class="px-0">
+                      <template v-slot:prepend>
+                        <v-icon color="zinc-muted" class="mr-3">mdi-auto-fix</v-icon>
+                      </template>
+                      <v-list-item-title class="text-zinc-primary font-weight-bold">AI Intelligence</v-list-item-title>
+                      <v-list-item-subtitle class="text-zinc-secondary">
+                        {{ indexingCount > 0 ? `${indexingCount} faces remaining` : 'All memories indexed' }}
+                      </v-list-item-subtitle>
+                    </v-list-item>
+                  </v-list>
+
                   <v-divider class="my-4 border-subtle"></v-divider>
-                  <div class="text-caption text-zinc-muted mb-4">Last scan: {{ lastScanTime }}</div>
-                  <v-btn v-if="scanStatus !== 'scanning' && indexingCount === 0" @click="scan()" variant="flat" block class="siegu-btn py-6">
+                  
+                  <div class="d-flex align-center justify-space-between mb-6">
+                    <span class="text-caption text-zinc-muted">Last sync: <b>{{ lastScanTime }}</b></span>
+                  </div>
+
+                  <v-btn 
+                    v-if="scanStatus !== 'scanning' && indexingCount === 0" 
+                    @click="scan()" 
+                    variant="flat" 
+                    color="black"
+                    block 
+                    height="56"
+                    class="siegu-btn"
+                  >
                     <div class="d-flex align-center">
                       <div class="siegu-icon-circle mr-3">
                         <v-icon color="white">mdi-sync</v-icon>
                       </div>
                       <div class="text-left">
                         <div class="font-weight-bold text-white">Sync Library</div>
-                        <div class="text-caption text-white-muted">Refresh your local files and AI index.</div>
+                        <div class="text-caption text-zinc-muted" style="font-size: 10px; opacity: 0.7;">Refresh files & AI index</div>
                       </div>
                     </div>
                   </v-btn>
+                  <div v-else class="text-center py-2">
+                    <v-progress-circular indeterminate color="black" size="24"></v-progress-circular>
+                    <div class="text-caption mt-2 text-zinc-muted">Processing in background...</div>
+                  </div>
                 </v-card-text>
               </v-card>
             </v-menu>

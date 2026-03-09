@@ -16,6 +16,16 @@ pub struct PhotoSyncInfo {
     pub created: String,
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct FaceWithPerson {
+    pub photo_id: String,
+    pub face_id: String,
+    pub crop_path: String,
+    pub encoded: String,
+    pub person_id: Option<String>,
+    pub person_name: Option<String>,
+}
+
 impl Database {
     pub fn get_photo_sync_info(&self) -> Vec<PhotoSyncInfo> {
         let mut results = Vec::new();
@@ -43,6 +53,12 @@ impl Database {
         let conn = Connection::open(&path).expect("Failed to open database connection");
 
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS photo (id STRING PRIMARY KEY, location STRING, encoded STRING, created DATE_TIME, latitude REAL, longitude REAL);", ());
+
+        // Simple migration: try to add columns if they don't exist (ignore errors if they do)
+        let _ = conn.execute("ALTER TABLE photo ADD COLUMN latitude REAL;", ());
+        let _ = conn.execute("ALTER TABLE photo ADD COLUMN longitude REAL;", ());
+        let _ = conn.execute("ALTER TABLE photo ADD COLUMN created DATE_TIME;", ());
+
         let _ = conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_photo_location ON photo(location);",
             (),
@@ -87,6 +103,36 @@ impl Database {
             }
         }
         map
+    }
+
+    pub fn store_log(&self, level: &str, message: &str) {
+        let _ = self.connection.execute(
+            "INSERT INTO logs (level, message) VALUES (?1, ?2)",
+            (level, message),
+        );
+    }
+
+    pub fn get_logs(&self, limit: usize) -> Vec<LogEntry> {
+        let mut logs = Vec::new();
+        let sql = "SELECT timestamp, level, message FROM logs ORDER BY timestamp DESC LIMIT ?1";
+        if let Ok(mut stmt) = self.connection.prepare(sql) {
+            if let Ok(iter) = stmt.query_map([limit], |row| {
+                Ok(LogEntry {
+                    timestamp: row.get(0)?,
+                    level: row.get(1)?,
+                    message: row.get(2)?,
+                })
+            }) {
+                for log in iter.flatten() {
+                    logs.push(log);
+                }
+            }
+        }
+        logs
+    }
+
+    pub fn clear_logs(&self) {
+        let _ = self.connection.execute("DELETE FROM logs", ());
     }
 
     pub fn set_state(&self, state: HashMap<String, String>) {
@@ -238,7 +284,7 @@ impl Database {
 
     pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE p.latitude != 0.0 AND p.longitude != 0.0") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE p.latitude != 0.0 OR p.longitude != 0.0") {
             if let Ok(iter) = stmt.query_map([], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
@@ -262,10 +308,10 @@ impl Database {
 
     pub fn get_people(&self) -> Vec<PersonWithFace> {
         let mut people = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.name, f.crop_path, f.face_id, f.encoded, p.embedding FROM people p LEFT JOIN faces f ON p.id = f.person_id WHERE p.name IS NOT NULL GROUP BY p.id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.name, f.crop_path, f.face_id, f.encoded, p.embedding, (SELECT COUNT(*) FROM faces WHERE person_id = p.id) FROM people p LEFT JOIN faces f ON p.id = f.person_id WHERE p.name IS NOT NULL GROUP BY p.id") {
             if let Ok(iter) = stmt.query_map([], |row| {
                 let embedding: Option<Vec<f32>> = row.get::<_, Option<Vec<u8>>>(5).ok().flatten().map(|bytes| bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect());
-                Ok(PersonWithFace { id: row.get(0)?, name: row.get(1)?, representative_crop: row.get(2).ok(), representative_face_id: row.get(3).ok(), encoded: row.get(4).ok(), embedding })
+                Ok(PersonWithFace { id: row.get(0)?, name: row.get(1)?, representative_crop: row.get(2).ok(), representative_face_id: row.get(3).ok(), encoded: row.get(4).ok(), embedding, face_count: row.get(6)? })
             }) {
                 for p in iter.flatten() { people.push(p); }
             }
@@ -394,7 +440,7 @@ impl Database {
 
     pub fn get_anonymous_people_groups(&self) -> Vec<PersonWithFace> {
         let mut results = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, f.crop_path, f.face_id, f.encoded, p.embedding FROM people p JOIN faces f ON p.id = f.person_id WHERE p.name IS NULL GROUP BY p.id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, f.crop_path, f.face_id, f.encoded, p.embedding, (SELECT COUNT(*) FROM faces WHERE person_id = p.id) FROM people p JOIN faces f ON p.id = f.person_id WHERE p.name IS NULL GROUP BY p.id ORDER BY (SELECT COUNT(*) FROM faces WHERE person_id = p.id) DESC") {
             if let Ok(iter) = stmt.query_map([], |row| {
                 let embedding: Option<Vec<f32>> = row.get::<_, Option<Vec<u8>>>(4).ok().flatten().map(|bytes| bytes.chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect());
                 Ok(PersonWithFace {
@@ -403,13 +449,55 @@ impl Database {
                     representative_crop: row.get(1).ok(),
                     representative_face_id: row.get(2).ok(),
                     encoded: row.get(3).ok(),
-                    embedding
+                    embedding,
+                    face_count: row.get(5)?
                 })
             }) {
                 for p in iter.flatten() { results.push(p); }
             }
         }
         results
+    }
+
+    pub fn get_faces_for_photo(&self, photo_id: &str) -> Vec<FaceWithPerson> {
+        let mut faces = Vec::new();
+        let sql = "SELECT f.photo_id, f.face_id, f.crop_path, f.encoded, f.person_id, p.name FROM faces f LEFT JOIN people p ON f.person_id = p.id WHERE f.photo_id = ?1";
+        if let Ok(mut stmt) = self.connection.prepare(sql) {
+            if let Ok(iter) = stmt.query_map([photo_id], |row| {
+                Ok(FaceWithPerson {
+                    photo_id: row.get(0)?,
+                    face_id: row.get(1)?,
+                    crop_path: row.get(2)?,
+                    encoded: row.get(3)?,
+                    person_id: row.get(4)?,
+                    person_name: row.get(5)?,
+                })
+            }) {
+                for f in iter.flatten() {
+                    faces.push(f);
+                }
+            }
+        }
+        faces
+    }
+
+    pub fn get_person_faces(&self, person_id: &str) -> Vec<Face> {
+        let mut faces = Vec::new();
+        if let Ok(mut stmt) = self.connection.prepare("SELECT photo_id, face_id, crop_path, encoded, person_id FROM faces WHERE person_id = ?1") {
+            if let Ok(iter) = stmt.query_map([person_id], |row| {
+                Ok(Face {
+                    photo_id: row.get(0)?,
+                    face_id: row.get(1)?,
+                    crop_path: row.get(2)?,
+                    encoded: row.get(3)?,
+                    embedding: Vec::new(), // Not needed for UI
+                    person_id: row.get(4)?,
+                })
+            }) {
+                for f in iter.flatten() { faces.push(f); }
+            }
+        }
+        faces
     }
 
     pub fn get_photos_for_person(&self, person_id: &str) -> Vec<Photo> {
@@ -588,6 +676,7 @@ pub struct PersonWithFace {
     pub representative_face_id: Option<String>,
     pub encoded: Option<String>,
     pub embedding: Option<Vec<f32>>,
+    pub face_count: i32,
 }
 
 #[derive(Debug, Clone, Serialize)]

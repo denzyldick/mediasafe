@@ -22,16 +22,21 @@
       :center="initialCenter"
       @ready="onMapReady"
       :minZoom="2"
-      :options="{ zoomControl: false, attributionControl: false }"
-      style="height: 100%; width: 100%;"
+      :options="{ zoomControl: false, attributionControl: false, preferCanvas: true }"
+      style="height: 100%; width: 100%; background: #e2e2e7;"
       class="light-map"
     >
       <l-tile-layer
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         layer-type="base"
-        name="CartoDB Positron"
-      ></l-tile-layer>
-
+        name="CartoDB Basemap"
+        :options="{
+          updateWhenZooming: false,
+          updateWhenIdle: true,
+          keepBuffer: 2,
+          crossOrigin: true
+        }"
+      />
     </l-map>
 
     <PhotoViewer
@@ -46,6 +51,10 @@
 import "leaflet/dist/leaflet.css";
 import { LMap, LTileLayer } from "@vue-leaflet/vue-leaflet";
 import L from "leaflet";
+// Leaflet plugins like leaflet.heat often expect window.L to be defined in module environments
+if (typeof window !== 'undefined') {
+  window.L = L;
+}
 import "leaflet.heat";
 import { invoke } from "@tauri-apps/api/core";
 import { convertFileSrc } from '@tauri-apps/api/core';
@@ -73,11 +82,13 @@ export default {
   },
   methods: {
     async onMapReady(map) {
+      console.log("Leaflet Map ready event received");
       this.map = map;
       // Wait for next tick and a small delay to ensure container has dimensions
       this.$nextTick(async () => {
         setTimeout(async () => {
           if (this.map) {
+            console.log("Map instance confirmed, invalidating size...");
             this.map.invalidateSize();
             await this.loadHeatmapData();
           }
@@ -85,13 +96,19 @@ export default {
       });
     },
     async loadHeatmapData() {
-        if (!this.map) return;
+        if (!this.map) {
+            console.log("Map not ready yet");
+            return;
+        }
 
         try {
+            console.log("Fetching heatmap data...");
             const photosJson = await invoke("get_heatmap_data");
             this.photos = JSON.parse(photosJson);
+            console.log(`Loaded ${this.photos.length} photos with location data`);
 
             if (this.photos.length === 0) {
+                console.log("No photos with location data found in database");
                 this.loading = false;
                 return;
             }
@@ -102,40 +119,42 @@ export default {
                 this.map.removeLayer(this.heatLayer);
             }
 
-            // Final check: ensure map has a valid size before adding heat layer
-            const size = this.map.getSize();
-            if (size.x > 0 && size.y > 0) {
+            // Retry loop for getSize() on Android: it can be (0,0) early on
+            let size = this.map.getSize();
+            console.log(`Initial map size: ${size.x}x${size.y}`);
+            let retries = 0;
+            while ((size.x === 0 || size.y === 0) && retries < 15) {
+                console.log(`Map size is 0, retrying... (${retries+1}/15)`);
+                await new Promise(r => setTimeout(r, 300));
+                this.map.invalidateSize();
+                size = this.map.getSize();
+                retries++;
+            }
+
+            console.log(`Final map size for heatmap: ${size.x}x${size.y}`);
+
+            if (size.x > 0 && size.y > 0 && typeof L.heatLayer === 'function') {
+                console.log("Adding heat layer to map...");
                 this.heatLayer = L.heatLayer(heatData, {
                     radius: 25,
                     blur: 15,
                     maxZoom: 10,
                 }).addTo(this.map);
+                console.log("Heat layer added successfully");
+            } else if (typeof L.heatLayer !== 'function') {
+                console.error("CRITICAL: Leaflet Heat layer plugin NOT found (L.heatLayer is undefined)");
+            } else {
+                console.error("FAILED: Map size remains 0x0 after retries. Leaflet cannot render.");
             }
 
-            // Find location with most photos
+            // Find location with most photos or fit all
             if (this.photos.length > 0) {
-                const buckets = {};
-                let maxCount = 0;
-                let bestKey = null;
-
-                this.photos.forEach(p => {
-                    // Bucket by 1-degree grid
-                    const key = `${Math.floor(p.latitude)},${Math.floor(p.longitude)}`;
-                    if (!buckets[key]) buckets[key] = { count: 0, latSum: 0, lngSum: 0 };
-                    buckets[key].count++;
-                    buckets[key].latSum += p.latitude;
-                    buckets[key].lngSum += p.longitude;
-
-                    if (buckets[key].count > maxCount) {
-                        maxCount = buckets[key].count;
-                        bestKey = key;
-                    }
-                });
-
-                if (bestKey) {
-                    const bucket = buckets[bestKey];
-                    const center = [bucket.latSum / bucket.count, bucket.lngSum / bucket.count];
-                    this.map.setView(center, 12);
+                const points = this.photos.map(p => [p.latitude, p.longitude]);
+                if (points.length > 1) {
+                    // Show all points with some padding
+                    this.map.fitBounds(points, { padding: [50, 50], maxZoom: 10 });
+                } else {
+                    this.map.setView(points[0], 4);
                 }
             }
 

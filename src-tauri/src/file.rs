@@ -92,11 +92,18 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 .map(char::from)
                 .collect();
 
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("")
+                .to_lowercase();
+            let is_video = ["mp4", "mkv", "mov", "avi", "webm"].contains(&ext.as_str());
+
             if let Ok(file) = File::open(path.clone()) {
                 let mut buff = BufReader::new(&file);
+
                 let mut latitude = 0.0;
                 let mut longitude = 0.0;
-
                 let mut created = String::new();
 
                 let properties = match Reader::new().read_from_container(&mut buff) {
@@ -129,6 +136,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                                     } else {
                                         lat
                                     };
+                                    println!("DEBUG: Extracted latitude: {latitude}");
                                 }
                             }
                         }
@@ -147,6 +155,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                                     } else {
                                         lon
                                     };
+                                    println!("DEBUG: Extracted longitude: {longitude}");
                                 }
                             }
                         }
@@ -156,8 +165,11 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                     Err(_) => HashMap::new(),
                 };
 
-                let encoded =
-                    generate_thumbnail_base64(path.to_str().unwrap(), 400).unwrap_or_default();
+                let encoded = if is_video {
+                    generate_video_thumbnail(path.to_str().unwrap()).unwrap_or_default()
+                } else {
+                    generate_thumbnail_base64(path.to_str().unwrap(), 400).unwrap_or_default()
+                };
 
                 let photo = database::Photo {
                     id: id.clone(),
@@ -308,6 +320,41 @@ pub fn read_file_base64(path: String) -> String {
             String::new()
         }
     }
+}
+
+pub fn generate_video_thumbnail(video_path: &str) -> Option<String> {
+    use std::process::Command;
+    let temp_dir = std::env::temp_dir();
+    let unique_id = uuid::Uuid::new_v4().to_string();
+    let output_path = temp_dir.join(format!("{unique_id}.jpg"));
+
+    let status = Command::new("ffmpeg")
+        .args([
+            "-y",
+            "-ss",
+            "00:00:01",
+            "-i",
+            video_path,
+            "-frames:v",
+            "1",
+            "-q:v",
+            "4",
+            "-vf",
+            "scale=400:-1",
+            output_path.to_str().unwrap(),
+        ])
+        .status();
+
+    if let Ok(s) = status {
+        if s.success() {
+            let b64 = read_file_base64(output_path.to_str().unwrap().to_string());
+            let _ = std::fs::remove_file(&output_path);
+            if !b64.is_empty() {
+                return Some(b64);
+            }
+        }
+    }
+    None
 }
 
 mod tests {

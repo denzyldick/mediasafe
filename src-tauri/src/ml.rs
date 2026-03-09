@@ -1,7 +1,7 @@
 use crate::database::{Database, Face};
+use crate::emit_log;
 use base64::Engine;
-use ndarray::Array4;
-use ort::{session::builder::GraphOptimizationLevel, session::Session};
+use ndarray::{Array2, Array4};
 use std::fs;
 use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -11,13 +11,71 @@ use tauri::Emitter;
 use tokio::sync::mpsc::{unbounded_channel, UnboundedSender};
 use tokio::sync::Semaphore;
 
+// Conditional imports for AI Engines
+#[cfg(not(target_os = "android"))]
+use ort::{session::builder::GraphOptimizationLevel, session::Session};
+
+#[cfg(target_os = "android")]
+use tract_onnx::prelude::*;
+
 pub struct MlContext {
     pub tx: std::sync::Mutex<UnboundedSender<String>>,
     pub pending_count: Arc<AtomicUsize>,
 }
 
+// Model wrappers to handle different engine types
+#[derive(Clone)]
+enum ModelEngine {
+    #[cfg(not(target_os = "android"))]
+    Ort(Arc<Mutex<Session>>),
+    #[cfg(target_os = "android")]
+    Tract(Arc<SimplePlan<TypedFact, Box<dyn TypedOp>, TypedModel>>),
+}
+
+impl ModelEngine {
+    fn run(&self, input: Array4<f32>, _input_name: &str) -> Result<Vec<f32>, String> {
+        match self {
+            #[cfg(not(target_os = "android"))]
+            ModelEngine::Ort(session) => {
+                let shape = input.shape().to_vec();
+                let data = input.into_raw_vec();
+                let tensor =
+                    ort::value::Value::from_array((shape, data)).map_err(|e| e.to_string())?;
+                let mut lock = session.lock().unwrap();
+                let outputs = lock
+                    .run(ort::inputs![_input_name => &tensor])
+                    .map_err(|e| e.to_string())?;
+                let mut results = Vec::new();
+                for i in 0..outputs.len() {
+                    if let Ok((_shape, data)) = outputs[i].try_extract_tensor::<f32>() {
+                        results.extend_from_slice(data);
+                    }
+                }
+                Ok(results)
+            }
+            #[cfg(target_os = "android")]
+            ModelEngine::Tract(plan) => {
+                let tract_tensor: tract_onnx::prelude::Tensor = input.into();
+                let mut inputs = vec![];
+                for _ in 0..plan.model().input_outlets().unwrap().len() {
+                    inputs.push(tract_tensor.clone().into());
+                }
+                let result = plan.run(inputs.into()).map_err(|e| e.to_string())?;
+                let mut results = Vec::new();
+                for i in 0..result.len() {
+                    if let Some(output) = result[i].as_slice::<f32>().ok() {
+                        results.extend_from_slice(output);
+                    }
+                }
+                Ok(results)
+            }
+        }
+    }
+}
+
 fn compute_text_embeddings(
-    text_model: &mut Session,
+    #[cfg(not(target_os = "android"))] text_model: &mut Session,
+    #[cfg(target_os = "android")] text_model: &SimplePlan<TypedFact, Box<dyn TypedOp>, TypedModel>,
     tokenizer: &tokenizers::Tokenizer,
 ) -> Vec<(String, Vec<f32>)> {
     let search_vocabulary = vec![
@@ -72,11 +130,37 @@ fn compute_text_embeddings(
     let mut embeddings = Vec::new();
     for text_label in search_vocabulary {
         if let Ok(encoding) = tokenizer.encode(format!("a photo of {text_label}"), true) {
-            let input_ids: Vec<i64> = encoding.get_ids().iter().map(|&x| x as i64).collect();
-            if let Ok(input_ids_arr) =
-                ndarray::Array2::from_shape_vec((1, input_ids.len()), input_ids)
+            #[cfg(not(target_os = "android"))]
+            let mut ids = encoding
+                .get_ids()
+                .iter()
+                .map(|&x| x as i64)
+                .collect::<Vec<i64>>();
+            #[cfg(target_os = "android")]
+            let mut ids = encoding
+                .get_ids()
+                .iter()
+                .map(|&x| x as i32)
+                .collect::<Vec<i32>>();
+
+            if ids.len() > 77 {
+                ids.truncate(77);
+            } else {
+                while ids.len() < 77 {
+                    ids.push(0);
+                }
+            }
+
+            #[cfg(not(target_os = "android"))]
+            let arr = Array2::from_shape_vec((1, 77), ids).unwrap();
+            #[cfg(target_os = "android")]
+            let arr = Array2::from_shape_vec((1, 77), ids).unwrap();
+
+            #[cfg(not(target_os = "android"))]
             {
-                if let Ok(id_tensor) = ort::value::Value::from_array(input_ids_arr) {
+                let shape = arr.shape().to_vec();
+                let data = arr.into_raw_vec();
+                if let Ok(id_tensor) = ort::value::Value::from_array((shape, data)) {
                     if let Ok(outputs) = text_model.run(ort::inputs!["input_ids" => &id_tensor]) {
                         if let Ok((_shape, text_emb_tensor)) =
                             outputs[0].try_extract_tensor::<f32>()
@@ -85,11 +169,43 @@ fn compute_text_embeddings(
                             text_embedding.copy_from_slice(text_emb_tensor);
                             let text_norm: f32 =
                                 text_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                            for v in text_embedding.iter_mut() {
-                                *v /= text_norm;
+                            if text_norm > 0.0 {
+                                for v in text_embedding.iter_mut() {
+                                    *v /= text_norm;
+                                }
                             }
                             embeddings.push((text_label.to_string(), text_embedding));
                         }
+                    }
+                }
+            }
+
+            #[cfg(target_os = "android")]
+            {
+                let tract_tensor: tract_onnx::prelude::Tensor = arr.into();
+                // Pass BOTH input_ids and attention_mask (both same shape/type)
+                // Many CLIP models require the mask to resolve the Range op internally
+                let mut inputs = vec![];
+                let input_count = text_model.model().input_outlets().unwrap().len();
+                for _ in 0..input_count {
+                    inputs.push(tract_tensor.clone().into());
+                }
+
+                if let Ok(result) = text_model.run(inputs.into()) {
+                    if let Some(output) = result[0].as_slice::<f32>().ok() {
+                        let mut text_embedding = output.to_vec();
+                        // Handle models that return [1, sequence, 512] by taking the first token (CLS/BOS)
+                        if text_embedding.len() > 512 {
+                            text_embedding.truncate(512);
+                        }
+                        let text_norm: f32 =
+                            text_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+                        if text_norm > 0.0 {
+                            for v in text_embedding.iter_mut() {
+                                *v /= text_norm;
+                            }
+                        }
+                        embeddings.push((text_label.to_string(), text_embedding));
                     }
                 }
             }
@@ -109,8 +225,6 @@ pub fn start_background_worker(
     let db_path = config_path.clone();
 
     std::thread::spawn(move || {
-        std::thread::sleep(std::time::Duration::from_secs(2));
-
         let models_dir = format!("{db_path}/models");
         let faces_dir = format!("{db_path}/faces");
         let _ = fs::create_dir_all(&models_dir);
@@ -121,27 +235,20 @@ pub fn start_background_worker(
         let clip_tokenizer_path = Path::new(&models_dir).join("tokenizer.json");
         let ultraface_path = Path::new(&models_dir).join("version-RFB-320.onnx");
 
-        let mut clip_visual: Option<Arc<Mutex<Session>>> = None;
-        let mut face_detector: Option<Arc<Mutex<Session>>> = None;
+        let mut clip_visual: Option<ModelEngine> = None;
+        let mut face_detector: Option<ModelEngine> = None;
         let mut tokenizer: Option<Arc<tokenizers::Tokenizer>> = None;
         let mut text_embeddings: Arc<Vec<(String, Vec<f32>)>> = Arc::new(Vec::new());
         let known_people: Arc<Mutex<Vec<(String, Vec<f32>)>>> = Arc::new(Mutex::new(Vec::new()));
-        let mut ort_initialized = false;
+        let mut engine_initialized = false;
 
         let db = Arc::new(Mutex::new(Database::new(&db_path)));
         let config = db.lock().unwrap().get_state();
         let num_threads: usize = config
             .get("scan_threads")
             .and_then(|s| s.parse().ok())
-            .unwrap_or({
-                if cfg!(any(target_os = "android", target_os = "ios")) {
-                    2
-                } else {
-                    4
-                }
-            });
+            .unwrap_or(2);
 
-        println!("ML Worker: Initializing with {num_threads} threads");
         let pool = rayon::ThreadPoolBuilder::new()
             .num_threads(num_threads)
             .build()
@@ -155,67 +262,186 @@ pub fn start_background_worker(
                 continue;
             }
 
-            if !ort_initialized || photo_id == "__RELOAD_MODELS__" {
-                println!("ML Worker: Loading AI models...");
-                if !ort_initialized {
-                    let _ = ort::init().with_name("siegu").commit();
-                    ort_initialized = true;
+            if !engine_initialized || photo_id == "__RELOAD_MODELS__" {
+                emit_log(
+                    &app_handle,
+                    "ML Worker: Initializing AI Engine...".to_string(),
+                );
+
+                #[cfg(not(target_os = "android"))]
+                {
+                    if !engine_initialized {
+                        let _ = ort::init().with_name("siegu").commit();
+                    }
                 }
+                engine_initialized = true;
 
                 let is_ok = |p: &Path| {
                     p.exists() && p.metadata().map(|m| m.len()).unwrap_or(0) > 1024 * 1024
                 };
 
-                tokenizer = tokenizers::Tokenizer::from_file(&clip_tokenizer_path)
-                    .ok()
-                    .map(Arc::new);
-                clip_visual = if is_ok(&clip_visual_path) {
-                    Session::builder()
-                        .unwrap()
-                        .with_optimization_level(GraphOptimizationLevel::Level1)
-                        .unwrap()
-                        .with_intra_threads(1)
-                        .unwrap()
-                        .commit_from_file(&clip_visual_path)
-                        .ok()
-                        .map(|s| Arc::new(Mutex::new(s)))
-                } else {
-                    None
+                tokenizer = match tokenizers::Tokenizer::from_file(&clip_tokenizer_path) {
+                    Ok(t) => Some(Arc::new(t)),
+                    Err(_) => None,
                 };
 
-                if let (Ok(mut text_session), Some(ref tok)) = (
-                    Session::builder()
-                        .unwrap()
-                        .with_optimization_level(GraphOptimizationLevel::Level1)
-                        .unwrap()
-                        .with_intra_threads(1)
-                        .unwrap()
-                        .commit_from_file(&clip_text_path),
-                    &tokenizer,
-                ) {
-                    text_embeddings = Arc::new(compute_text_embeddings(&mut text_session, tok));
+                if is_ok(&ultraface_path) {
+                    emit_log(
+                        &app_handle,
+                        "ML Worker: Loading Face Detector...".to_string(),
+                    );
+                    #[cfg(not(target_os = "android"))]
+                    {
+                        match Session::builder()
+                            .unwrap()
+                            .with_optimization_level(GraphOptimizationLevel::Disable)
+                            .unwrap()
+                            .commit_from_file(&ultraface_path)
+                        {
+                            Ok(s) => {
+                                face_detector = Some(ModelEngine::Ort(Arc::new(Mutex::new(s))))
+                            }
+                            Err(e) => emit_log(
+                                &app_handle,
+                                format!("ERROR: Face Detector load failed: {e}"),
+                            ),
+                        }
+                    }
+                    #[cfg(target_os = "android")]
+                    {
+                        match tract_onnx::onnx().model_for_path(&ultraface_path) {
+                            Ok(mut model) => {
+                                for i in 0..model.input_outlets().unwrap().len() {
+                                    model
+                                        .set_input_fact(i, f32::fact(&[1, 3, 240, 320]).into())
+                                        .unwrap();
+                                }
+                                match model
+                                    .into_typed()
+                                    .and_then(|m| m.into_optimized())
+                                    .and_then(|m| m.into_runnable())
+                                {
+                                    Ok(plan) => {
+                                        face_detector = Some(ModelEngine::Tract(Arc::new(plan)))
+                                    }
+                                    Err(e) => emit_log(
+                                        &app_handle,
+                                        format!("ERROR: Face Detector optimization failed: {e}"),
+                                    ),
+                                }
+                            }
+                            Err(e) => emit_log(
+                                &app_handle,
+                                format!("ERROR: Face Detector path failed: {e}"),
+                            ),
+                        }
+                    }
                 }
 
-                face_detector = if is_ok(&ultraface_path) {
-                    Session::builder()
-                        .unwrap()
-                        .with_optimization_level(GraphOptimizationLevel::Level1)
-                        .unwrap()
-                        .with_intra_threads(1)
-                        .unwrap()
-                        .commit_from_file(&ultraface_path)
-                        .ok()
-                        .map(|s| Arc::new(Mutex::new(s)))
-                } else {
-                    None
-                };
+                if is_ok(&clip_visual_path) {
+                    emit_log(&app_handle, "ML Worker: Loading CLIP Visual...".to_string());
+                    #[cfg(not(target_os = "android"))]
+                    {
+                        match Session::builder()
+                            .unwrap()
+                            .with_optimization_level(GraphOptimizationLevel::Disable)
+                            .unwrap()
+                            .commit_from_file(&clip_visual_path)
+                        {
+                            Ok(s) => clip_visual = Some(ModelEngine::Ort(Arc::new(Mutex::new(s)))),
+                            Err(e) => emit_log(
+                                &app_handle,
+                                format!("ERROR: CLIP Visual load failed: {e}"),
+                            ),
+                        }
+                    }
+                    #[cfg(target_os = "android")]
+                    {
+                        match tract_onnx::onnx().model_for_path(&clip_visual_path) {
+                            Ok(mut model) => {
+                                for i in 0..model.input_outlets().unwrap().len() {
+                                    model
+                                        .set_input_fact(i, f32::fact(&[1, 3, 224, 224]).into())
+                                        .unwrap();
+                                }
+                                match model
+                                    .into_typed()
+                                    .and_then(|m| m.into_optimized())
+                                    .and_then(|m| m.into_runnable())
+                                {
+                                    Ok(plan) => {
+                                        clip_visual = Some(ModelEngine::Tract(Arc::new(plan)))
+                                    }
+                                    Err(e) => emit_log(
+                                        &app_handle,
+                                        format!("ERROR: CLIP Visual initialization failed: {e}"),
+                                    ),
+                                }
+                            }
+                            Err(e) => emit_log(
+                                &app_handle,
+                                format!("ERROR: CLIP Visual path failed: {e}"),
+                            ),
+                        }
+                    }
+                }
+
+                if is_ok(&clip_text_path) && tokenizer.is_some() {
+                    emit_log(&app_handle, "ML Worker: Loading CLIP Text...".to_string());
+                    #[cfg(not(target_os = "android"))]
+                    {
+                        if let Ok(mut s) = Session::builder()
+                            .unwrap()
+                            .with_optimization_level(GraphOptimizationLevel::Disable)
+                            .unwrap()
+                            .commit_from_file(&clip_text_path)
+                        {
+                            text_embeddings = Arc::new(compute_text_embeddings(
+                                &mut s,
+                                tokenizer.as_ref().unwrap(),
+                            ));
+                        }
+                    }
+                    #[cfg(target_os = "android")]
+                    {
+                        match tract_onnx::onnx().model_for_path(&clip_text_path) {
+                            Ok(mut model) => {
+                                // Most CLIP models have 2 inputs: input_ids and attention_mask
+                                // We MUST set facts for both to resolve internal range ops
+                                let input_count = model.input_outlets().unwrap().len();
+                                for i in 0..input_count {
+                                    let _ = model.set_input_fact(i, i32::fact(&[1, 77]).into());
+                                }
+
+                                match model
+                                    .into_typed()
+                                    .and_then(|m| m.into_optimized())
+                                    .and_then(|m| m.into_runnable())
+                                {
+                                    Ok(plan) => {
+                                        text_embeddings = Arc::new(compute_text_embeddings(
+                                            &plan,
+                                            tokenizer.as_ref().unwrap(),
+                                        ))
+                                    }
+                                    Err(e) => emit_log(
+                                        &app_handle,
+                                        format!("ERROR: CLIP Text initialization failed: {e}"),
+                                    ),
+                                }
+                            }
+                            Err(e) => {
+                                emit_log(&app_handle, format!("ERROR: CLIP Text path failed: {e}"))
+                            }
+                        }
+                    }
+                }
 
                 let people_vec = db.lock().unwrap().get_all_people_with_embeddings();
                 if let Ok(mut lock) = known_people.lock() {
                     *lock = people_vec;
                 }
-
-                println!("ML Worker: Models ready.");
+                emit_log(&app_handle, "ML Worker: Engine Ready.".to_string());
                 if photo_id == "__RELOAD_MODELS__" {
                     continue;
                 }
@@ -250,19 +476,6 @@ pub fn start_background_worker(
                     }
                 }
 
-                let mode = {
-                    let lock = db_task.lock().unwrap();
-                    let state = lock.get_state();
-                    state.get("indexing_mode").map(|s| s.as_str().to_string()).unwrap_or("immediate".to_string())
-                };
-
-                if mode == "manual" {
-                    println!("ML Worker: Manual mode enabled, skipping {actual_id}");
-                    let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
-                    let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
-                    return;
-                }
-
                 let mut photo_loc = String::new();
                 {
                     let lock = db_task.lock().unwrap();
@@ -272,22 +485,14 @@ pub fn start_background_worker(
                 }
 
                 if !photo_loc.is_empty() {
-                    let path = Path::new(&photo_loc);
-                    if !path.exists() {
-                        println!("ML Worker: File not found at {photo_loc}, skipping");
-                        let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
-                        let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
-                        return;
-                    }
+                    let filename = Path::new(&photo_loc).file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
+                    emit_log(&app_handle_task, format!("Processing: {filename}"));
 
-                    let frames = if !provided_frames.is_empty() {
-                        provided_frames
-                    } else {
-                        image::open(&photo_loc).map(|img| vec![img.to_rgb8()]).unwrap_or_default()
-                    };
+                    let frames = if !provided_frames.is_empty() { provided_frames }
+                    else { image::open(&photo_loc).map(|img| vec![img.to_rgb8()]).unwrap_or_default() };
 
                     for img in frames {
-                        if let Some(ref visual_model_lock) = clip_visual_task {
+                        if let Some(ref visual_model) = clip_visual_task {
                             let resized = image::imageops::resize(&img, 224, 224, image::imageops::FilterType::Triangle);
                             let mut input_img = Array4::<f32>::zeros((1, 3, 224, 224));
                             for (x, y, pixel) in resized.enumerate_pixels() {
@@ -295,33 +500,37 @@ pub fn start_background_worker(
                                 input_img[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.4578275) / 0.2613026;
                                 input_img[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.40821073) / 0.2757771;
                             }
-                            if let Ok(img_tensor) = ort::value::Value::from_array(input_img) {
-                                if let Ok(mut visual_model) = visual_model_lock.lock() {
-                                    if let Ok(outputs) = visual_model.run(ort::inputs!["pixel_values" => &img_tensor]) {
-                                        if let Ok((_shape, img_emb_tensor)) = outputs[0].try_extract_tensor::<f32>() {
-                                            let mut img_embedding = vec![0.0; 512];
-                                            img_embedding.copy_from_slice(img_emb_tensor);
-                                            let img_norm: f32 = img_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                                            if img_norm > 0.0 { for v in img_embedding.iter_mut() { *v /= img_norm; } }
 
-                                            let mut similarities = Vec::new();
-                                            for (text_label, text_embedding) in text_embeddings_task.iter() {
-                                                let dot_product: f32 = img_embedding.iter().zip(text_embedding.iter()).map(|(a, b)| a * b).sum();
-                                                similarities.push((text_label, dot_product));
-                                            }
-                                            similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+                            if let Ok(data) = visual_model.run(input_img, "pixel_values") {
+                                let mut visual_embedding = data;
+                                let visual_norm: f32 = visual_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
+                                if visual_norm > 0.0 { for v in visual_embedding.iter_mut() { *v /= visual_norm; } }
 
-                                            let lock = db_task.lock().unwrap();
-                                            for (class_name, score) in similarities.iter().take(5) {
-                                                let _ = lock.connection.execute("INSERT INTO object (photo_id, class, probability) VALUES(?1, ?2, ?3)", (&actual_id, class_name, &score.to_string()));
-                                            }
-                                        }
-                                    }
+                                let mut similarities = Vec::new();
+                                for (text_label, text_embedding) in text_embeddings_task.iter() {
+                                    let dot_product: f32 = visual_embedding.iter().zip(text_embedding.iter()).map(|(a, b)| a * b).sum();
+                                    similarities.push((text_label, dot_product));
+                                }
+                                similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
+
+                                let top_tags: Vec<String> = similarities.iter()
+                                    .take(3)
+                                    .filter(|s| s.1 > 0.26)
+                                    .map(|s| s.0.clone())
+                                    .collect();
+
+                                if !top_tags.is_empty() {
+                                    emit_log(&app_handle_task, format!("  Tags: {}", top_tags.join(", ")));
+                                }
+
+                                let lock = db_task.lock().unwrap();
+                                for (class_name, score) in similarities.iter().take(5) {
+                                    let _ = lock.connection.execute("INSERT INTO object (photo_id, class, probability) VALUES(?1, ?2, ?3)", (&actual_id, class_name, &score.to_string()));
                                 }
                             }
                         }
 
-                        if let Some(ref fmodel_lock) = face_detector_task {
+                        if let Some(ref face_model) = face_detector_task {
                             let (orig_w, orig_h) = (img.width() as f32, img.height() as f32);
                             let resized = image::imageops::resize(&img, 320, 240, image::imageops::FilterType::Triangle);
                             let mut input = Array4::<f32>::zeros((1, 3, 240, 320));
@@ -330,96 +539,95 @@ pub fn start_background_worker(
                                 input[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 - 127.0) / 128.0;
                                 input[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 - 127.0) / 128.0;
                             }
-                            if let Ok(input_tensor) = ort::value::Value::from_array(input) {
-                                if let Ok(mut fmodel) = fmodel_lock.lock() {
-                                    if let Ok(outputs) = fmodel.run(ort::inputs![&input_tensor]) {
-                                        let mut scores_opt = None;
-                                        let mut boxes_opt = None;
-                                        for i in 0..outputs.len() {
-                                            if let Ok((shape, tensor)) = outputs[i].try_extract_tensor::<f32>() {
-                                                if shape.len() == 3 && shape[2] == 2 { scores_opt = Some(tensor); }
-                                                else if shape.len() == 3 && shape[2] == 4 { boxes_opt = Some(tensor); }
-                                            }
+
+                            if let Ok(data) = face_model.run(input, "input") {
+                                let total_elements = data.len();
+                                if total_elements >= 4420 * 6 {
+                                    let scores = &data[..4420*2];
+                                    let boxes = &data[4420*2..];
+                                    let anchors = crate::face_detector::generate_anchors();
+                                    let mut proposals = Vec::new();
+                                    for i in 0..anchors.len() {
+                                        let score = scores[i * 2 + 1];
+                                        if score > 0.6 {
+                                            let loc = [boxes[i * 4], boxes[i * 4 + 1], boxes[i * 4 + 2], boxes[i * 4 + 3]];
+                                            let decoded = crate::face_detector::decode(&loc, &anchors[i]);
+                                            proposals.push((decoded, score));
                                         }
-                                        if let (Some(scores), Some(boxes)) = (scores_opt, boxes_opt) {
-                                            let anchors = crate::face_detector::generate_anchors();
-                                            let mut proposals = Vec::new();
-                                            for i in 0..anchors.len() {
-                                                let score = scores[i * 2 + 1];
-                                                if score > 0.6 {
-                                                    let loc = [boxes[i * 4], boxes[i * 4 + 1], boxes[i * 4 + 2], boxes[i * 4 + 3]];
-                                                    let decoded = crate::face_detector::decode(&loc, &anchors[i]);
-                                                    proposals.push((decoded, score));
-                                                }
-                                            }
-                                            let keep = crate::face_detector::nms(&mut proposals, 0.3);
-                                            for &idx in &keep {
-                                                let bbox = proposals[idx].0;
-                                                let xmin = (bbox[0] * orig_w).max(0.0) as u32;
-                                                let ymin = (bbox[1] * orig_h).max(0.0) as u32;
-                                                let xmax = (bbox[2] * orig_w).min(orig_w) as u32;
-                                                let ymax = (bbox[3] * orig_h).min(orig_h) as u32;
-                                                if xmax > xmin && ymax > ymin {
-                                                    let (w, h) = (xmax - xmin, ymax - ymin);
-                                                    if w > 20 && h > 20 {
-                                                        let face_crop = image::imageops::crop_imm(&img, xmin, ymin, w, h).to_image();
-                                                        let face_id = format!("{actual_id}_face_{xmin}_{ymin}");
-                                                        let crop_path = format!("{faces_dir_task}/{face_id}.jpg");
-                                                        if face_crop.save(&crop_path).is_ok() {
-                                                            let mut face_embedding = Vec::new();
-                                                            if let Some(ref visual_model_lock) = clip_visual_task {
-                                                                let face_resized = image::imageops::resize(&face_crop, 224, 224, image::imageops::FilterType::Triangle);
-                                                                let mut face_input = Array4::<f32>::zeros((1, 3, 224, 224));
-                                                                for (x, y, pixel) in face_resized.enumerate_pixels() {
-                                                                    face_input[[0, 0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.48145466) / 0.26862954;
-                                                                    face_input[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.4578275) / 0.2613026;
-                                                                    face_input[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.40821073) / 0.2757771;
-                                                                }
-                                                                if let Ok(face_tensor) = ort::value::Value::from_array(face_input) {
-                                                                    if let Ok(mut visual_model) = visual_model_lock.lock() {
-                                                                        if let Ok(outputs) = visual_model.run(ort::inputs!["pixel_values" => &face_tensor]) {
-                                                                            if let Ok((_shape, emb_tensor)) = outputs[0].try_extract_tensor::<f32>() {
-                                                                                face_embedding = vec![0.0; 512];
-                                                                                face_embedding.copy_from_slice(emb_tensor);
-                                                                                let norm: f32 = face_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                                                                                if norm > 0.0 { for v in face_embedding.iter_mut() { *v /= norm; } }
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
+                                    }
+                                    let keep = crate::face_detector::nms(&mut proposals, 0.3);
 
-                                                            let mut assigned_person_id = None;
-                                                            if !face_embedding.is_empty() {
-                                                                if let Ok(mut lock) = known_people_task.lock() {
-                                                                    let mut highest_similarity = 0.0f32;
-                                                                    let mut best_match_id = None;
-                                                                    for (person_id, person_centroid) in lock.iter() {
-                                                                        let dot_product: f32 = face_embedding.iter().zip(person_centroid.iter()).map(|(a, b)| a * b).sum();
-                                                                        if dot_product > highest_similarity {
-                                                                            highest_similarity = dot_product;
-                                                                            best_match_id = Some(person_id.clone());
-                                                                        }
-                                                                    }
-                                                                    if highest_similarity > 0.90 {
-                                                                        assigned_person_id = best_match_id;
-                                                                    } else {
-                                                                        let lock_db = db_task.lock().unwrap();
-                                                                        let new_id = lock_db.create_anonymous_person(&face_embedding);
-                                                                        lock.push((new_id.clone(), face_embedding.clone()));
-                                                                        assigned_person_id = Some(new_id);
-                                                                    }
-                                                                }
-                                                            }
+                                    if !keep.is_empty() {
+                                        emit_log(&app_handle_task, format!("  Faces: {} found", keep.len()));
+                                    }
 
-                                                            let mut buffer = std::io::Cursor::new(Vec::new());
-                                                            let _ = face_crop.write_to(&mut buffer, image::ImageOutputFormat::Jpeg(80));
-                                                            let encoded = format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(buffer.get_ref()));
-
-                                                            let lock = db_task.lock().unwrap();
-                                                            lock.store_face(Face { photo_id: actual_id.clone(), face_id: face_id.clone(), crop_path, encoded, embedding: face_embedding, person_id: assigned_person_id });
+                                    for &idx in &keep {
+                                        let bbox = proposals[idx].0;
+                                        let xmin = (bbox[0] * orig_w).max(0.0) as u32;
+                                        let ymin = (bbox[1] * orig_h).max(0.0) as u32;
+                                        let xmax = (bbox[2] * orig_w).min(orig_w) as u32;
+                                        let ymax = (bbox[3] * orig_h).min(orig_h) as u32;
+                                        if xmax > xmin && ymax > ymin {
+                                            let (w, h) = (xmax - xmin, ymax - ymin);
+                                            if w > 20 && h > 20 {
+                                                let face_crop = image::imageops::crop_imm(&img, xmin, ymin, w, h).to_image();
+                                                let face_id = format!("{actual_id}_face_{xmin}_{ymin}");
+                                                let crop_path = format!("{faces_dir_task}/{face_id}.jpg");
+                                                if face_crop.save(&crop_path).is_ok() {
+                                                    let mut face_embedding = Vec::new();
+                                                    if let Some(ref visual_model) = clip_visual_task {
+                                                        let face_resized = image::imageops::resize(&face_crop, 224, 224, image::imageops::FilterType::Triangle);
+                                                        let mut face_input = Array4::<f32>::zeros((1, 3, 224, 224));
+                                                        for (x, y, pixel) in face_resized.enumerate_pixels() {
+                                                            face_input[[0, 0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.48145466) / 0.26862954;
+                                                            face_input[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.4578275) / 0.2613026;
+                                                            face_input[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.40821073) / 0.2757771;
+                                                        }
+                                                        if let Ok(emb) = visual_model.run(face_input, "pixel_values") {
+                                                            let mut e = emb;
+                                                            let norm: f32 = e.iter().map(|x| x * x).sum::<f32>().sqrt();
+                                                            if norm > 0.0 { for v in e.iter_mut() { *v /= norm; } }
+                                                            face_embedding = e;
                                                         }
                                                     }
+
+                                                    let mut assigned_person_id = None;
+                                                    if !face_embedding.is_empty() {
+                                                        if let Ok(mut lock) = known_people_task.lock() {
+                                                            let mut highest_similarity = 0.0f32;
+                                                            let mut best_match_id = None;
+                                                            for (person_id, person_centroid) in lock.iter() {
+                                                                let dot_product: f32 = face_embedding.iter().zip(person_centroid.iter()).map(|(a, b)| a * b).sum();
+                                                                if dot_product > highest_similarity {
+                                                                    highest_similarity = dot_product;
+                                                                    best_match_id = Some(person_id.clone());
+                                                                }
+                                                            }
+                                                            if highest_similarity > 0.75 {
+                                                                assigned_person_id = best_match_id;
+                                                                emit_log(&app_handle_task, "    Match: Linked to existing profile".to_string());
+                                                            }
+                                                            else {
+                                                                let lock_db = db_task.lock().unwrap();
+                                                                let new_id = lock_db.create_anonymous_person(&face_embedding);
+                                                                lock.push((new_id.clone(), face_embedding.clone()));
+                                                                assigned_person_id = Some(new_id);
+                                                                emit_log(&app_handle_task, "    Match: Created new identity profile".to_string());
+                                                            }
+                                                        }
+                                                    } else {
+                                                        // FALLBACK: If CLIP fails, still create profile so face appears in UI
+                                                        let lock_db = db_task.lock().unwrap();
+                                                        let new_id = lock_db.create_anonymous_person(&[]);
+                                                        assigned_person_id = Some(new_id);
+                                                        emit_log(&app_handle_task, "    Match: Created basic profile (No CLIP)".to_string());
+                                                    }
+
+                                                    let mut buffer = std::io::Cursor::new(Vec::new());
+                                                    let _ = face_crop.write_to(&mut buffer, image::ImageOutputFormat::Jpeg(80));
+                                                    let encoded = format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(buffer.get_ref()));
+                                                    let lock = db_task.lock().unwrap();
+                                                    lock.store_face(Face { photo_id: actual_id.clone(), face_id: face_id.clone(), crop_path, encoded, embedding: face_embedding, person_id: assigned_person_id });
                                                 }
                                             }
                                         }
@@ -427,7 +635,6 @@ pub fn start_background_worker(
                                 }
                             }
                         }
-                        drop(img);
                     }
                 }
                 let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);

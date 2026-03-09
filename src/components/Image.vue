@@ -55,7 +55,7 @@
 </template>
 
 <script>
-import { convertFileSrc } from '@tauri-apps/api/core';
+import { convertFileSrc, invoke } from '@tauri-apps/api/core';
 
 export default {
   name: "Image",
@@ -65,7 +65,38 @@ export default {
     selectionMode: Boolean
   },
   emits: ['toggle-favorite', 'click', 'select'],
+  data: () => ({
+    localThumb: null,
+    mediaPort: null,
+  }),
+  async mounted() {
+    try {
+      this.mediaPort = await invoke("get_media_server_port");
+      
+      // If video and missing thumbnail, request from global worker
+      if (this.isVideo && !this.path.encoded) {
+        window.dispatchEvent(new CustomEvent('request-thumbnail', { 
+          detail: { id: this.path.id, location: this.path.location, videoUrl: this.videoUrl } 
+        }));
+        
+        window.addEventListener(`thumbnail-ready-${this.path.id}`, (e) => {
+          this.localThumb = e.detail.b64;
+        }, { once: true });
+      }
+    } catch (e) {}
+  },
   computed: {
+    videoUrl() {
+      if (!this.path || !this.isVideo || !this.mediaPort) return '';
+      let path = this.path.location.replace(/\\/g, '/');
+      if (path.match(/^[a-zA-Z]:\//)) {
+          path = path.substring(3);
+      } else if (path.startsWith('/')) {
+          path = path.substring(1);
+      }
+      const encoded = path.split('/').map(encodeURIComponent).join('/');
+      return `http://127.0.0.1:${this.mediaPort}/media/${encoded}`;
+    },
     imageSrc() {
       if (!this.path) return '';
 
@@ -74,7 +105,10 @@ export default {
           return this.path.encoded;
       }
 
-      // 2. Fallback to asset protocol for PHOTOS
+      // 2. Fallback to local generated thumb
+      if (this.localThumb) return this.localThumb;
+
+      // 3. Fallback to asset protocol for PHOTOS
       if (!this.isVideo && this.path.location) {
           return convertFileSrc(this.path.location);
       }

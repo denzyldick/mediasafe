@@ -110,6 +110,7 @@
       v-model="viewerOpen"
       :photos="images"
       v-model:index="currentPhotoIndex"
+      @navigate-to-person="$emit('search-person', $event)"
     />
   </div>
 </template>

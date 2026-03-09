@@ -38,8 +38,8 @@
     <div class="px-6 py-10 w-100 h-100">
       <!-- Named People Section -->
       <section v-if="people.length > 0" class="mb-12 animate-fade-up">
-        <div class="d-flex align-center mb-8">
-          <h2 class="text-h5 font-weight-black text-zinc-primary pr-6">Your People</h2>
+        <div class="d-flex align-center mb-8 flex-nowrap">
+          <h2 class="text-h5 font-weight-black text-zinc-primary pr-6 flex-shrink-0">Your People</h2>
           <v-divider class="border-subtle border-opacity-100"></v-divider>
         </div>
 
@@ -59,6 +59,14 @@
                   cover
                   class="hover-scale transition-slow"
                 ></v-img>
+                <v-chip
+                  size="x-small"
+                  color="black"
+                  variant="flat"
+                  class="cluster-badge font-weight-bold"
+                >
+                  {{ person.face_count }}
+                </v-chip>
               </div>
 
               <div class="pa-3 bg-white text-center">
@@ -82,8 +90,8 @@
 
       <!-- New Identified Faces Section (Anonymous Clusters) -->
       <section v-if="unnamedFaces.length > 0" class="animate-fade-up" :style="{ animationDelay: '0.1s' }">
-        <div class="d-flex align-center mb-8">
-          <h2 class="text-h5 font-weight-black text-zinc-primary pr-6">New Faces</h2>
+        <div class="d-flex align-center mb-8 flex-nowrap">
+          <h2 class="text-h5 font-weight-black text-zinc-primary pr-6 flex-shrink-0">New Faces</h2>
           <v-divider class="border-subtle border-opacity-100"></v-divider>
         </div>
 
@@ -94,6 +102,7 @@
               variant="flat"
               color="white"
               rounded="xl"
+              @click="viewCluster(group)"
             >
               <div class="image-wrapper pos-rel">
                 <v-img
@@ -102,6 +111,15 @@
                   cover
                   class="hover-scale transition-slow"
                 ></v-img>
+                <v-chip
+                  v-if="group.face_count > 1"
+                  size="x-small"
+                  color="black"
+                  variant="flat"
+                  class="cluster-badge font-weight-bold"
+                >
+                  {{ group.face_count }}
+                </v-chip>
               </div>
               <div class="pa-2 bg-white">
                 <v-btn
@@ -110,9 +128,9 @@
                   color="#f4f4f5"
                   size="small"
                   class="text-none font-weight-bold rounded-lg py-4 text-zinc-primary border-subtle"
-                  @click="promptName(group)"
+                  @click.stop="promptName(group)"
                 >
-                  Name Face
+                  Name Group
                 </v-btn>
               </div>
             </v-card>
@@ -262,6 +280,55 @@
         </div>
       </v-card>
     </v-dialog>
+
+    <!-- Cluster View Dialog -->
+    <v-dialog v-model="clusterDialog" max-width="800" transition="dialog-bottom-transition" scrollable>
+      <v-card class="rounded-xl border-subtle overflow-hidden" color="#ffffff">
+        <v-card-title class="pa-6 bg-zinc-50 border-bottom-subtle d-flex align-center">
+          <div>
+            <div class="text-h5 font-weight-black text-zinc-primary">Grouped Faces</div>
+            <div class="text-caption text-zinc-secondary font-weight-bold uppercase tracking-widest">
+              {{ clusterFaces.length }} APPEARANCES IN THIS CLUSTER
+            </div>
+          </div>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="clusterDialog = false"></v-btn>
+        </v-card-title>
+
+        <v-card-text class="pa-6">
+          <v-row class="ga-4">
+            <v-col cols="4" sm="3" md="2" v-for="face in clusterFaces" :key="face.face_id">
+              <v-card variant="flat" border class="border-subtle overflow-hidden rounded-lg pos-rel group-face-card">
+                <v-img :src="getFaceImageSrc(face.crop_path, face.encoded)" aspect-ratio="1" cover></v-img>
+                <div class="face-remove-btn">
+                  <v-btn
+                    icon="mdi-close"
+                    size="x-small"
+                    color="error"
+                    variant="flat"
+                    @click="removeFromCluster(face.face_id)"
+                  ></v-btn>
+                </div>
+              </v-card>
+            </v-col>
+          </v-row>
+        </v-card-text>
+
+        <v-card-actions class="pa-6 bg-zinc-50 border-top-subtle">
+          <v-btn
+            block
+            color="black"
+            variant="flat"
+            height="56"
+            class="rounded-xl font-weight-bold text-none"
+            prepend-icon="mdi-pencil"
+            @click="promptNameFromCluster"
+          >
+            Name This Group
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -283,6 +350,9 @@ export default {
     mergeTargetId: null,
     indexingCount: 0,
     unlistenProgress: null,
+    clusterDialog: false,
+    clusterFaces: [],
+    activeCluster: null,
   }),
   computed: {
     otherPeople() {
@@ -375,6 +445,35 @@ export default {
         this.fetchData();
       } catch (e) {
         console.error("Failed to merge people:", e);
+      }
+    },
+    async viewCluster(group) {
+      this.activeCluster = group;
+      try {
+        const facesStr = await invoke("get_person_faces", { personId: group.id });
+        this.clusterFaces = JSON.parse(facesStr);
+        this.clusterDialog = true;
+      } catch (e) {
+        console.error("Failed to fetch cluster faces:", e);
+      }
+    },
+    promptNameFromCluster() {
+      if (!this.activeCluster) return;
+      this.promptName(this.activeCluster);
+    },
+    async removeFromCluster(faceId) {
+      if (!confirm("Are you sure you want to remove this face detection?")) return;
+      try {
+        await invoke("delete_face", { faceId });
+        // Refresh local cluster faces
+        this.clusterFaces = this.clusterFaces.filter(f => f.face_id !== faceId);
+        // If last face removed, close dialog
+        if (this.clusterFaces.length === 0) {
+          this.clusterDialog = false;
+        }
+        this.fetchData(); // Refresh main lists
+      } catch (e) {
+        console.error("Failed to remove face:", e);
       }
     }
   }
@@ -491,4 +590,27 @@ export default {
 
 .tracking-tight { letter-spacing: -0.025em !important; }
 .shadow-xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25) !important; }
+
+.cluster-badge {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  opacity: 0.9;
+}
+
+.group-face-card:hover .face-remove-btn {
+  opacity: 1;
+}
+
+.face-remove-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  z-index: 3;
+}
+
+.pos-rel { position: relative; }
 </style>

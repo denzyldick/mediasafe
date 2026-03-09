@@ -8,6 +8,7 @@
           <!-- Top Controls -->
           <v-btn icon="mdi-close" variant="text" color="#18181b" class="viewer-nav-btn top-left" @click="close"></v-btn>
           <v-btn
+            v-if="!isVideo"
             icon="mdi-information-outline"
             variant="text"
             :color="showInfo ? '#18181b' : '#71717a'"
@@ -122,7 +123,32 @@
             </v-row>
           </div>
 
-          <v-divider class="opacity-5 mb-4" v-if="hasExif"></v-divider>
+          <v-divider class="opacity-5 mb-4"></v-divider>
+
+          <div class="mb-6">
+            <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">People in this Photo</div>
+            <div v-if="detectedFaces.length === 0" class="text-body-2 text-zinc-muted font-italic">
+              No faces detected.
+            </div>
+            <div class="d-flex flex-wrap ga-3">
+              <div 
+                v-for="face in uniquePeople" 
+                :key="face.face_id" 
+                class="d-flex flex-column align-center cursor-pointer"
+                @click="goToPerson(face)"
+                style="width: 70px;"
+              >
+                <v-avatar size="56" class="border-subtle mb-1">
+                  <v-img :src="face.encoded" cover></v-img>
+                </v-avatar>
+                <div class="text-caption text-zinc-primary text-truncate text-center w-100 font-weight-bold">
+                  {{ face.person_name || 'Unnamed' }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <v-divider class="opacity-5 mb-4"></v-divider>
 
           <div class="mb-6">
             <div class="text-caption text-zinc-muted mb-3 text-uppercase tracking-widest">AI Insights</div>
@@ -174,6 +200,7 @@ export default {
     fullPhotoB64: '',
     os: '',
     mediaPort: null,
+    detectedFaces: [],
   }),
   computed: {
     isMobile() {
@@ -235,6 +262,16 @@ export default {
           percent: Math.round(score * 100)
         }))
         .sort((a, b) => b.percent - a.percent);
+    },
+    uniquePeople() {
+      if (!this.detectedFaces) return [];
+      const seen = new Set();
+      return this.detectedFaces.filter(face => {
+        if (!face.person_id) return true; // Show all if not yet clustered
+        if (seen.has(face.person_id)) return false;
+        seen.add(face.person_id);
+        return true;
+      });
     }
   },
   methods: {
@@ -258,6 +295,23 @@ export default {
       } catch (e) {
         console.error("Failed to fetch full photo", e);
       }
+    },
+    async fetchFaces() {
+      if (!this.currentPhoto) return;
+      try {
+        const facesStr = await invoke("get_faces_for_photo", { photoId: this.currentPhoto.id });
+        this.detectedFaces = JSON.parse(facesStr);
+      } catch (e) {
+        console.error("Failed to fetch faces", e);
+      }
+    },
+    goToPerson(face) {
+      if (!face.person_id) return;
+      this.$emit('navigate-to-person', {
+        id: face.person_id,
+        name: face.person_name || 'Unnamed Person'
+      });
+      this.close();
     },
     close() { this.visible = false; },
     next() {
@@ -291,14 +345,18 @@ export default {
   watch: {
     index() {
       this.fetchFullPhoto();
+      this.fetchFaces();
       this.scrollToActiveThumb();
+      if (this.isVideo) this.showInfo = false;
     },
     visible(val) {
       if (val) {
         this.fetchFullPhoto();
+        this.fetchFaces();
         this.scrollToActiveThumb();
       } else {
         this.fullPhotoB64 = '';
+        this.detectedFaces = [];
       }
     }
   },

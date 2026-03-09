@@ -1,8 +1,8 @@
 <template>
-  <v-container class="pb-16 bg-siegu-main" fluid>
+  <v-container :class="embedded ? 'pa-0' : 'pb-16 bg-siegu-main'" fluid>
     <v-row justify="center">
-      <v-col cols="12" md="8" lg="6">
-        <div class="d-flex align-center justify-space-between mb-8">
+      <v-col cols="12" :md="embedded ? 12 : 8" :lg="embedded ? 12 : 6">
+        <div v-if="!embedded" class="d-flex align-center justify-space-between mb-8">
           <div>
             <div class="d-flex align-center mb-1">
               <v-icon color="#18181b" size="28" class="mr-3">mdi-cog-outline</v-icon>
@@ -13,7 +13,7 @@
         </div>
 
         <!-- Authorized Folders Card -->
-        <v-card variant="flat" color="#ffffff" rounded="xl" class="mb-6 overflow-hidden border-subtle">
+        <v-card v-if="!hideFolderSection" variant="flat" color="#ffffff" rounded="xl" class="mb-6 overflow-hidden border-subtle">
           <v-card-item class="bg-zinc-100 py-4">
             <template v-slot:prepend>
               <div class="siegu-icon-circle-dark mr-3">
@@ -21,22 +21,6 @@
               </div>
             </template>
             <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Authorized Folders</v-card-title>
-            <template v-slot:append>
-              <v-btn
-                variant="flat"
-                color="#000000"
-                theme="dark"
-                @click="select_directory"
-                class="siegu-btn px-6"
-              >
-                <div class="d-flex align-center">
-                  <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
-                    <v-icon size="14" color="white">mdi-folder-plus</v-icon>
-                  </div>
-                  <span class="text-white font-weight-bold">Add Folder</span>
-                </div>
-              </v-btn>
-            </template>
           </v-card-item>
 
           <v-card-text class="pt-4">
@@ -51,8 +35,8 @@
                     <template v-slot:prepend>
                       <v-icon color="#71717a" class="mr-2">mdi-folder</v-icon>
                     </template>
-                    <v-list-item-title class="text-zinc-primary font-weight-medium">{{ directory.title }}</v-list-item-title>
-                    <v-list-item-subtitle class="text-zinc-muted text-caption">{{ directory.value }}</v-list-item-subtitle>
+                    <v-list-item-title class="text-zinc-primary font-weight-medium text-truncate">{{ directory.title }}</v-list-item-title>
+                    <v-list-item-subtitle class="text-zinc-muted text-caption text-truncate">{{ directory.value }}</v-list-item-subtitle>
                     <template v-slot:append>
                       <v-menu>
                         <template v-slot:activator="{ props }">
@@ -77,72 +61,30 @@
               </div>
             </v-expand-transition>
           </v-card-text>
+
+          <v-card-actions class="pa-4 bg-zinc-50 border-top-subtle">
+            <v-btn
+              variant="flat"
+              color="#000000"
+              theme="dark"
+              @click="select_directory"
+              block
+              height="48"
+              class="siegu-btn rounded-xl"
+            >
+              <div class="d-flex align-center">
+                <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
+                  <v-icon size="14" color="white">mdi-folder-plus</v-icon>
+                </div>
+                <span class="text-white font-weight-bold">Add Folder</span>
+              </div>
+            </v-btn>
+          </v-card-actions>
         </v-card>
 
-        <!-- Performance Config Card -->
-        <v-card variant="flat" color="#ffffff" rounded="xl" class="mb-6 border-subtle">
-          <v-card-item class="bg-zinc-100 py-4">
-            <template v-slot:prepend>
-              <div class="siegu-icon-circle-dark mr-3">
-                <v-icon color="#ffffff" size="small">mdi-speedometer</v-icon>
-              </div>
-            </template>
-            <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Performance</v-card-title>
-          </v-card-item>
 
-          <v-card-text class="pt-6">
-            <div class="mb-6 px-2">
-              <div class="d-flex justify-space-between align-center mb-2">
-                <div class="text-subtitle-1 font-weight-bold text-zinc-primary">Scanning Threads</div>
-                <v-chip size="x-small" color="#000000" variant="flat" class="font-weight-bold text-white">{{ performance.scanThreads }} threads</v-chip>
-              </div>
-              <v-slider
-                v-model="performance.scanThreads"
-                :min="1"
-                :max="maxThreads"
-                :step="1"
-                thumb-label
-                hide-details
-                color="black"
-                track-color="#f4f4f5"
-                @update:model-value="savePerformanceConfig"
-              ></v-slider>
-            </div>
-
-            <v-divider class="my-4 border-subtle"></v-divider>
-
-            <div>
-              <v-list-item class="px-0">
-                <v-list-item-title class="text-zinc-primary font-weight-bold">AI Indexing Mode</v-list-item-title>
-                <v-list-item-subtitle class="text-zinc-secondary">When should the AI process your photos?</v-list-item-subtitle>
-                <template v-slot:append>
-                  <v-menu offset-y>
-                    <template v-slot:activator="{ props }">
-                      <v-btn
-                        variant="flat"
-                        class="siegu-btn px-4"
-                        v-bind="props"
-                      >
-                        <div class="d-flex align-center">
-                          <span class="text-white mr-2 text-none font-weight-bold">{{ getModeLabel(performance.indexingMode) }}</span>
-                          <v-icon size="14" color="white">mdi-chevron-down</v-icon>
-                        </div>
-                      </v-btn>
-                    </template>
-                    <v-list class="siegu-list">
-                      <v-list-item v-for="mode in indexingModes" :key="mode.value" @click="setIndexingMode(mode.value)">
-                        <v-list-item-title :class="{'font-weight-bold text-black': performance.indexingMode === mode.value}">{{ mode.title }}</v-list-item-title>
-                      </v-list-item>
-                    </v-list>
-                  </v-menu>
-                </template>
-              </v-list-item>
-            </div>
-          </v-card-text>
-        </v-card>
-
-        <!-- AI Models Section -->
-        <v-card variant="flat" color="#ffffff" rounded="xl" class="mb-6 overflow-hidden border-subtle">
+        <!-- AI Models Card -->
+        <v-card v-if="!hideAiSection" variant="flat" color="#ffffff" rounded="xl" class="mb-6 overflow-hidden border-subtle">
           <v-card-item class="bg-zinc-100 py-4">
             <template v-slot:prepend>
               <div class="siegu-icon-circle-dark mr-3">
@@ -167,7 +109,7 @@
                 <template v-slot:subtitle>
                   <span class="text-zinc-secondary">Semantic search and content classification (350MB)</span>
                 </template>
-                <div v-if="downloadProgress.clip" class="mt-2 px-2">
+                <div v-if="downloadProgress['clip-visual'] || downloadProgress['clip-text'] || downloadProgress['clip-tokenizer']" class="mt-2 px-2">
                   <v-progress-linear
                     :model-value="getProgress('clip')"
                     color="black"
@@ -212,7 +154,7 @@
               theme="dark"
               :disabled="selectedModels.length === 0 || isDownloading"
               :loading="isDownloading"
-              @click="downloadModels(true)"
+              @click="confirmDownload()"
               class="siegu-btn px-6"
               height="44"
             >
@@ -227,7 +169,7 @@
         </v-card>
 
         <!-- Maintenance Section -->
-        <v-card variant="flat" color="#ffffff" rounded="xl" class="mb-6 border-subtle overflow-hidden">
+        <v-card v-if="!embedded" variant="flat" color="#ffffff" rounded="xl" class="mb-6 border-subtle overflow-hidden">
           <v-card-item class="bg-zinc-100 py-4">
             <template v-slot:prepend>
               <div class="siegu-icon-circle-dark mr-3">
@@ -270,23 +212,63 @@
                 </template>
               </v-list-item>
             </v-list>
+
+            <v-divider class="my-4 border-subtle"></v-divider>
+
+            <!-- Advanced Performance (Hidden for normal users) -->
+            <v-expansion-panels variant="flat" class="advanced-perf">
+              <v-expansion-panel bg-color="transparent">
+                <v-expansion-panel-title class="px-0 text-zinc-muted text-caption font-weight-bold">
+                  ADVANCED PERFORMANCE SETTINGS
+                </v-expansion-panel-title>
+                <v-expansion-panel-text class="px-0">
+                  <div class="pt-2">
+                    <div class="d-flex justify-space-between align-center mb-2">
+                      <div class="text-caption font-weight-bold text-zinc-primary">Scanning Threads</div>
+                      <v-chip size="x-small" color="#000000" variant="flat" class="font-weight-bold text-white">{{ performance.scanThreads }}</v-chip>
+                    </div>
+                    <v-slider
+                      v-model="performance.scanThreads"
+                      :min="1"
+                      :max="maxThreads"
+                      :step="1"
+                      hide-details
+                      color="black"
+                      track-color="#f4f4f5"
+                      @update:model-value="savePerformanceConfig"
+                    ></v-slider>
+
+                    <v-list-item class="px-0 mt-4">
+                      <v-list-item-title class="text-caption font-weight-bold text-zinc-primary">Indexing Mode</v-list-item-title>
+                      <template v-slot:append>
+                        <v-menu offset-y>
+                          <template v-slot:activator="{ props }">
+                            <v-btn variant="tonal" size="x-small" color="black" v-bind="props" class="font-weight-bold">
+                              {{ getModeLabel(performance.indexingMode) }}
+                              <v-icon size="12" class="ml-1">mdi-chevron-down</v-icon>
+                            </v-btn>
+                          </template>
+                          <v-list density="compact" class="siegu-list">
+                            <v-list-item v-for="mode in indexingModes" :key="mode.value" @click="setIndexingMode(mode.value)">
+                              <v-list-item-title class="text-caption" :class="{'font-weight-bold': performance.indexingMode === mode.value}">{{ mode.title }}</v-list-item-title>
+                            </v-list-item>
+                          </v-list>
+                        </v-menu>
+                      </template>
+                    </v-list-item>
+                  </div>
+                </v-expansion-panel-text>
+              </v-expansion-panel>
+            </v-expansion-panels>
           </v-card-text>
         </v-card>
 
         <!-- Debug Logs Expansion Panel -->
-        <v-expansion-panels class="mb-6 siegu-expansion">
+        <v-expansion-panels v-if="!embedded" class="mb-6 siegu-expansion">
           <v-expansion-panel bg-color="#ffffff" class="text-zinc-primary font-weight-bold border-subtle">
             <template v-slot:title>
               <div class="d-flex align-center justify-space-between w-100">
                 <span>Debug Logs</span>
-                <v-btn size="x-small" variant="flat" class="siegu-btn px-4" @click.stop="clearLogs">
-                   <div class="d-flex align-center">
-                     <div class="siegu-icon-circle siegu-icon-circle-sm mr-2">
-                       <v-icon size="8" color="white">mdi-trash-can-outline</v-icon>
-                     </div>
-                     <span class="text-white">Clear History</span>
-                   </div>
-                </v-btn>
               </div>
             </template>
             <template v-slot:text>
@@ -299,12 +281,50 @@
                   <span class="text-zinc-muted">[{{ log.time }}]</span> {{ log.message }}
                 </div>
                 <div v-if="logs.length === 0" class="text-zinc-muted text-center py-4">No logs recorded yet.</div>
+                
+                <div v-if="logs.length > 0" class="mt-6 d-flex justify-center">
+                  <v-btn 
+                    variant="text" 
+                    size="small" 
+                    class="text-none font-weight-bold" 
+                    color="error"
+                    prepend-icon="mdi-trash-can-outline"
+                    @click.stop="clearLogs"
+                  >
+                    Clear Log History
+                  </v-btn>
+                </div>
               </v-sheet>
             </template>
           </v-expansion-panel>
         </v-expansion-panels>
       </v-col>
     </v-row>
+    <!-- Download Confirmation Dialog -->
+    <v-dialog v-model="downloadDialog.show" max-width="400" persistent rounded="xl">
+      <v-card color="#ffffff" border class="border-subtle overflow-hidden">
+        <v-card-item class="bg-zinc-100 py-4">
+          <template v-slot:prepend>
+            <div class="siegu-icon-circle-dark mr-3">
+              <v-icon color="#ffffff" size="small">mdi-cloud-download-outline</v-icon>
+            </div>
+          </template>
+          <v-card-title class="text-h6 text-zinc-primary font-weight-bold">{{ downloadDialog.title }}</v-card-title>
+        </v-card-item>
+        
+        <v-card-text class="py-6 text-center">
+          <div class="text-subtitle-1 text-zinc-secondary px-2">
+            {{ downloadDialog.message }}
+          </div>
+        </v-card-text>
+
+        <v-card-actions class="pa-4 bg-zinc-50 border-top-subtle ga-2">
+          <v-btn variant="tonal" block color="zinc-muted" @click="downloadDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
+          <v-btn variant="flat" block color="black" @click="startConfirmedDownload" class="siegu-btn flex-grow-1" height="44">Download</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <FolderPicker
         v-model="showFolderPicker"
         @select="onFolderSelected"
@@ -323,6 +343,12 @@ import FolderPicker from "./FolderPicker.vue";
 export default {
   name: "Setting",
   components: { FolderPicker },
+  props: {
+    embedded: { type: Boolean, default: false },
+    hideAiSection: { type: Boolean, default: false },
+    hideFolderSection: { type: Boolean, default: false }
+  },
+  emits: ["folder-added", "models-ready", "done"],
   data: () => ({
     directories: [],
     showFolderPicker: false,
@@ -347,6 +373,12 @@ export default {
       { title: "Idle Only", value: "idle" },
       { title: "Manual Only", value: "manual" },
     ],
+    downloadDialog: {
+      show: false,
+      title: "",
+      message: "",
+      models: []
+    },
   }),
   async mounted() {
     listen("log-message", (event) => {
@@ -367,6 +399,7 @@ export default {
     listen("download-complete", () => {
         this.isDownloading = false;
         this.checkExistingModels();
+        this.$emit('models-ready');
     });
 
     this.dataDir = await homeDir();
@@ -423,13 +456,45 @@ export default {
         this.downloadedModels = downloaded;
         this.checkResults = JSON.stringify(downloaded);
         this.selectedModels = ["clip", "ultraface"];
-        if (downloaded.length < 2 && !this.isDownloading) {
-            this.downloadModels(false);
-        }
+        // Auto-download removed for better user experience/data saving
+    },
+    confirmDownload() {
+      const missing = ["clip", "ultraface"].filter(m => !this.downloadedModels.includes(m));
+      if (missing.length === 0) {
+        this.downloadModels(true); // Force update if already ready
+        return;
+      }
+      
+      let size = "approx. 1MB";
+      if (missing.includes('clip')) size = "approx. 600MB";
+      
+      this.downloadDialog = {
+        show: true,
+        title: "Download AI Models?",
+        message: `Siegu needs to download ${missing.join(" and ")} models (${size}) to enable local search and face detection. This will use your data connection.`,
+        models: missing
+      };
+    },
+    startConfirmedDownload() {
+      this.downloadDialog.show = false;
+      this.downloadModels(false);
     },
     getProgress(model) {
+      if (model === 'clip') {
+        const parts = ['clip-visual', 'clip-text', 'clip-tokenizer'];
+        let downloaded = 0;
+        let total = 0;
+        parts.forEach(p => {
+          if (this.downloadProgress[p]) {
+            downloaded += this.downloadProgress[p].downloaded;
+            total += this.downloadProgress[p].total || 0;
+          }
+        });
+        if (total === 0) return this.downloadedModels.includes('clip') ? 100 : 0;
+        return (downloaded / total) * 100;
+      }
       const progress = this.downloadProgress[model];
-      if (!progress || !progress.total) return 0;
+      if (!progress || !progress.total) return this.downloadedModels.includes(model) ? 100 : 0;
       return (progress.downloaded / progress.total) * 100;
     },
     formatBytes(bytes) {
@@ -491,6 +556,7 @@ export default {
     onFolderSelected(path) {
       invoke("add_directory", { path }).then(() => {
         this.list_directories();
+        this.$emit('folder-added', path);
       });
     }
   }
