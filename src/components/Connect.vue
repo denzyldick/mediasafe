@@ -247,39 +247,15 @@ export default {
     unlisten: null,
   }),
   watch: {
-    async dialog(val) {
-      if (val) {
-        this.unlisten = await listen("webrtc-state", (event) => {
-          this.connectionStatus = event.payload;
-          if (event.payload === "Connected" || event.payload === "connected") {
-            this.isConnected = true;
-            this.loading = false;
-            this.$emit('connected');
-          }
-          if (event.payload.toLowerCase().includes("error") ||
-              event.payload.toLowerCase().includes("failed") ||
-              event.payload.toLowerCase().includes("disconnected")) {
-            this.isConnected = false;
-            this.loading = false;
-          }
-        });
-        this.initialize();
-      } else {
-        if (this.unlisten) {
-          this.unlisten();
-          this.unlisten = null;
-        }
-        this.loading = false;
-      }
-    },
     mode(newMode) {
+       this.$emit('mode-change', newMode);
        if (newMode === 'host' && !this.uuid) {
            this.initialize();
        } else if (newMode === 'join') {
            this.connectionStatus = "";
        }
-    }
-  },
+    },
+    async dialog(val) {
   async mounted() {
     if (this.embedded) {
       this.unlisten = await listen("webrtc-state", (event) => {

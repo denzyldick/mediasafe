@@ -45,6 +45,7 @@ export default {
     onboardingStep: 'greet',
     downloadedModels: [],
     deviceConnected: false,
+    connectionMode: 'host',
     showConnectUI: false,
     os: '',
     thumbnailQueue: [],
@@ -355,20 +356,22 @@ export default {
                 </p>
               </div>
 
-              <!-- Sync Path Selection -->
-              <div class="mb-8">
-                <div class="text-caption font-weight-bold text-zinc-muted mb-4 tracking-widest uppercase text-center">Target Sync Folder</div>
-                <v-card variant="flat" class="bg-zinc-50 border-subtle pa-4 rounded-xl d-flex align-center">
-                  <v-icon color="zinc-secondary" class="mr-3">mdi-folder-sync</v-icon>
-                  <div class="flex-grow-1 overflow-hidden">
-                    <div class="text-caption text-zinc-secondary">Where to store synced photos</div>
-                    <div class="text-body-2 font-weight-bold text-zinc-primary text-truncate">{{ syncPath || 'Auto-select (Default Folder)' }}</div>
-                  </div>
-                  <v-btn variant="flat" size="small" color="black" class="siegu-btn-sm ml-4" @click="showSyncPicker = true">
-                    Change
-                  </v-btn>
-                </v-card>
-              </div>
+              <!-- Sync Path Selection (Only for Guest/Join mode) -->
+              <v-expand-transition>
+                <div v-if="showConnectUI && connectionMode === 'join'" class="mb-8">
+                  <div class="text-caption font-weight-bold text-zinc-muted mb-4 tracking-widest uppercase text-center">Target Sync Folder</div>
+                  <v-card variant="flat" class="bg-zinc-50 border-subtle pa-4 rounded-xl d-flex align-center">
+                    <v-icon color="zinc-secondary" class="mr-3">mdi-folder-sync</v-icon>
+                    <div class="flex-grow-1 overflow-hidden">
+                      <div class="text-caption text-zinc-secondary">Where to store synced photos</div>
+                      <div class="text-body-2 font-weight-bold text-zinc-primary text-truncate">{{ syncPath || 'Auto-select (Default Folder)' }}</div>
+                    </div>
+                    <v-btn variant="flat" size="small" color="black" class="siegu-btn-sm ml-4" @click="showSyncPicker = true">
+                      Change
+                    </v-btn>
+                  </v-card>
+                </div>
+              </v-expand-transition>
 
               <FolderPicker v-model="showSyncPicker" @select="setSyncPath" />
 
@@ -398,7 +401,7 @@ export default {
               </div>
 
               <div v-if="showConnectUI" class="d-flex justify-center mb-8">
-                <Connect :embedded="true" @connected="deviceConnected = true" />
+                <Connect :embedded="true" @connected="deviceConnected = true" @mode-change="connectionMode = $event" />
               </div>
 
               <v-fade-transition>
