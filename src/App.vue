@@ -51,6 +51,14 @@ export default {
     thumbnailQueue: [],
     isProcessingThumb: false,
     thumbRequests: new Set(),
+    syncStatus: {
+      status: 'idle',
+      progress: 0
+    },
+    syncError: {
+      show: false,
+      message: ''
+    },
   }),
   async mounted() {
     invoke("get_os").then(os => this.os = os);
@@ -126,10 +134,54 @@ export default {
       }
     });
 
+    listen("sync-progress", (event) => {
+      this.syncStatus = {
+        status: event.payload.status,
+        progress: event.payload.progress
+      };
+      
+      if (event.payload.status === "Up to date" || event.payload.status.startsWith("Finished")) {
+        setTimeout(() => { 
+          if (this.syncStatus.status === event.payload.status) {
+            this.syncStatus.status = 'idle';
+            this.current_page = 'home';
+          }
+        }, 2000);
+      }
+    });
+
     this.list_directories();
     listen("start-sync", () => {
       console.log("Peer requested sync start.");
       this.finishSetupAndScan();
+    });
+
+    listen("photo-scanned", (event) => {
+      // Local scan: show indexing status if needed
+    });
+
+    listen("photo-received", (event) => {
+      this.syncStatus = {
+        status: `Received new memory: ${event.payload.id}`,
+        progress: 100
+      };
+      setTimeout(() => { if (this.syncStatus.status.startsWith('Received')) this.syncStatus.status = 'idle'; }, 2000);
+    });
+
+    listen("photo-synced", (event) => {
+      this.syncStatus = {
+        status: `Synced memory ${event.payload} to device`,
+        progress: 100
+      };
+      setTimeout(() => { if (this.syncStatus.status.startsWith('Synced')) this.syncStatus.status = 'idle'; }, 2000);
+    });
+
+    listen("sync-error", (event) => {
+      this.syncError = {
+        show: true,
+        message: event.payload
+      };
+      this.syncStatus.status = 'Error';
     });
 
     this.checkModels();
@@ -187,12 +239,23 @@ export default {
       this.current_page = "home";
     },
     async setSyncPath(path) {
-      this.syncPath = path;
-      await invoke("save_config", { config: { sync_path: path } });
+      try {
+        this.syncPath = path;
+        await invoke("save_config", { key: "sync_path", value: path });
+        await invoke("initialize_sync_folder", { path: path });
+        this.list_directories();
+      } catch (err) {
+        this.syncError = {
+          show: true,
+          message: `Failed to initialize sync folder: ${err}`
+        };
+      }
     },
     async triggerSync() {
       await invoke("request_start_sync");
-      this.finishSetupAndScan();
+      this.current_page = 'home';
+      this.clean_install = false;
+      this.onboardingStep = 'complete';
     },
     async checkModels() {
       const downloaded = await invoke("check_models");
@@ -370,7 +433,7 @@ export default {
 
               <!-- Sync Path Selection (Only for Guest/Join mode) -->
               <v-expand-transition>
-                <div v-if="showConnectUI && connectionMode === 'join'" class="mb-8">
+                <div v-if="connectionMode === 'join'" class="mb-8">
                   <div class="text-caption font-weight-bold text-zinc-muted mb-4 tracking-widest uppercase text-center">Target Sync Folder</div>
                   <v-card variant="flat" class="bg-zinc-50 border-subtle pa-4 rounded-xl d-flex align-center">
                     <v-icon color="zinc-secondary" class="mr-3">mdi-folder-sync</v-icon>
@@ -387,39 +450,27 @@ export default {
 
               <FolderPicker v-model="showSyncPicker" @select="setSyncPath" />
 
-              <!-- Download Links for other platforms -->
-              <div v-if="!showConnectUI" class="mb-8">
-                <div class="text-caption font-weight-bold text-zinc-muted mb-4 tracking-widest uppercase text-center">Get Siegu on other devices</div>
-                <v-row dense>
-                  <v-col cols="6">
-                    <v-btn block variant="flat" class="siegu-btn-sm" href="https://siegu.io/download/android" target="_blank">
-                      <v-icon start size="small">mdi-android</v-icon>
-                      Android
-                    </v-btn>
-                  </v-col>
-                  <v-col cols="6">
-                    <v-btn block variant="flat" class="siegu-btn-sm" href="https://siegu.io/download/ios" target="_blank">
-                      <v-icon start size="small">mdi-apple</v-icon>
-                      iOS
-                    </v-btn>
-                  </v-col>
-                  <v-col cols="12" class="mt-2">
-                    <v-btn block variant="flat" class="siegu-btn-sm" href="https://siegu.io/download" target="_blank">
-                      <v-icon start size="small">mdi-monitor</v-icon>
-                      Other Desktop
-                    </v-btn>
-                  </v-col>
-                </v-row>
-              </div>
-
-              <div v-if="showConnectUI" class="d-flex justify-center mb-8">
-                <Connect :embedded="true" :initial-mode="connectionMode" @connected="deviceConnected = true" @mode-change="connectionMode = $event" />
+              <div class="d-flex justify-center mb-8">
+                <Connect :embedded="true" :initial-mode="connectionMode" :hide-mode-toggle="true" @connected="deviceConnected = true" @mode-change="connectionMode = $event" />
               </div>
 
               <v-fade-transition>
-                <div v-if="deviceConnected" class="bg-success-light border-success pa-4 rounded-xl mb-6 text-center d-flex align-center justify-center">
-                  <v-icon color="success" class="mr-2">mdi-check-circle</v-icon>
-                  <span class="text-success font-weight-bold">Device Linked Successfully!</span>
+                <div v-if="deviceConnected" class="mb-6">
+                  <div class="bg-success-light border-success pa-4 rounded-xl mb-4 text-center d-flex align-center justify-center">
+                    <v-icon color="success" class="mr-2">mdi-check-circle</v-icon>
+                    <span class="text-success font-weight-bold">Device Linked Successfully!</span>
+                  </div>
+
+                  <!-- Real-time Sync Progress Card -->
+                  <v-card v-if="syncStatus.status !== 'idle'" variant="flat" class="bg-zinc-50 border-subtle pa-4 rounded-xl">
+                    <div class="d-flex align-center mb-2">
+                      <v-progress-circular indeterminate size="16" width="2" color="black" class="mr-2"></v-progress-circular>
+                      <div class="text-caption font-weight-bold text-zinc-primary">{{ syncStatus.status }}</div>
+                      <v-spacer></v-spacer>
+                      <div class="text-caption text-zinc-muted">{{ Math.round(syncStatus.progress) }}%</div>
+                    </div>
+                    <v-progress-linear :model-value="syncStatus.progress" color="black" height="6" rounded></v-progress-linear>
+                  </v-card>
                 </div>
               </v-fade-transition>
 
@@ -471,12 +522,11 @@ export default {
               </div>
             </v-card>
           </v-col>
-        </v-row>
-      </v-container>
-    </template>
+          </v-row>
+          </v-container>
+          </template>
 
-    <v-layout v-else class="bg-siegu-main">
-      <v-app-bar elevation="0" v-if="current_page === 'home'" color="#ffffff" class="border-bottom-subtle px-2">
+          <v-layout v-else class="bg-siegu-main">      <v-app-bar elevation="0" v-if="current_page === 'home'" color="#ffffff" class="border-bottom-subtle px-2">
         <v-row class="px-2 align-center no-gutters">
           <v-col cols="auto">
             <v-menu offset-y transition="scale-transition">
@@ -671,6 +721,42 @@ export default {
         </v-sheet>
       </div>
     </v-layout>
+
+    <!-- Persistent Sync Status Banner (Non-blocking) -->
+    <v-fade-transition>
+      <div v-if="syncStatus.status !== 'idle' && syncStatus.status !== 'Up to date' && !clean_install" class="sync-banner-container">
+        <v-sheet class="sync-banner d-flex align-center px-4 py-2 rounded-pill shadow-xl border-subtle" color="#ffffff">
+          <v-progress-circular 
+            v-if="syncStatus.progress === 0 || syncStatus.progress === 100" 
+            indeterminate 
+            size="18" 
+            width="2" 
+            color="black" 
+            class="mr-3"
+          ></v-progress-circular>
+          <div v-else class="mr-3 d-flex align-center">
+             <v-progress-circular :model-value="syncStatus.progress" size="22" width="3" color="black">
+                <span style="font-size: 8px; font-weight: bold;">{{ Math.round(syncStatus.progress) }}</span>
+             </v-progress-circular>
+          </div>
+          <div class="text-caption font-weight-bold text-zinc-primary text-truncate pr-2" style="max-width: 220px;">
+            {{ syncStatus.status }}
+          </div>
+          <v-divider vertical class="mx-2 opacity-10" length="16"></v-divider>
+          <v-btn icon="mdi-close" variant="text" size="x-small" class="text-zinc-muted" @click="syncStatus.status = 'idle'"></v-btn>
+        </v-sheet>
+      </div>
+    </v-fade-transition>
+
+    <v-snackbar v-model="syncError.show" color="error" rounded="lg" elevation="12">
+      <div class="d-flex align-center">
+        <v-icon class="mr-3">mdi-alert-circle</v-icon>
+        <div class="text-subtitle-2 font-weight-bold">{{ syncError.message }}</div>
+      </div>
+      <template v-slot:actions>
+        <v-btn variant="text" @click="syncError.show = false">Close</v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>
 
@@ -690,6 +776,25 @@ export default {
   pointer-events: auto;
   backdrop-filter: blur(16px);
   border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.sync-banner-container {
+  position: fixed;
+  bottom: 100px; /* Above the dock */
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  z-index: 3000; /* Above everything */
+  pointer-events: none;
+}
+
+.sync-banner {
+  pointer-events: auto;
+  min-width: 240px;
+  max-width: 90vw;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.15) !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
 }
 
 .siegu-dock-btn {

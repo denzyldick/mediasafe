@@ -34,26 +34,21 @@
             <v-card-subtitle class="text-zinc-secondary text-caption">{{ device.host ? 'Local Environment' : (device.subtitle || 'Connected') }}</v-card-subtitle>
 
             <template v-slot:append>
-               <v-icon
-                v-if="(device.up_to_date || device.host) && !device.syncing"
-                color="#18181b"
-                size="small"
-                class="opacity-50"
-                icon="mdi-check-circle-outline"
-              ></v-icon>
-              <v-icon
-                v-if="!device.up_to_date && !device.host && !device.syncing"
-                color="#71717a"
-                size="small"
-                icon="mdi-alert-circle-outline"
-              ></v-icon>
-              <v-icon
-                v-if="device.syncing"
-                color="#18181b"
-                size="small"
-                icon="mdi-loading"
-                class="mdi-spin"
-              ></v-icon>
+               <div class="d-flex align-center ga-1">
+                <v-menu v-if="!device.host">
+                  <template v-slot:activator="{ props }">
+                    <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props" class="text-zinc-muted"></v-btn>
+                  </template>
+                  <v-list density="compact" rounded="lg" class="border-subtle">
+                    <v-list-item @click="removeDevice(device.title)" color="error">
+                      <template v-slot:prepend>
+                        <v-icon size="small" color="error">mdi-delete-outline</v-icon>
+                      </template>
+                      <v-list-item-title class="text-error font-weight-bold">Remove Device</v-list-item-title>
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
+               </div>
             </template>
           </v-card-item>
 
@@ -80,35 +75,70 @@
                   </div>
                </div>
 
-               <div v-if="device.syncing" class="mt-2">
+               <div v-if="device.syncing" class="mt-4">
                    <div class="d-flex align-center justify-space-between mb-1">
-                       <span class="text-caption text-zinc-muted">Synchronizing...</span>
-                       <span class="text-caption text-zinc-muted font-weight-bold">{{ device.speed }}</span>
+                       <span class="text-caption text-zinc-muted text-truncate mr-2">{{ device.syncStatus }}</span>
+                       <span class="text-caption text-zinc-primary font-weight-bold" v-if="device.items_total > 0">
+                         {{ device.items_completed }}/{{ device.items_total }}
+                       </span>
                    </div>
                    <v-progress-linear
                      :model-value="device.progress"
-                     color="#18181b"
-                     height="4"
+                     color="black"
+                     height="6"
                      rounded
                      bg-color="#f4f4f5"
                      bg-opacity="1"
                    ></v-progress-linear>
                </div>
                <div v-else class="d-flex align-center mt-2">
-                   <div class="text-caption text-zinc-muted">Status</div>
-                   <v-spacer></v-spacer>
-                   <v-chip size="x-small" :color="device.host ? 'success' : '#f4f4f5'" variant="flat" :class="device.host ? 'text-white' : 'text-zinc-secondary'" class="text-none border-subtle">
-                       {{ device.host ? 'Online' : (device.up_to_date ? 'Up to date' : 'Idle') }}
+                   <v-btn v-if="!device.host" variant="flat" color="black" class="siegu-btn flex-grow-1" size="small" @click="startSync">
+                    <v-icon start size="small">mdi-sync</v-icon>
+                    Sync Now
+                   </v-btn>
+                   <v-chip v-else size="x-small" color="success" variant="flat" class="text-white text-none border-subtle">
+                       Online
                    </v-chip>
                </div>
           </v-card-text>
         </v-card>
       </v-col>
     </v-row>
+
+    <!-- Delete Confirmation Dialog -->
+    <v-dialog v-model="deleteDialog" max-width="400" rounded="xl">
+      <v-card class="pa-6 border-subtle bg-siegu-white">
+        <div class="siegu-icon-circle-error mb-4">
+          <v-icon color="white">mdi-alert-outline</v-icon>
+        </div>
+        <v-card-title class="text-h5 font-weight-bold text-zinc-primary px-0 pb-2">Remove Device?</v-card-title>
+        <v-card-text class="text-zinc-secondary px-0 pb-6">
+          Are you sure you want to remove <strong>{{ deviceToDelete }}</strong>? This will stop all synchronization with this device.
+        </v-card-text>
+        <v-card-actions class="px-0 ga-3">
+          <v-btn variant="flat" color="#f4f4f5" class="siegu-btn flex-grow-1 text-zinc-primary" height="44" @click="deleteDialog = false">
+            Cancel
+          </v-btn>
+          <v-btn variant="flat" color="error" class="siegu-btn flex-grow-1" height="44" @click="confirmDelete" :loading="deleting">
+            Remove
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <style scoped>
+.siegu-icon-circle-error {
+  width: 48px;
+  height: 48px;
+  background: #ef4444;
+  border-radius: 50%;
+  display: flex;
+  align-center: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+}
 .device-card {
   transition: all 0.2s ease;
   border: 1px solid rgba(0, 0, 0, 0.05) !important;
@@ -157,6 +187,9 @@ export default {
   data: () => ({
       devices: [],
       syncStates: {},
+      deleteDialog: false,
+      deviceToDelete: "",
+      deleting: false,
   }),
   async mounted() {
       await this.list_devices();
@@ -165,28 +198,22 @@ export default {
           this.list_devices();
       });
 
-      // Listen for real-time sync updates
       listen("sync-progress", (event) => {
           const payload = event.payload;
-          this.syncStates[payload.device_id] = payload;
-
-          // Update device in list if it exists
-          const device = this.devices.find(d => d.id === payload.device_id);
-          if (device) {
-              device.syncing = payload.status === 'syncing';
-              device.progress = payload.progress;
-              device.speed = this.formatSpeed(payload.bytes_per_second);
-          }
+          // We assume 'peer' refers to any connected device for now 
+          // (multi-device support would need device_id mapping)
+          this.devices.forEach(d => {
+            if (!d.host) {
+              d.syncing = payload.status !== 'idle' && !payload.status.includes('Finished') && !payload.status.includes('Up to date');
+              d.progress = payload.progress;
+              d.syncStatus = payload.status;
+              d.items_completed = payload.items_completed;
+              d.items_total = payload.items_total;
+            }
+          });
       });
   },
   methods: {
-    formatSpeed(bytes) {
-        if (!bytes) return '0 B/s';
-        const k = 1024;
-        const sizes = ['B/s', 'KB/s', 'MB/s'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
-    },
     async list_devices() {
       try {
         const realDevicesStr = await invoke("list_devices");
@@ -196,12 +223,38 @@ export default {
             ...d,
             syncing: false,
             progress: 0,
-            speed: '0 B/s'
+            syncStatus: '',
+            items_completed: 0,
+            items_total: 0
         }));
       } catch (err) {
         console.error("Failed to list devices:", err);
       }
     },
+    async startSync() {
+      try {
+        await invoke("request_start_sync");
+      } catch (err) {
+        console.error("Failed to request sync:", err);
+      }
+    },
+    removeDevice(name) {
+      this.deviceToDelete = name;
+      this.deleteDialog = true;
+    },
+    async confirmDelete() {
+      this.deleting = true;
+      try {
+        await invoke("remove_device", { name: this.deviceToDelete });
+        await this.list_devices();
+        this.deleteDialog = false;
+      } catch (err) {
+        console.error("Failed to remove device:", err);
+      } finally {
+        this.deleting = false;
+        this.deviceToDelete = "";
+      }
+    }
   },
 };
 </script>

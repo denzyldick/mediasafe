@@ -199,24 +199,6 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 {
                     let db_lock = database.lock().unwrap();
                     db_lock.store_photo(photo.clone());
-
-                    // Proactively notify peer
-                    if let Some(state) = app_handle.try_state::<crate::WebRtcState>() {
-                        let mut tx_lock = state.sync_tx.blocking_lock();
-                        if let Some(tx) = tx_lock.as_mut() {
-                            let _ = tx.send(crate::transport::SyncMessage::SyncFile {
-                                photo: crate::database::PhotoSyncInfo {
-                                    id: photo.id.clone(),
-                                    location: photo.location.clone(),
-                                    created: photo.created.clone(),
-                                    latitude: Some(photo.latitude),
-                                    longitude: Some(photo.longitude),
-                                    objects: "[]".to_string(), // Initially empty, ML worker will update later
-                                    faces: "[]".to_string(),
-                                },
-                            });
-                        }
-                    }
                 }
 
                 let _ = app_handle.emit("photo-scanned", photo);

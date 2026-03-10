@@ -297,7 +297,7 @@
       </v-col>
     </v-row>
     <!-- Download Confirmation Dialog -->
-    <v-dialog v-model="downloadDialog.show" max-width="400" persistent rounded="xl">
+    <v-dialog v-model="downloadDialog.show" max-width="400" rounded="xl">
       <v-card color="#ffffff" border class="border-subtle overflow-hidden">
         <v-card-item class="bg-zinc-100 py-4">
           <template v-slot:prepend>
@@ -306,6 +306,9 @@
             </div>
           </template>
           <v-card-title class="text-h6 text-zinc-primary font-weight-bold">{{ downloadDialog.title }}</v-card-title>
+          <template v-slot:append>
+            <v-btn icon="mdi-close" variant="text" size="small" @click="downloadDialog.show = false"></v-btn>
+          </template>
         </v-card-item>
         
         <v-card-text class="py-6 text-center">
@@ -315,13 +318,13 @@
         </v-card-text>
 
         <v-card-actions class="pa-4 bg-zinc-50 border-top-subtle ga-2">
-          <v-btn variant="tonal" block color="zinc-muted" @click="downloadDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
-          <v-btn variant="flat" block color="black" @click="startConfirmedDownload" class="siegu-btn flex-grow-1" height="44">Download</v-btn>
+          <v-btn variant="tonal" color="zinc-muted" @click="downloadDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
+          <v-btn variant="flat" color="black" @click="startConfirmedDownload" class="siegu-btn flex-grow-1" height="44">Download</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="cleanupDialog.show" max-width="400" persistent rounded="xl">
+    <v-dialog v-model="cleanupDialog.show" max-width="400" rounded="xl">
       <v-card color="#ffffff" border class="border-subtle overflow-hidden">
         <v-card-item class="bg-zinc-100 py-4">
           <template v-slot:prepend>
@@ -330,6 +333,9 @@
             </div>
           </template>
           <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Clear Database?</v-card-title>
+          <template v-slot:append>
+            <v-btn icon="mdi-close" variant="text" size="small" @click="cleanupDialog.show = false"></v-btn>
+          </template>
         </v-card-item>
         
         <v-card-text class="py-6 text-center">
@@ -339,13 +345,13 @@
         </v-card-text>
 
         <v-card-actions class="pa-4 bg-zinc-50 border-top-subtle ga-2">
-          <v-btn variant="tonal" block color="zinc-muted" @click="cleanupDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
-          <v-btn variant="flat" block color="black" @click="startConfirmedCleanup" class="siegu-btn flex-grow-1" height="44">Clear</v-btn>
+          <v-btn variant="tonal" color="zinc-muted" @click="cleanupDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
+          <v-btn variant="flat" color="black" @click="startConfirmedCleanup" class="siegu-btn flex-grow-1" height="44">Clear</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
-    <v-dialog v-model="removeFolderDialog.show" max-width="400" persistent rounded="xl">
+    <v-dialog v-model="removeFolderDialog.show" max-width="400" rounded="xl">
       <v-card color="#ffffff" border class="border-subtle overflow-hidden">
         <v-card-item class="bg-zinc-100 py-4">
           <template v-slot:prepend>
@@ -354,6 +360,9 @@
             </div>
           </template>
           <v-card-title class="text-h6 text-zinc-primary font-weight-bold">Wipe & Remove?</v-card-title>
+          <template v-slot:append>
+            <v-btn icon="mdi-close" variant="text" size="small" @click="removeFolderDialog.show = false"></v-btn>
+          </template>
         </v-card-item>
         
         <v-card-text class="py-6 text-center">
@@ -363,8 +372,8 @@
         </v-card-text>
 
         <v-card-actions class="pa-4 bg-zinc-50 border-top-subtle ga-2">
-          <v-btn variant="tonal" block color="zinc-muted" @click="removeFolderDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
-          <v-btn variant="flat" block color="black" @click="startConfirmedRemoveFolder" class="siegu-btn flex-grow-1" height="44">Wipe Data</v-btn>
+          <v-btn variant="tonal" color="zinc-muted" @click="removeFolderDialog.show = false" class="siegu-btn flex-grow-1" height="44">Cancel</v-btn>
+          <v-btn variant="flat" color="black" @click="startConfirmedRemoveFolder" class="siegu-btn flex-grow-1" height="44">Wipe Data</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>

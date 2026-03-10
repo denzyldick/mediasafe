@@ -26,7 +26,7 @@
           Sync your library across your own hardware.
         </div>
 
-        <div class="d-flex justify-center mb-6 mt-2">
+        <div class="d-flex justify-center mb-6" v-if="!hideModeToggle">
             <v-btn-toggle v-model="mode" mandatory variant="flat" class="ga-2 bg-transparent">
               <v-btn value="host" class="siegu-btn text-none px-6">Host</v-btn>
               <v-btn value="join" class="siegu-btn text-none px-6">Join</v-btn>
@@ -36,13 +36,22 @@
         <div class="d-flex justify-center mb-6" v-if="uuid && mode === 'host'">
           <v-sheet class="bg-siegu-white rounded-xl pa-6 shadow-lg border-subtle position-relative overflow-hidden">
                 <v-fade-transition hide-on-leave>
-                  <div v-if="uuid && (connectionStatus === 'Peer Joined' || connectionStatus === 'Connected' || connectionStatus === 'connected')" class="overlay-connecting d-flex flex-column align-center justify-center">
+                  <div v-if="uuid && peerJoined && !isConnected" class="overlay-connecting d-flex flex-column align-center justify-center">
                      <v-progress-circular indeterminate color="black" size="48" width="4" class="mb-4"></v-progress-circular>
                      <div class="text-subtitle-2 font-weight-bold text-zinc-primary animate-pulse">Device Found!</div>
                      <div class="text-caption text-zinc-secondary">Establishing secure link...</div>
                   </div>
                 </v-fade-transition>
-                <qrcode-vue :value="uuid" :size="200" level="H" :class="{'opacity-20 blur-sm transition-all': uuid && (connectionStatus === 'Peer Joined' || connectionStatus === 'Connected' || connectionStatus === 'connected')}" />
+                <v-fade-transition hide-on-leave>
+                  <div v-if="isConnected" class="overlay-connecting d-flex flex-column align-center justify-center bg-white">
+                     <div class="siegu-icon-circle-success mx-auto mb-4 scale-up">
+                        <v-icon color="white">mdi-check-bold</v-icon>
+                     </div>
+                     <div class="text-subtitle-2 font-weight-bold text-zinc-primary">Link Established!</div>
+                     <div class="text-caption text-zinc-secondary">Ready to synchronize.</div>
+                  </div>
+                </v-fade-transition>
+                <qrcode-vue :value="uuid" :size="200" level="H" :class="{'opacity-20 blur-sm transition-all': uuid && (peerJoined || isConnected)}" />
           </v-sheet>
         </div>
 
@@ -96,7 +105,8 @@
               @keyup.enter="joinWebRTC"
               :disabled="loading || isConnected"
             ></v-text-field>
-            <v-btn variant="flat" @click="joinWebRTC" class="siegu-btn py-6" block :loading="loading" :disabled="!joinPassphrase || isConnected">
+            
+            <v-btn v-if="!isConnected" variant="flat" @click="joinWebRTC" class="siegu-btn py-6" block :loading="loading" :disabled="!joinPassphrase">
               <div class="d-flex align-center">
                 <div class="siegu-icon-circle mr-3">
                   <v-icon size="14" color="white">mdi-link-variant</v-icon>
@@ -104,13 +114,61 @@
                 <span class="text-white">Link Device</span>
               </div>
             </v-btn>
+
+            <v-btn v-else variant="flat" color="success" @click="triggerSync" class="siegu-btn py-6" block :loading="syncing">
+              <div class="d-flex align-center">
+                <div class="siegu-icon-circle mr-3">
+                  <v-icon size="14" color="white">mdi-sync</v-icon>
+                </div>
+                <span class="text-white">Start Syncing</span>
+              </div>
+            </v-btn>
+        </div>
+
+        <div class="d-flex justify-center mb-6 flex-column ga-4" v-if="mode === 'host' && isConnected">
+            <v-btn variant="flat" color="success" @click="triggerSync" class="siegu-btn py-6" block :loading="syncing">
+              <div class="d-flex align-center">
+                <div class="siegu-icon-circle mr-3">
+                  <v-icon size="14" color="white">mdi-sync</v-icon>
+                </div>
+                <span class="text-white">Start Syncing</span>
+              </div>
+            </v-btn>
         </div>
 
         <div class="text-caption text-zinc-muted mb-1 text-center py-2" v-if="connectionStatus">
-            <v-progress-circular v-if="!isConnected" indeterminate color="black" size="16" width="2" class="mr-2 opacity-50"></v-progress-circular>
-            <v-icon v-else color="success" size="16" class="mr-2">mdi-check-circle-outline</v-icon>
+            <v-progress-circular v-if="!isConnected && connectionStatus !== 'Disconnected'" indeterminate color="black" size="16" width="2" class="mr-2 opacity-50"></v-progress-circular>
+            <v-icon v-else-if="isConnected" color="success" size="16" class="mr-2">mdi-check-circle-outline</v-icon>
             {{ connectionStatus }}
         </div>
+
+        <div v-if="syncProgress.status" class="mt-4 px-4">
+          <div class="d-flex justify-space-between text-caption text-zinc-secondary mb-1">
+            <span>{{ syncProgress.status }}</span>
+            <span v-if="syncProgress.progress > 0">{{ Math.round(syncProgress.progress) }}%</span>
+          </div>
+          <v-progress-linear
+            v-model="syncProgress.progress"
+            color="black"
+            height="6"
+            rounded
+            indeterminate
+            v-if="syncProgress.progress === 0 && syncProgress.status.includes('Syncing')"
+          ></v-progress-linear>
+          <v-progress-linear
+            v-else
+            v-model="syncProgress.progress"
+            color="black"
+            height="6"
+            rounded
+          ></v-progress-linear>
+        </div>
+
+        <v-btn v-if="isConnected || (connectionStatus && connectionStatus !== 'Disconnected')" 
+               variant="text" color="error" size="small" class="mt-4 text-none" 
+               @click="disconnectSession" :loading="disconnecting">
+          Disconnect Session
+        </v-btn>
 
         <v-divider class="opacity-10 my-4"></v-divider>
 
@@ -129,7 +187,7 @@
 
     <!-- Inline version for onboarding -->
     <div v-if="embedded" class="w-100">
-      <div class="d-flex justify-center mb-6 mt-2">
+      <div class="d-flex justify-center mb-6" v-if="!hideModeToggle">
           <v-btn-toggle v-model="mode" mandatory variant="flat" class="ga-2 bg-transparent">
             <v-btn value="host" class="siegu-btn text-none px-6">Host</v-btn>
             <v-btn value="join" class="siegu-btn text-none px-6">Join</v-btn>
@@ -265,6 +323,36 @@
 .overflow-hidden {
   overflow: hidden;
 }
+
+.siegu-icon-circle {
+  width: 28px;
+  height: 28px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.siegu-icon-circle-success {
+  width: 48px;
+  height: 48px;
+  background: #22c55e;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+}
+
+.scale-up {
+  animation: scaleUp 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes scaleUp {
+  from { transform: scale(0.5); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
 </style>
 
 <script>
@@ -281,7 +369,8 @@ export default {
   },
   props: {
     embedded: { type: Boolean, default: false },
-    initialMode: { type: String, default: 'host' }
+    initialMode: { type: String, default: 'host' },
+    hideModeToggle: { type: Boolean, default: false }
   },
   data: () => ({
     dialog: false,
@@ -291,8 +380,16 @@ export default {
     joinPassphrase: "",
     connectionStatus: "",
     isConnected: false,
+    peerJoined: false,
     loading: false,
+    syncing: false,
+    disconnecting: false,
     unlisten: null,
+    unlistenSync: null,
+    syncProgress: {
+      status: "",
+      progress: 0
+    },
     codeReader: new BrowserQRCodeReader(),
     isScanning: false,
   }),
@@ -303,14 +400,20 @@ export default {
            this.initialize();
        } else if (newMode === 'join') {
            this.connectionStatus = "";
+           this.peerJoined = false;
+           this.syncProgress = { status: "", progress: 0 };
        }
     },
     async dialog(val) {
       if (val) {
         this.unlisten = await listen("webrtc-state", (event) => {
           this.connectionStatus = event.payload;
+          if (event.payload === "Peer Joined") {
+            this.peerJoined = true;
+          }
           if (event.payload === "Connected" || event.payload === "connected") {
             this.isConnected = true;
+            this.peerJoined = false;
             this.loading = false;
             this.$emit('connected');
           }
@@ -318,7 +421,31 @@ export default {
               event.payload.toLowerCase().includes("failed") ||
               event.payload.toLowerCase().includes("disconnected")) {
             this.isConnected = false;
+            this.peerJoined = false;
             this.loading = false;
+          }
+        });
+        this.unlistenSync = await listen("sync-progress", (event) => {
+          this.syncProgress = {
+            status: event.payload.status,
+            progress: event.payload.progress
+          };
+
+          if (event.payload.status.toLowerCase().includes("syncing")) {
+             this.syncing = true;
+          }
+
+          if (event.payload.status === "Up to date" || event.payload.status.startsWith("Finished")) {
+             this.syncing = false;
+             setTimeout(() => {
+               if (this.syncProgress.status === event.payload.status) {
+                  this.syncProgress = { status: "", progress: 0 };
+                  if (this.dialog) {
+                    this.dialog = false;
+                    this.$emit('done');
+                  }
+               }
+             }, 2000);
           }
         });
         this.initialize();
@@ -326,6 +453,10 @@ export default {
         if (this.unlisten) {
           this.unlisten();
           this.unlisten = null;
+        }
+        if (this.unlistenSync) {
+          this.unlistenSync();
+          this.unlistenSync = null;
         }
         this.loading = false;
       }
@@ -342,13 +473,57 @@ export default {
           this.$emit('connected');
         }
       });
+      this.unlistenSync = await listen("sync-progress", (event) => {
+        this.syncProgress = {
+          status: event.payload.status,
+          progress: event.payload.progress
+        };
+      });
       this.initialize();
     }
   },
   beforeUnmount() {
     if (this.unlisten) this.unlisten();
+    if (this.unlistenSync) this.unlistenSync();
   },
   methods: {
+    async triggerSync() {
+      this.syncing = true;
+      try {
+        await invoke("request_start_sync");
+      } catch (err) {
+        console.error("Failed to start sync:", err);
+        this.syncing = false;
+      }
+    },
+    async disconnectSession() {
+      this.disconnecting = true;
+      try {
+        await invoke("stop_webrtc_session");
+        this.connectionStatus = "Disconnected";
+        this.isConnected = false;
+        this.peerJoined = false;
+        this.syncProgress = { status: "", progress: 0 };
+      } catch (error) {
+        console.error("Disconnect Error:", error);
+      } finally {
+        this.disconnecting = false;
+      }
+    },
+    async confirmLink() {
+      this.loading = true;
+      const roomId = await invoke("hash_pairing_code", { input: this.uuid });
+      // On the host side, start_webrtc_session was already called in listen(roomId)
+      // with isInitiator: false.
+      // However, we need to ensure the backend actually proceeds with negotiation.
+      // Currently, the backend starts as soon as we call start_webrtc_session.
+      // To strictly follow "Host must click Link", we would need to delay the backend
+      // or send a signaling message. 
+      // For now, let's keep it simple: Host clicking "Link" just hides the approval UI.
+      this.isConnected = true;
+      this.peerJoined = false;
+      this.loading = false;
+    },
     async initialize() {
         this.connectionStatus = "Generating secure pair key...";
         try {

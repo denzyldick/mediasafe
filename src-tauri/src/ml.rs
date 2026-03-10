@@ -663,6 +663,11 @@ pub fn start_background_worker(
                     }
 
                     // Proactively notify peer with FULL AI data now that ML is done
+                    {
+                        let lock = db_task.lock().unwrap();
+                        let _ = lock.connection.execute("UPDATE photo SET sync_needed = 1 WHERE id = ?1", [&actual_id]);
+                    }
+
                     if let Some(state) = app_handle_task.try_state::<crate::WebRtcState>() {
                         let mut tx_lock = state.sync_tx.blocking_lock();
                         if let Some(tx) = tx_lock.as_mut() {

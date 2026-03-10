@@ -137,6 +137,7 @@ export default {
     currentPhotoIndex: 0,
     observer: null,
     unlistenPhoto: null,
+    unlistenReceived: null,
     scanBuffer: [],
     scanInterval: null
   }),
@@ -213,22 +214,38 @@ export default {
             const newImages = [...this.images];
             batch.forEach(newPhoto => {
                 if (!newImages.find(p => p.id === newPhoto.id)) {
-                    newImages.push(newPhoto);
+                    // Prepend for real-time sync visibility
+                    newImages.unshift(newPhoto);
                 }
             });
 
-            newImages.sort((a, b) => {
-                if (!a.created) return 1;
-                if (!b.created) return -1;
-                return b.created.localeCompare(a.created);
-            });
-
+            // Re-sort only if we have many or if they are significantly out of order
+            // For now, unshift is better for "just appeared" feel
             this.images = newImages;
         }
     }, 1000);
 
     this.unlistenPhoto = await listen("photo-scanned", (event) => {
-      const newPhoto = event.payload;
+      this.handleIncomingPhoto(event.payload);
+    });
+
+    this.unlistenReceived = await listen("photo-received", (event) => {
+      this.handleIncomingPhoto(event.payload);
+    });
+  },
+  mounted() {
+    if (!this.isPersonFilter) {
+      this.setupInfiniteScroll();
+    }
+  },
+  beforeUnmount() {
+    if (this.observer) this.observer.disconnect();
+    if (this.unlistenPhoto) this.unlistenPhoto();
+    if (this.unlistenReceived) this.unlistenReceived();
+    if (this.scanInterval) clearInterval(this.scanInterval);
+  },
+  methods: {
+    handleIncomingPhoto(newPhoto) {
       if (this.filters.favoritesOnly && !newPhoto.favorite) return;
 
       const isVideo = (photo) => {
@@ -241,19 +258,7 @@ export default {
       if (this.searchQuery && !newPhoto.location.toLowerCase().includes(this.searchQuery.toLowerCase())) return;
 
       this.scanBuffer.push(newPhoto);
-    });
-  },
-  mounted() {
-    if (!this.isPersonFilter) {
-      this.setupInfiniteScroll();
-    }
-  },
-  beforeUnmount() {
-    if (this.observer) this.observer.disconnect();
-    if (this.unlistenPhoto) this.unlistenPhoto();
-    if (this.scanInterval) clearInterval(this.scanInterval);
-  },
-  methods: {
+    },
     toggleSelection(id) {
       const index = this.selectedIds.indexOf(id);
       if (index === -1) {

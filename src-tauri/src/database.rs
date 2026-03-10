@@ -47,7 +47,13 @@ pub struct FaceWithPerson {
 impl Database {
     pub fn get_photo_sync_info(&self) -> Vec<PhotoSyncInfo> {
         let mut results = Vec::new();
-        let sql = "SELECT id, location, created, latitude, longitude FROM photo";
+        // Only select photos that have been indexed (have at least one entry in object or faces table)
+        // AND are NOT inside a 'siegu' folder (to prevent re-syncing synced files)
+        let sql = "SELECT id, location, created, latitude, longitude FROM photo p 
+                   WHERE (EXISTS (SELECT 1 FROM object WHERE photo_id = p.id) 
+                   OR EXISTS (SELECT 1 FROM faces WHERE photo_id = p.id))
+                   AND p.location NOT LIKE '%/siegu/%'
+                   AND p.location NOT LIKE '%\\siegu\\%'";
         if let Ok(mut stmt) = self.connection.prepare(sql) {
             let iter = stmt.query_map([], |row| {
                 let id: String = row.get(0)?;
@@ -175,6 +181,10 @@ impl Database {
         let _ = conn.execute("ALTER TABLE photo ADD COLUMN latitude REAL;", ());
         let _ = conn.execute("ALTER TABLE photo ADD COLUMN longitude REAL;", ());
         let _ = conn.execute("ALTER TABLE photo ADD COLUMN created DATE_TIME;", ());
+        let _ = conn.execute(
+            "ALTER TABLE photo ADD COLUMN sync_needed INTEGER DEFAULT 0;",
+            (),
+        );
 
         let _ = conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_photo_location ON photo(location);",
@@ -721,11 +731,20 @@ impl Database {
         longitude: Option<f64>,
         objects_json: &str,
         faces_json: &str,
+        encoded: &str,
     ) {
         let _ = self.connection.execute(
-            "INSERT OR REPLACE INTO photo (id, location, created, latitude, longitude) VALUES (?1, ?2, ?3, ?4, ?5)",
-            (id, location, created, latitude, longitude),
+            "INSERT OR REPLACE INTO photo (id, location, created, latitude, longitude, encoded) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            (id, location, created, latitude, longitude, encoded),
         );
+
+        // Clear existing metadata to avoid duplicates
+        let _ = self
+            .connection
+            .execute("DELETE FROM object WHERE photo_id = ?1", [id]);
+        let _ = self
+            .connection
+            .execute("DELETE FROM faces WHERE photo_id = ?1", [id]);
 
         // Import objects
         if let Ok(objects) = serde_json::from_str::<Vec<SyncObject>>(objects_json) {

@@ -5,21 +5,7 @@
     @click="handleClick"
   >
     <div class="image-wrapper shadow-sm">
-      <template v-if="imageSrc">
-        <img :src="imageSrc" loading="lazy" alt="Photo" class="photo-img" />
-      </template>
-      <template v-else-if="isVideo">
-        <div class="video-placeholder d-flex flex-column align-center justify-center">
-          <v-progress-circular indeterminate size="24" width="2" color="#a1a1aa" class="mb-2"></v-progress-circular>
-          <div class="text-caption text-zinc-muted font-weight-bold">VIDEO</div>
-        </div>
-      </template>
-      <template v-else>
-        <div class="video-placeholder d-flex align-center justify-center">
-          <v-icon color="#d4d4d8" size="48">mdi-image-outline</v-icon>
-        </div>
-      </template>
-
+      <img :src="imageSrc" loading="lazy" alt="Photo" class="photo-img" v-if="imageSrc" />
       <div class="scrim-overlay"></div>
 
       <!-- Video Indicator -->
@@ -105,14 +91,11 @@ export default {
           return this.path.encoded;
       }
 
-      // 2. Fallback to local generated thumb
+      // 2. Fallback to local generated thumb (from video worker)
       if (this.localThumb) return this.localThumb;
 
-      // 3. Fallback to asset protocol for PHOTOS
-      if (!this.isVideo && this.path.location) {
-          return convertFileSrc(this.path.location);
-      }
-
+      // 3. DO NOT load the full high-res file here as it slows down the UI
+      // The high-res file will only be loaded in the PhotoViewer
       return null;
     },
     isFavorite() {

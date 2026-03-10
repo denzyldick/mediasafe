@@ -83,10 +83,13 @@ async fn check_models(app: tauri::AppHandle) -> Vec<String> {
     let mut clip_ok = true;
     for name in clip_files {
         let p = models_dir.join(name);
-        if !p.exists()
-            || (name != "tokenizer.json"
-                && p.metadata().map(|m| m.len()).unwrap_or(0) < 1024 * 1024)
-        {
+        let min_size = match name {
+            "clip-vit-base-patch32-visual.onnx" => 150 * 1024 * 1024,
+            "clip-vit-base-patch32-text.onnx" => 40 * 1024 * 1024,
+            _ => 1024, // tokenizer.json
+        };
+
+        if !p.exists() || p.metadata().map(|m| m.len()).unwrap_or(0) < min_size {
             clip_ok = false;
             break;
         }
@@ -206,6 +209,7 @@ async fn download_models(
                 }
             };
             let mut downloaded: u64 = 0;
+            let mut last_emitted: u64 = 0;
             let mut success = true;
             while let Ok(Some(chunk)) = response.chunk().await {
                 if (file.write_all(&chunk).await).is_err() {
@@ -213,14 +217,19 @@ async fn download_models(
                     break;
                 }
                 downloaded += chunk.len() as u64;
-                let _ = app.emit(
-                    "download-progress",
-                    DownloadProgress {
-                        model: model_name.clone(),
-                        downloaded,
-                        total: total_size,
-                    },
-                );
+
+                // Throttle: emit only every 1MB or at 100%
+                if downloaded - last_emitted > 1024 * 1024 || Some(downloaded) == total_size {
+                    last_emitted = downloaded;
+                    let _ = app.emit(
+                        "download-progress",
+                        DownloadProgress {
+                            model: model_name.clone(),
+                            downloaded,
+                            total: total_size,
+                        },
+                    );
+                }
             }
 
             if success {
@@ -545,6 +554,21 @@ async fn start_webrtc_session(
 }
 
 #[tauri::command]
+async fn stop_webrtc_session(state: tauri::State<'_, WebRtcState>) -> Result<(), String> {
+    if let Ok(mut session) = state.active_session.lock() {
+        if let Some(handle) = session.take() {
+            println!("Stopping WebRTC session");
+            handle.abort();
+        }
+    }
+    {
+        let mut tx = state.sync_tx.lock().await;
+        *tx = None;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_indexing_status(state: tauri::State<'_, ml::MlContext>) -> usize {
     state
         .pending_count
@@ -563,6 +587,19 @@ async fn join_network(app: tauri::AppHandle, ip: String, name: String) {
         "INSERT OR REPLACE INTO device(ip, name) VALUES(?1, ?2)",
         (ip, name),
     );
+}
+
+#[tauri::command]
+async fn remove_device(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    let path = get_config_path(&app);
+    if path.is_empty() {
+        return Err("Config error".to_string());
+    }
+    let db = database::Database::new(&path);
+    db.connection
+        .execute("DELETE FROM device WHERE name = ?1", [name])
+        .map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -710,6 +747,18 @@ async fn get_os() -> String {
 }
 
 #[tauri::command]
+async fn initialize_sync_folder(app: tauri::AppHandle, path: String) -> Result<(), String> {
+    let target = std::path::PathBuf::from(&path).join("siegu");
+    if let Err(e) = std::fs::create_dir_all(&target) {
+        return Err(format!("Failed to create folder at {target:?}: {e}"));
+    }
+    // Also add it to authorized directories
+    let path_clone = path.clone();
+    add_directory(app, path_clone).await;
+    Ok(())
+}
+
+#[tauri::command]
 async fn save_config(app: tauri::AppHandle, key: String, value: String) {
     let path = get_config_path(&app);
     if path.is_empty() {
@@ -832,10 +881,12 @@ pub fn run() {
             get_faces_for_photo,
             delete_face,
             join_network,
+            remove_device,
             list_devices,
             server::generate_pairing_codes,
             server::hash_pairing_code,
             start_webrtc_session,
+            stop_webrtc_session,
             request_start_sync,
             update_video_thumbnail,
             process_video_frames,
@@ -850,7 +901,8 @@ pub fn run() {
             save_config,
             get_config,
             get_indexing_status,
-            get_heatmap_data
+            get_heatmap_data,
+            initialize_sync_folder,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
