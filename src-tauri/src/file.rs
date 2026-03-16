@@ -68,12 +68,28 @@ pub async fn start_watcher(app: tauri::AppHandle) {
                     }
                     if needs_scan && last_scan.elapsed().as_secs() > 10 {
                         last_scan = tokio::time::Instant::now();
-                        let _ = app_clone
+
+                        let has_permission = app_clone
                             .notification()
-                            .builder()
-                            .title("Siegu")
-                            .body("New media detected, scanning...")
-                            .show();
+                            .permission_state()
+                            .unwrap_or(tauri_plugin_notification::PermissionState::Denied);
+                        let is_granted = has_permission
+                            == tauri_plugin_notification::PermissionState::Granted
+                            || app_clone
+                                .notification()
+                                .request_permission()
+                                .unwrap_or(tauri_plugin_notification::PermissionState::Denied)
+                                == tauri_plugin_notification::PermissionState::Granted;
+
+                        if is_granted {
+                            let _ = app_clone
+                                .notification()
+                                .builder()
+                                .title("Siegu")
+                                .body("New media detected, scanning...")
+                                .show();
+                        }
+
                         crate::scan_files(app_clone.clone());
                     }
                 }

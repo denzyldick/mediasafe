@@ -65,12 +65,25 @@ fn scan_files(app: tauri::AppHandle) {
         );
 
         use tauri_plugin_notification::NotificationExt;
-        let _ = app
+        let has_permission = app
             .notification()
-            .builder()
-            .title("Siegu")
-            .body("Media scan complete")
-            .show();
+            .permission_state()
+            .unwrap_or(tauri_plugin_notification::PermissionState::Denied);
+        let is_granted = has_permission == tauri_plugin_notification::PermissionState::Granted
+            || app
+                .notification()
+                .request_permission()
+                .unwrap_or(tauri_plugin_notification::PermissionState::Denied)
+                == tauri_plugin_notification::PermissionState::Granted;
+
+        if is_granted {
+            let _ = app
+                .notification()
+                .builder()
+                .title("Siegu")
+                .body("Media scan complete")
+                .show();
+        }
     });
 }
 
@@ -868,15 +881,18 @@ pub fn run() {
                         }
                         _ => {}
                     })
-                    .on_tray_icon_event(|tray, event| if let TrayIconEvent::Click {
+                    .on_tray_icon_event(|tray, event| {
+                        if let TrayIconEvent::Click {
                             button: MouseButton::Left,
                             button_state: MouseButtonState::Up,
                             ..
-                        } = event {
-                        let app = tray.app_handle();
-                        if let Some(window) = app.get_webview_window("main") {
-                            let _ = window.show();
-                            let _ = window.set_focus();
+                        } = event
+                        {
+                            let app = tray.app_handle();
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
                         }
                     })
                     .build(app)?;
