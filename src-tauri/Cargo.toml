@@ -19,7 +19,7 @@ crate-type = ["rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["devtools", "protocol-asset"] }
+tauri = { version = "2", features = ["devtools", "protocol-asset", "tray-icon"] }
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -65,6 +65,8 @@ uuid = { version = "1.21.0", features = ["v4"] }
 rayon = "1.10.0"
 num_cpus = "1.16.0"
 ffmpeg-sidecar = { version = "2.4.0", features = ["download_ffmpeg"] }
+tauri-plugin-notification = "2.0.0-rc.0"
+notify = "6"
 
 [dev-dependencies]
 tempfile = "3.8"

@@ -63,6 +63,14 @@ fn scan_files(app: tauri::AppHandle) {
             "scan-progress",
             serde_json::json!({ "status": "complete", "progress": 100 }),
         );
+
+        use tauri_plugin_notification::NotificationExt;
+        let _ = app
+            .notification()
+            .builder()
+            .title("Siegu")
+            .body("Media scan complete")
+            .show();
     });
 }
 
@@ -825,14 +833,55 @@ async fn request_start_sync(state: tauri::State<'_, WebRtcState>) -> Result<(), 
     Ok(())
 }
 
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+};
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
+            #[cfg(desktop)]
+            {
+                let show_i = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
+                let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+                let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+
+                let _tray = TrayIconBuilder::new()
+                    .menu(&menu)
+                    .icon(app.default_window_icon().unwrap().clone())
+                    .on_menu_event(|app, event| match event.id.as_ref() {
+                        "quit" => {
+                            app.exit(0);
+                        }
+                        "show" => {
+                            if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.show();
+                                let _ = window.set_focus();
+                            }
+                        }
+                        _ => {}
+                    })
+                    .on_tray_icon_event(|tray, event| if let TrayIconEvent::Click {
+                            button: MouseButton::Left,
+                            button_state: MouseButtonState::Up,
+                            ..
+                        } = event {
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    })
+                    .build(app)?;
+            }
+
             let config_path = get_config_path(app.handle());
             let (tx, pending_count, abort) =
                 ml::start_background_worker(app.handle(), config_path.clone());
@@ -852,7 +901,31 @@ pub fn run() {
                 sync_tx: Arc::new(tokio::sync::Mutex::new(None)),
             });
 
+            // Start periodic background scan
+            let app_handle_for_interval = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600)); // 1 hour
+                loop {
+                    interval.tick().await;
+                    scan_files(app_handle_for_interval.clone());
+                }
+            });
+
+            // Start real-time filesystem watcher
+            let app_handle_for_watcher = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                file::start_watcher(app_handle_for_watcher).await;
+            });
+
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            #[cfg(desktop)]
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                window.hide().unwrap();
+                api.prevent_close();
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             scan_files,

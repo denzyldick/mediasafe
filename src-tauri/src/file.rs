@@ -4,7 +4,10 @@ use exif::Reader;
 use image::io::Reader as ImageReader;
 use image::ImageOutputFormat;
 use jwalk::WalkDir;
+use notify::event::{CreateKind, ModifyKind};
+use notify::{EventKind, RecursiveMode, Watcher};
 use rand::{distributions::Alphanumeric, Rng};
+use tauri_plugin_notification::NotificationExt;
 
 use std::collections::HashMap;
 use std::fs;
@@ -16,6 +19,69 @@ use std::string::String;
 
 use crate::ml::MlContext;
 use tauri::{Emitter, Manager};
+
+pub async fn start_watcher(app: tauri::AppHandle) {
+    let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+    let app_clone = app.clone();
+
+    let mut watcher = match notify::recommended_watcher(move |res| {
+        if let Ok(event) = res {
+            let _ = tx.send(event);
+        }
+    }) {
+        Ok(w) => w,
+        Err(_) => return,
+    };
+
+    let config_path = crate::get_config_path(&app);
+    if !config_path.is_empty() {
+        let database = crate::database::Database::new(&config_path);
+        let folders = database.list_directories();
+        for folder in folders {
+            if Path::new(&folder).exists() {
+                let _ = watcher.watch(Path::new(&folder), RecursiveMode::Recursive);
+            }
+        }
+    }
+
+    tokio::spawn(async move {
+        // Keep watcher alive in this task
+        let _watcher = watcher;
+        let image_extensions = [
+            "png", "jpg", "jpeg", "webp", "heic", "avif", "mp4", "mkv", "mov", "avi", "webm",
+        ];
+        let mut last_scan = tokio::time::Instant::now();
+
+        while let Some(event) = rx.recv().await {
+            match event.kind {
+                EventKind::Create(CreateKind::File)
+                | EventKind::Modify(ModifyKind::Name(_))
+                | EventKind::Modify(ModifyKind::Data(_)) => {
+                    let mut needs_scan = false;
+                    for path in event.paths {
+                        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                            if image_extensions.contains(&ext.to_lowercase().as_str()) {
+                                needs_scan = true;
+                                break;
+                            }
+                        }
+                    }
+                    if needs_scan && last_scan.elapsed().as_secs() > 10 {
+                        last_scan = tokio::time::Instant::now();
+                        let _ = app_clone
+                            .notification()
+                            .builder()
+                            .title("Siegu")
+                            .body("New media detected, scanning...")
+                            .show();
+                        crate::scan_files(app_clone.clone());
+                    }
+                }
+                _ => {}
+            }
+        }
+    });
+}
 
 fn emit_log(app: &tauri::AppHandle, message: String) {
     println!("{message}");
