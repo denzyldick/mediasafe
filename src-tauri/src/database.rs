@@ -175,8 +175,9 @@ impl Database {
         let _ = fs::create_dir_all(config_path);
         let conn = Connection::open(&path).expect("Failed to open database connection");
 
-        // Enable WAL mode for better concurrency
+        // Enable WAL mode for better concurrency and set a busy timeout
         let _ = conn.execute("PRAGMA journal_mode=WAL;", ());
+        let _ = conn.busy_timeout(std::time::Duration::from_secs(5));
 
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS photo (id STRING PRIMARY KEY, location STRING, encoded STRING, created DATE_TIME, latitude REAL, longitude REAL, indexed INTEGER DEFAULT 0);", ());
 
@@ -363,7 +364,7 @@ impl Database {
             ""
         };
 
-        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE 1=1 {fav_filter} {video_filter} {q_filter} ORDER BY p.created DESC LIMIT ?1, ?2");
+        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE p.encoded != '' {fav_filter} {video_filter} {q_filter} ORDER BY p.created DESC LIMIT ?1, ?2");
         if let Ok(mut stmt) = self.connection.prepare(&sql) {
             let q_param = if is_uuid {
                 query.to_string()
@@ -423,7 +424,7 @@ impl Database {
 
     pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE p.latitude != 0.0 OR p.longitude != 0.0") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE (p.latitude != 0.0 OR p.longitude != 0.0) AND p.encoded != ''") {
             if let Ok(iter) = stmt.query_map([], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
@@ -642,7 +643,7 @@ impl Database {
 
     pub fn get_photos_for_person(&self, person_id: &str) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p JOIN faces f ON p.id = f.photo_id WHERE f.person_id = ?1 GROUP BY p.id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p JOIN faces f ON p.id = f.photo_id WHERE f.person_id = ?1 AND p.encoded != '' GROUP BY p.id") {
             if let Ok(iter) = stmt.query_map([person_id], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
@@ -846,6 +847,50 @@ impl Database {
             "INSERT OR REPLACE INTO photo(id, location, encoded, created, latitude, longitude, indexed) VALUES(?1, ?2, ?3, ?4, ?5, ?6, 1)",
             (id, location, encoded, created, latitude, longitude),
         );
+    }
+
+    pub fn store_photo_batch(&mut self, photos: &[Photo]) -> Result<(), String> {
+        let tx = self.connection.transaction().map_err(|e| e.to_string())?;
+        {
+            let mut stmt = tx.prepare_cached("INSERT OR REPLACE INTO photo(id, location, encoded, created, latitude, longitude, indexed) VALUES(?1, ?2, ?3, ?4, ?5, ?6, 1)").map_err(|e| e.to_string())?;
+            for p in photos {
+                let _ = stmt.execute((
+                    &p.id,
+                    &p.location,
+                    &p.encoded,
+                    &p.created,
+                    &p.latitude,
+                    &p.longitude,
+                ));
+            }
+        }
+        tx.commit().map_err(|e| e.to_string())
+    }
+
+    pub fn filter_new_paths(&self, paths: &[String]) -> Vec<String> {
+        let mut new_paths = Vec::new();
+        // Check in batches of 100 to avoid SQL variable limits
+        for chunk in paths.chunks(100) {
+            let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            let sql = format!(
+                "SELECT location FROM photo WHERE location IN ({placeholders})"
+            );
+            let mut existing = std::collections::HashSet::new();
+            if let Ok(mut stmt) = self.connection.prepare(&sql) {
+                let params = rusqlite::params_from_iter(chunk);
+                if let Ok(rows) = stmt.query_map(params, |row| row.get::<_, String>(0)) {
+                    for row in rows.flatten() {
+                        existing.insert(row);
+                    }
+                }
+            }
+            for path in chunk {
+                if !existing.contains(path) {
+                    new_paths.push(path.clone());
+                }
+            }
+        }
+        new_paths
     }
 
     pub fn update_photo_indexed(&self, id: &str, indexed: i32) {

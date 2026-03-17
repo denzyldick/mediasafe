@@ -55,9 +55,62 @@ fn scan_files(app: tauri::AppHandle) {
         .store(false, std::sync::atomic::Ordering::SeqCst);
 
     // Initial signal to process any leftovers from previous runs
-    let _ = state.tx.lock().unwrap().send("__START__".to_string());
+    let _ = state.tx.send("__START__".to_string());
+
+    // Shared batcher for all folders in this scan session
+    let (batch_tx, mut batch_rx) = tokio::sync::mpsc::unbounded_channel::<database::Photo>();
+    let app_handle_for_batch = app.clone();
+    let path_for_batch = path.clone();
+
+    tauri::async_runtime::spawn(async move {
+        let mut buffer: Vec<database::Photo> = Vec::new();
+        let mut interval = tokio::time::interval(std::time::Duration::from_millis(1000)); // Slower UI updates
+        let database = Arc::new(std::sync::Mutex::new(database::Database::new(
+            &path_for_batch,
+        )));
+
+        loop {
+            tokio::select! {
+                _ = interval.tick() => {
+                    if !buffer.is_empty() {
+                        let ui_batch: Vec<database::Photo> = buffer.iter().filter(|p| !p.encoded.is_empty()).cloned().collect();
+                        if !ui_batch.is_empty() {
+                            let _ = app_handle_for_batch.emit("photos-discovered", &ui_batch);
+                        }
+                        let db_to_save = buffer.clone();
+                        let db_arc = Arc::clone(&database);
+                        let _ = tauri::async_runtime::spawn_blocking(move || {
+                            if let Ok(mut db) = db_arc.lock() {
+                                let _ = db.store_photo_batch(&db_to_save);
+                            }
+                        }).await;
+                        buffer.clear();
+                    }
+                }
+                Some(photo) = batch_rx.recv() => {
+                    buffer.push(photo);
+                    if buffer.len() >= 200 { // Larger DB batches
+                        let ui_batch: Vec<database::Photo> = buffer.iter().filter(|p| !p.encoded.is_empty()).cloned().collect();
+                        if !ui_batch.is_empty() {
+                            let _ = app_handle_for_batch.emit("photos-discovered", &ui_batch);
+                        }
+                        let db_to_save = buffer.clone();
+                        let db_arc = Arc::clone(&database);
+                        let _ = tauri::async_runtime::spawn_blocking(move || {
+                            if let Ok(mut db) = db_arc.lock() {
+                                let _ = db.store_photo_batch(&db_to_save);
+                            }
+                        }).await;
+                        buffer.clear();
+                    }
+                }
+                else => break,
+            }
+        }
+    });
 
     let abort_flag = Arc::clone(&state.abort);
+    let batch_tx_shared = Arc::new(batch_tx);
 
     std::thread::spawn(move || {
         let total = folders.len();
@@ -74,7 +127,7 @@ fn scan_files(app: tauri::AppHandle) {
             let progress = (i as f32 / total as f32 * 100.0) as u32;
             let _ = app.emit("scan-progress", serde_json::json!({ "status": "scanning", "progress": progress, "current": i + 1, "total": total, "current_directory": folder }));
             println!("Scanning folder {} of {}: {}", i + 1, total, folder);
-            file::scan_folder(&app, folder.clone(), &path);
+            file::scan_folder(&app, folder.clone(), &path, &batch_tx_shared);
         }
 
         println!("Finished scanning all folders. Updating last scan time...");
@@ -100,7 +153,7 @@ fn scan_files(app: tauri::AppHandle) {
 
         // Final signal to process everything found in the discovery pass
         if let Some(state) = app.try_state::<ml::MlContext>() {
-            let _ = state.tx.lock().unwrap().send("__START__".to_string());
+            let _ = state.tx.send("__START__".to_string());
         }
     });
 }
@@ -181,10 +234,7 @@ async fn download_models(
         }
     }
 
-    let tx = match state.tx.lock() {
-        Ok(t) => t.clone(),
-        Err(e) => return Err(e.to_string()),
-    };
+    let tx = state.tx.clone();
 
     tauri::async_runtime::spawn(async move {
         emit_log(
@@ -418,9 +468,7 @@ fn assign_name_to_face(
     let database = database::Database::new(&path);
     let id = database.assign_name_to_face(&face_id, &name);
 
-    if let Ok(tx) = state.tx.lock() {
-        let _ = tx.send("__RELOAD_MODELS__".to_string());
-    }
+    let _ = state.tx.send("__RELOAD_MODELS__".to_string());
     id
 }
 
@@ -514,9 +562,7 @@ fn merge_people(
     let db = database::Database::new(&path);
     db.merge_people(&from_id, &to_id);
 
-    if let Ok(tx) = state.tx.lock() {
-        let _ = tx.send("__RELOAD_MODELS__".to_string());
-    }
+    let _ = state.tx.send("__RELOAD_MODELS__".to_string());
 }
 
 #[tauri::command]
@@ -703,12 +749,10 @@ fn process_video_frames(
         payload.push_str("|||");
         payload.push_str(&frame);
     }
-    if let Ok(tx) = state.tx.lock() {
-        state
-            .pending_count
-            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        let _ = tx.send(payload);
-    }
+    state
+        .pending_count
+        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+    let _ = state.tx.send(payload);
 }
 
 #[tauri::command]
@@ -742,25 +786,21 @@ async fn index_faces(
         }
     }
     println!("Found {} photos to index", photo_ids.len());
-    if let Ok(tx) = state.tx.lock() {
-        let count = photo_ids.len();
-        let total = state
-            .pending_count
-            .fetch_add(count, std::sync::atomic::Ordering::SeqCst)
-            + count;
-        let _ = app.emit("indexing-progress", total);
-        for id in photo_ids {
-            let _ = tx.send(id);
-        }
+    let count = photo_ids.len();
+    let total = state
+        .pending_count
+        .fetch_add(count, std::sync::atomic::Ordering::SeqCst)
+        + count;
+    let _ = app.emit("indexing-progress", total);
+    for id in photo_ids {
+        let _ = state.tx.send(id);
     }
     Ok(())
 }
 
 #[tauri::command]
 async fn abort_indexing(state: tauri::State<'_, ml::MlContext>) -> Result<(), String> {
-    if let Ok(tx) = state.tx.lock() {
-        let _ = tx.send("__ABORT__".to_string());
-    }
+    let _ = state.tx.send("__ABORT__".to_string());
     state.abort.store(true, std::sync::atomic::Ordering::SeqCst);
     state
         .pending_count
@@ -932,7 +972,7 @@ pub fn run() {
             let (tx, pending_count, abort) =
                 ml::start_background_worker(app.handle(), config_path.clone());
             app.manage(ml::MlContext {
-                tx: std::sync::Mutex::new(tx),
+                tx,
                 pending_count,
                 abort,
             });

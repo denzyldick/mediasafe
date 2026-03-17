@@ -34,8 +34,8 @@
     </v-fade-transition>
 
     <!-- Monthly Grouped View -->
-    <div v-if="images.length > 0" class="animate-fade-in">
-      <div v-for="group in groupedImages" :key="group.name" class="month-group mb-12">
+    <div v-if="groups.length > 0" class="animate-fade-in">
+      <div v-for="group in groups" :key="group.name" class="month-group mb-12">
         <div class="sticky-header mb-6">
           <div class="d-flex align-center px-2 py-3 rounded-lg header-blur">
             <h2 class="text-h5 font-weight-bold text-zinc-primary letter-spacing-tight">{{ group.name }}</h2>
@@ -96,7 +96,7 @@
           <span class="mt-4 text-caption text-zinc-muted font-weight-medium tracking-widest text-uppercase">Loading your memories</span>
         </div>
         <v-btn
-          v-else-if="!allLoaded && images.length > 0"
+          v-else-if="!allLoaded && groups.length > 0"
           @click="list_files"
           variant="flat"
           class="siegu-btn-outline px-10 py-6"
@@ -132,57 +132,19 @@ export default {
       limit: 50,
     },
     images: [],
+    imagesMap: {},
+    groups: [],
+    groupsMap: {},
     selectedIds: [],
     viewerOpen: false,
     currentPhotoIndex: 0,
     observer: null,
-    unlistenPhoto: null,
+    unlistenDiscovered: null,
     unlistenReceived: null,
+    unlistenUpdated: null,
     scanBuffer: [],
     scanInterval: null
   }),
-  computed: {
-    groupedImages() {
-      const groups = {};
-      const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-      this.images.forEach(image => {
-        if (!image._groupKey) {
-            let date;
-            if (image.created) {
-                // Handle both YYYY:MM:DD and YYYY-MM-DD formats
-                const datePart = image.created.split(' ')[0];
-                const dateParts = datePart.includes(':') ? datePart.split(':') : datePart.split('-');
-
-                if (dateParts.length >= 2) {
-                    const year = dateParts[0];
-                    const monthIdx = parseInt(dateParts[1]) - 1;
-                    if (monthIdx >= 0 && monthIdx < 12) {
-                        image._groupKey = `${monthNames[monthIdx]} ${year}`;
-                        image._sortKey = `${year}${dateParts[1].padStart(2, '0')}`;
-                    }
-                }
-            }
-            if (!image._groupKey) {
-                image._groupKey = "Recent";
-                image._sortKey = "999999"; // Keep 'Recent' at the top if any
-            }
-        }
-
-        if (!groups[image._groupKey]) {
-          groups[image._groupKey] = {
-            name: image._groupKey,
-            sortKey: image._sortKey,
-            images: []
-          };
-        }
-        groups[image._groupKey].images.push(image);
-      });
-
-      // Sort groups descending by date
-      return Object.values(groups).sort((a, b) => b.sortKey.localeCompare(a.sortKey));
-    }
-  },
   props: {
     searchQuery: {
       type: String,
@@ -205,32 +167,31 @@ export default {
   async created() {
     this.list_files();
 
-    // Buffered scan updates to prevent UI freezing during large scans
     this.scanInterval = setInterval(() => {
         if (this.scanBuffer.length > 0) {
-            const batch = [...this.scanBuffer];
-            this.scanBuffer = [];
-
-            const newImages = [...this.images];
-            batch.forEach(newPhoto => {
-                if (!newImages.find(p => p.id === newPhoto.id)) {
-                    // Prepend for real-time sync visibility
-                    newImages.unshift(newPhoto);
-                }
-            });
-
-            // Re-sort only if we have many or if they are significantly out of order
-            // For now, unshift is better for "just appeared" feel
-            this.images = newImages;
+            const batch = this.scanBuffer.splice(0, 100);
+            this.updateGroups(batch);
         }
-    }, 1000);
+    }, 2000);
 
-    this.unlistenPhoto = await listen("photo-scanned", (event) => {
-      this.handleIncomingPhoto(event.payload);
+    this.unlistenDiscovered = await listen("photos-discovered", (event) => {
+      if (Array.isArray(event.payload)) {
+          event.payload.forEach(photo => this.handleIncomingPhoto(photo));
+      }
     });
 
     this.unlistenReceived = await listen("photo-received", (event) => {
       this.handleIncomingPhoto(event.payload);
+    });
+
+    this.unlistenUpdated = await listen("photo-updated", (event) => {
+      const updatedPhoto = event.payload;
+      const existing = this.imagesMap[updatedPhoto.id];
+      if (existing) {
+          Object.assign(existing, updatedPhoto);
+      } else {
+          this.handleIncomingPhoto(updatedPhoto);
+      }
     });
   },
   mounted() {
@@ -240,12 +201,60 @@ export default {
   },
   beforeUnmount() {
     if (this.observer) this.observer.disconnect();
-    if (this.unlistenPhoto) this.unlistenPhoto();
+    if (this.unlistenDiscovered) this.unlistenDiscovered();
     if (this.unlistenReceived) this.unlistenReceived();
+    if (this.unlistenUpdated) this.unlistenUpdated();
     if (this.scanInterval) clearInterval(this.scanInterval);
   },
   methods: {
+    updateGroups(newImages) {
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const affectedGroups = new Set();
+        
+        newImages.forEach(image => {
+            if (this.imagesMap[image.id]) return;
+            
+            this.imagesMap[image.id] = image;
+            this.images.push(image);
+
+            if (!image._groupKey) {
+                if (image.created) {
+                    const datePart = image.created.split(' ')[0];
+                    const dateParts = datePart.includes(':') ? datePart.split(':') : datePart.split('-');
+                    if (dateParts.length >= 2) {
+                        const year = dateParts[0];
+                        const monthIdx = parseInt(dateParts[1]) - 1;
+                        if (monthIdx >= 0 && monthIdx < 12) {
+                            image._groupKey = `${monthNames[monthIdx]} ${year}`;
+                            image._sortKey = `${year}${dateParts[1].padStart(2, '0')}`;
+                        }
+                    }
+                }
+                if (!image._groupKey) {
+                    image._groupKey = "Recent";
+                    image._sortKey = "999999";
+                }
+            }
+
+            let group = this.groupsMap[image._groupKey];
+            if (!group) {
+                group = { name: image._groupKey, sortKey: image._sortKey, images: [] };
+                this.groupsMap[image._groupKey] = group;
+                this.groups.push(group);
+                this.groups.sort((a, b) => b.sortKey.localeCompare(a.sortKey));
+            }
+            group.images.push(image);
+            affectedGroups.add(group);
+        });
+
+        affectedGroups.forEach(group => {
+            group.images.sort((a, b) => (b.created || '').localeCompare(a.created || ''));
+        });
+    },
     handleIncomingPhoto(newPhoto) {
+      if (!newPhoto || !newPhoto.encoded || newPhoto.encoded.length < 50) return;
+      if (this.imagesMap[newPhoto.id]) return;
+
       if (this.filters.favoritesOnly && !newPhoto.favorite) return;
 
       const isVideo = (photo) => {
@@ -316,9 +325,13 @@ export default {
         const new_images = JSON.parse(response);
 
         if (this.paging.offset === 0) {
-          this.images = new_images;
+          this.imagesMap = {};
+          this.groupsMap = {};
+          this.groups = [];
+          this.images = [];
+          this.updateGroups(new_images);
         } else {
-          this.images.push(...new_images);
+          this.updateGroups(new_images);
         }
 
         if (!this.isPersonFilter) {
@@ -337,11 +350,17 @@ export default {
     async handleToggleFavorite(id) {
       try {
         const isNowFavorite = await invoke("toggle_favorite", { id: id });
-        const photo = this.images.find((p) => p.id === id);
+        const photo = this.imagesMap[id];
         if (photo) {
           photo.favorite = isNowFavorite;
           if (this.filters.favoritesOnly && !isNowFavorite) {
             this.images = this.images.filter((p) => p.id !== id);
+            delete this.imagesMap[id];
+            // Re-build groups if needed or just remove from group
+            const group = this.groupsMap[photo._groupKey];
+            if (group) {
+                group.images = group.images.filter(p => p.id !== id);
+            }
           }
         }
       } catch (err) {
@@ -395,7 +414,7 @@ export default {
 
 .sticky-header {
   position: sticky;
-  top: 64px; /* Adjust based on App Bar height */
+  top: 64px;
   z-index: 10;
 }
 

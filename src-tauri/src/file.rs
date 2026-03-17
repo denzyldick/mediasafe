@@ -19,6 +19,7 @@ use std::string::String;
 
 use crate::ml::MlContext;
 use tauri::{Emitter, Manager};
+use tokio::sync::mpsc::UnboundedSender;
 
 pub async fn start_watcher(app: tauri::AppHandle) {
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
@@ -93,7 +94,12 @@ fn emit_log(app: &tauri::AppHandle, message: String) {
 
 ///
 /// This is will scan a folder recursively and store all the images in the database.
-pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
+pub fn scan_folder(
+    app: &tauri::AppHandle,
+    directory: String,
+    path: &str,
+    batch_tx: &UnboundedSender<database::Photo>,
+) {
     let db_instance = database::Database::new(path);
 
     // Load thread config
@@ -105,7 +111,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
             if cfg!(any(target_os = "android", target_os = "ios")) {
                 2
             } else {
-                num_cpus::get()
+                num_cpus::get().min(4)
             }
         });
 
@@ -146,28 +152,45 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
 
     use std::sync::{Arc, Mutex};
     let database_arc = Arc::new(Mutex::new(db_instance));
+
+    // 1. Filter out already indexed paths in a single pass
+    let all_paths: Vec<String> = image_paths
+        .iter()
+        .map(|p| p.display().to_string())
+        .collect();
+    let new_paths_to_process = {
+        let db = database_arc.lock().unwrap();
+        db.filter_new_paths(&all_paths)
+    };
+
+    if new_paths_to_process.is_empty() {
+        emit_log(app, "No new photos found.".to_string());
+        return;
+    }
+
+    emit_log(
+        app,
+        format!("Processing {} new photos...", new_paths_to_process.len()),
+    );
+
     let app_handle = Arc::new(app.clone());
     let abort_flag_task = Arc::clone(&abort_flag);
 
-    // Create a local thread pool for this scan to avoid blocking the global one if requested
+    // Create a local thread pool for this scan to avoid blocking the global one
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(num_threads)
         .build()
         .unwrap();
 
     use rayon::prelude::*;
+    let tx_clone = app_handle.try_state::<MlContext>().map(|state| state.tx.clone());
+
     pool.install(|| {
-        image_paths.into_par_iter().for_each(|path| {
+        new_paths_to_process.into_par_iter().for_each(|path_str| {
             if abort_flag_task.load(Ordering::SeqCst) {
                 return;
             }
-            let db = database_arc.lock().unwrap();
-            let path_str = path.display().to_string();
-            if db.path_exists(&path_str) {
-                return;
-            }
-            drop(db);
-
+            let path = Path::new(&path_str);
             let id: String = rand::thread_rng()
                 .sample_iter(&Alphanumeric)
                 .take(7)
@@ -179,22 +202,23 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 .and_then(|e| e.to_str())
                 .unwrap_or("")
                 .to_lowercase();
-            let is_video = ["mp4", "mkv", "mov", "avi", "webm"].contains(&ext.as_str());
+            let _is_video = ["mp4", "mkv", "mov", "avi", "webm"].contains(&ext.as_str());
 
             let mut latitude = 0.0;
             let mut longitude = 0.0;
             let mut created = String::new();
-            let encoded = String::new();
+            let mut encoded = String::new();
 
-            if let Ok(file) = File::open(path.clone()) {
+            if let Ok(file) = File::open(path) {
                 let mut buff = BufReader::new(&file);
 
                 if let Ok(exif) = Reader::new().read_from_container(&mut buff) {
                     // Extract Created Date
-                    if let Some(date_field) = exif
-                        .get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY)
-                        .or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY))
-                    {
+                    if let (Some(date_field), _) = (
+                        exif.get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY)
+                            .or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY)),
+                        (),
+                    ) {
                         created = format!("{}", date_field.display_value());
                     }
 
@@ -234,18 +258,41 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                             }
                         }
                     }
+
+                    // Extract EXIF Thumbnail for instant UI feedback
+                    if let Some(thumb_field) =
+                        exif.get_field(exif::Tag::JPEGInterchangeFormat, exif::In::THUMBNAIL)
+                    {
+                        if let Some(offset) = thumb_field.value.get_uint(0) {
+                            if let Some(length_field) = exif.get_field(
+                                exif::Tag::JPEGInterchangeFormatLength,
+                                exif::In::THUMBNAIL,
+                            ) {
+                                if let Some(length) = length_field.value.get_uint(0) {
+                                    // Rewind and read the specific thumbnail bytes
+                                    if let Ok(mut file) = File::open(path) {
+                                        use std::io::{Read, Seek, SeekFrom};
+                                        let _ = file.seek(SeekFrom::Start(offset as u64));
+                                        let mut thumb_data = vec![0u8; length as usize];
+                                        if file.read_exact(&mut thumb_data).is_ok() {
+                                            encoded = format!(
+                                                "data:image/jpeg;base64,{}",
+                                                base64::engine::general_purpose::STANDARD
+                                                    .encode(&thumb_data)
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
-            // If we didn't get an EXIF thumbnail, the background worker will generate one later.
-            // For now, we store with what we have to get it in the UI fast.
-            let db_lock = database_arc.lock().unwrap();
-            db_lock.store_photo_metadata(&id, &path_str, &encoded, &created, latitude, longitude);
-
             let photo = database::Photo {
                 id: id.clone(),
-                encoded,
-                location: path_str,
+                encoded: encoded.clone(),
+                location: path_str.clone(),
                 created,
                 objects: HashMap::new(),
                 properties: HashMap::new(),
@@ -254,16 +301,17 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 favorite: false,
                 indexed: 1,
             };
-            drop(db_lock);
 
-            let _ = app_handle.emit("photo-scanned", photo);
+            let _ = batch_tx.send(photo);
 
             // Signal the background worker that there is work to do
-            if let Some(state) = app_handle.try_state::<MlContext>() {
-                state
-                    .pending_count
-                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                let _ = state.tx.lock().unwrap().send(id);
+            if let Some(ref tx) = tx_clone {
+                if let Some(state) = app_handle.try_state::<MlContext>() {
+                    state
+                        .pending_count
+                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                }
+                let _ = tx.send(id);
             }
         });
     });

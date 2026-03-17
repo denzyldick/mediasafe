@@ -6,6 +6,9 @@
   >
     <div class="image-wrapper shadow-sm">
       <img :src="imageSrc" loading="lazy" alt="Photo" class="photo-img" v-if="imageSrc" />
+      <div v-else class="video-placeholder d-flex align-center justify-center h-100">
+        <v-icon color="#d4d4d8" size="32">mdi-image-outline</v-icon>
+      </div>
       <div class="scrim-overlay"></div>
 
       <!-- Video Indicator -->
@@ -87,7 +90,7 @@ export default {
       if (!this.path) return '';
 
       // 1. ALWAYS prioritize the generated base64 thumbnail (encoded)
-      if (this.path.encoded && this.path.encoded.length > 100) {
+      if (this.path.encoded && this.path.encoded.length > 50) {
           return this.path.encoded;
       }
 
