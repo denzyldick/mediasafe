@@ -65,7 +65,7 @@ uuid = { version = "1.21.0", features = ["v4"] }
 rayon = "1.10.0"
 num_cpus = "1.16.0"
 ffmpeg-sidecar = { version = "2.4.0", features = ["download_ffmpeg"] }
-tauri-plugin-notification = "2.0.0-rc.0"
+tauri-plugin-notification = "2.3.3"
 notify = "6"
 
 [dev-dependencies]

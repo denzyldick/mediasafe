@@ -73,28 +73,12 @@ fn scan_files(app: tauri::AppHandle) {
         );
 
         use tauri_plugin_notification::NotificationExt;
-        let has_permission = app
+        let _ = app
             .notification()
-            .permission_state()
-            .unwrap_or(tauri_plugin_notification::PermissionState::Denied);
-        let is_granted = has_permission == tauri_plugin_notification::PermissionState::Granted
-            || app
-                .notification()
-                .request_permission()
-                .unwrap_or(tauri_plugin_notification::PermissionState::Denied)
-                == tauri_plugin_notification::PermissionState::Granted;
-
-        if is_granted {
-            println!("Permission granted, showing completion notification.");
-            let _ = app
-                .notification()
-                .builder()
-                .title("Siegu")
-                .body("Media scan complete")
-                .show();
-        } else {
-            println!("Warning: Notification permission denied for completion alert.");
-        }
+            .builder()
+            .title("Siegu")
+            .body("Media scan complete")
+            .show();
     });
 }
 
