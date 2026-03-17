@@ -872,9 +872,7 @@ impl Database {
         // Check in batches of 100 to avoid SQL variable limits
         for chunk in paths.chunks(100) {
             let placeholders = chunk.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-            let sql = format!(
-                "SELECT location FROM photo WHERE location IN ({placeholders})"
-            );
+            let sql = format!("SELECT location FROM photo WHERE location IN ({placeholders})");
             let mut existing = std::collections::HashSet::new();
             if let Ok(mut stmt) = self.connection.prepare(&sql) {
                 let params = rusqlite::params_from_iter(chunk);

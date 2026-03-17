@@ -183,7 +183,9 @@ pub fn scan_folder(
         .unwrap();
 
     use rayon::prelude::*;
-    let tx_clone = app_handle.try_state::<MlContext>().map(|state| state.tx.clone());
+    let tx_clone = app_handle
+        .try_state::<MlContext>()
+        .map(|state| state.tx.clone());
 
     pool.install(|| {
         new_paths_to_process.into_par_iter().for_each(|path_str| {

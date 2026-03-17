@@ -2,4 +2,4 @@
 ORT_STRATEGY = "download"
 
 [target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=-crt-static", "-C", "link-arg=/NODEFAULTLIB:libcmt", "-C", "link-arg=/NODEFAULTLIB:libcmtd"]
+rustflags = ["-C", "target-feature=-crt-static", "-C", "link-arg=/NODEFAULTLIB:libcmt", "-C", "link-arg=/NODEFAULTLIB:libcmtd", "-C", "link-arg=/NODEFAULTLIB:libcpmt", "-C", "link-arg=/NODEFAULTLIB:libcpmtd"]
