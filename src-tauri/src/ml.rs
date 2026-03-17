@@ -464,195 +464,323 @@ pub fn start_background_worker(
                 }
             }
 
-            let photo_id_task = photo_id.clone();
-            let app_handle_task = app_handle.clone();
-            let pending_count_task = Arc::clone(&pending_count_clone);
-            let clip_visual_task = clip_visual.clone();
-            let face_detector_task = face_detector.clone();
-            let text_embeddings_task = text_embeddings.clone();
-            let known_people_task = known_people.clone();
-            let faces_dir_task = faces_dir.clone();
-            let db_task = Arc::clone(&db);
-            let sem_task = Arc::clone(&memory_semaphore);
-            let abort_task = Arc::clone(&abort_clone);
-
-            pool.spawn(move || {
-                if abort_task.load(Ordering::SeqCst) {
-                    return;
+            // Database-driven batch processing loop
+            loop {
+                if abort_clone.load(Ordering::SeqCst) {
+                    break;
                 }
-                let _permit = sem_task.try_acquire();
-                let mut provided_frames = Vec::new();
-                let mut actual_id = photo_id_task.clone();
 
-                if photo_id_task.starts_with("__VIDEO_FRAMES__:") {
-                    let parts: Vec<&str> = photo_id_task.split("|||").collect();
-                    if parts.len() > 1 {
-                        actual_id = parts[0].replace("__VIDEO_FRAMES__:", "").to_string();
-                        for b64_raw in parts.iter().skip(1) {
-                            if abort_task.load(Ordering::SeqCst) { return; }
-                            let b64 = b64_raw.replace("data:image/jpeg;base64,", "").replace("data:image/png;base64,", "");
-                            if let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(&b64) {
-                                if let Ok(img) = image::load_from_memory(&bytes) { provided_frames.push(img.to_rgb8()); }
-                            }
+                // Fetch a batch of unindexed photos
+                let unindexed = {
+                    let lock = db.lock().unwrap();
+                    lock.get_unindexed_photos()
+                };
+
+                if unindexed.is_empty() {
+                    break;
+                }
+
+                for photo_entry in unindexed {
+                    if abort_clone.load(Ordering::SeqCst) {
+                        break;
+                    }
+
+                    let photo_id_task = photo_entry.id.clone();
+                    let photo_loc_actual = photo_entry.location.clone();
+                    let current_encoded = photo_entry.encoded.clone();
+
+                    let app_handle_task = app_handle.clone();
+                    let pending_count_task = Arc::clone(&pending_count_clone);
+                    let clip_visual_task = clip_visual.clone();
+                    let face_detector_task = face_detector.clone();
+                    let text_embeddings_task = text_embeddings.clone();
+                    let known_people_task = known_people.clone();
+                    let faces_dir_task = faces_dir.clone();
+                    let db_task = Arc::clone(&db);
+                    let sem_task = Arc::clone(&memory_semaphore);
+                    let abort_task = Arc::clone(&abort_clone);
+
+                    pool.spawn(move || {
+                        if abort_task.load(Ordering::SeqCst) {
+                            return;
                         }
-                    }
-                }
+                        let _permit = sem_task.acquire();
 
-                if abort_task.load(Ordering::SeqCst) { return; }
+                        let filename = Path::new(&photo_loc_actual)
+                            .file_name()
+                            .and_then(|n| n.to_str())
+                            .unwrap_or("unknown");
+                        emit_log(&app_handle_task, format!("Heavy Indexing: {filename}"));
 
-                let mut photo_loc = String::new();
-                {
-                    let lock = db_task.lock().unwrap();
-                    if let Ok(row) = lock.connection.query_row("SELECT location FROM photo WHERE id = ?1", [&actual_id], |r| r.get::<_, String>(0)) {
-                        photo_loc = row;
-                    }
-                }
+                        // 1. Check if high-quality thumbnail is needed (Discovery pass might only have EXIF thumb)
+                        if current_encoded.is_empty()
+                            || !current_encoded.starts_with("data:image/jpeg;base64,")
+                        {
+                            let ext = Path::new(&photo_loc_actual)
+                                .extension()
+                                .and_then(|e| e.to_str())
+                                .unwrap_or("")
+                                .to_lowercase();
+                            let is_video =
+                                ["mp4", "mkv", "mov", "avi", "webm"].contains(&ext.as_str());
 
-                if !photo_loc.is_empty() {
-                    let filename = Path::new(&photo_loc).file_name().and_then(|n| n.to_str()).unwrap_or("unknown");
-                    emit_log(&app_handle_task, format!("Processing: {filename}"));
+                            let new_encoded = if is_video {
+                                crate::file::generate_video_thumbnail(&photo_loc_actual)
+                                    .unwrap_or_default()
+                            } else {
+                                crate::file::generate_thumbnail_base64(&photo_loc_actual, 400)
+                                    .unwrap_or_default()
+                            };
 
-                    let frames = if !provided_frames.is_empty() { provided_frames }
-                    else { image::open(&photo_loc).map(|img| vec![img.to_rgb8()]).unwrap_or_default() };
-
-                    for img in frames {
-                        if abort_task.load(Ordering::SeqCst) { return; }
-                        if let Some(ref visual_model) = clip_visual_task {
-                            let resized = image::imageops::resize(&img, 224, 224, image::imageops::FilterType::Triangle);
-                            let mut input_img = Array4::<f32>::zeros((1, 3, 224, 224));
-                            for (x, y, pixel) in resized.enumerate_pixels() {
-                                input_img[[0, 0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.48145466) / 0.26862954;
-                                input_img[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.4578275) / 0.2613026;
-                                input_img[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.40821073) / 0.2757771;
-                            }
-
-                            if let Ok(data) = visual_model.run(input_img, "pixel_values") {
-                                let mut visual_embedding = data;
-                                let visual_norm: f32 = visual_embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
-                                if visual_norm > 0.0 { for v in visual_embedding.iter_mut() { *v /= visual_norm; } }
-
-                                let mut similarities = Vec::new();
-                                for (text_label, text_embedding) in text_embeddings_task.iter() {
-                                    let dot_product: f32 = visual_embedding.iter().zip(text_embedding.iter()).map(|(a, b)| a * b).sum();
-                                    similarities.push((text_label, dot_product));
-                                }
-                                similarities.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
-                                let top_tags: Vec<String> = similarities.iter()
-                                    .take(3)
-                                    .filter(|s| s.1 > 0.26)
-                                    .map(|s| s.0.clone())
-                                    .collect();
-
-                                if !top_tags.is_empty() {
-                                    emit_log(&app_handle_task, format!("  Tags: {}", top_tags.join(", ")));
-                                }
-
+                            if !new_encoded.is_empty() {
                                 let lock = db_task.lock().unwrap();
-                                for (class_name, score) in similarities.iter().take(5) {
-                                    let _ = lock.connection.execute("INSERT INTO object (photo_id, class, probability) VALUES(?1, ?2, ?3)", (&actual_id, class_name, &score.to_string()));
-                                }
+                                lock.update_photo_thumbnail(&photo_id_task, &new_encoded);
                             }
                         }
 
-                        if let Some(ref face_model) = face_detector_task {
-                            let (orig_w, orig_h) = (img.width() as f32, img.height() as f32);
-                            let resized = image::imageops::resize(&img, 320, 240, image::imageops::FilterType::Triangle);
-                            let mut input = Array4::<f32>::zeros((1, 3, 240, 320));
-                            for (x, y, pixel) in resized.enumerate_pixels() {
-                                input[[0, 0, y as usize, x as usize]] = (pixel[0] as f32 - 127.0) / 128.0;
-                                input[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 - 127.0) / 128.0;
-                                input[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 - 127.0) / 128.0;
-                            }
+                        // 2. Load Image for AI
+                        let image_res = image::open(&photo_loc_actual);
+                        if let Ok(dynamic_img) = image_res {
+                            let img = dynamic_img.to_rgb8();
 
-                            if let Ok(data) = face_model.run(input, "input") {
-                                let total_elements = data.len();
-                                if total_elements >= 4420 * 6 {
-                                    let scores = &data[..4420*2];
-                                    let boxes = &data[4420*2..];
-                                    let anchors = crate::face_detector::generate_anchors();
-                                    let mut proposals = Vec::new();
-                                    for i in 0..anchors.len() {
-                                        let score = scores[i * 2 + 1];
-                                        if score > 0.6 {
-                                            let loc = [boxes[i * 4], boxes[i * 4 + 1], boxes[i * 4 + 2], boxes[i * 4 + 3]];
-                                            let decoded = crate::face_detector::decode(&loc, &anchors[i]);
-                                            proposals.push((decoded, score));
+                            // CLIP Visual
+                            if let Some(ref visual_model) = clip_visual_task {
+                                let resized = image::imageops::resize(
+                                    &img,
+                                    224,
+                                    224,
+                                    image::imageops::FilterType::Triangle,
+                                );
+                                let mut input_img = Array4::<f32>::zeros((1, 3, 224, 224));
+                                for (x, y, pixel) in resized.enumerate_pixels() {
+                                    input_img[[0, 0, y as usize, x as usize]] =
+                                        (pixel[0] as f32 / 255.0 - 0.48145466) / 0.26862954;
+                                    input_img[[0, 1, y as usize, x as usize]] =
+                                        (pixel[1] as f32 / 255.0 - 0.4578275) / 0.2613026;
+                                    input_img[[0, 2, y as usize, x as usize]] =
+                                        (pixel[2] as f32 / 255.0 - 0.40821073) / 0.2757771;
+                                }
+
+                                if let Ok(data) = visual_model.run(input_img, "pixel_values") {
+                                    let mut visual_embedding = data;
+                                    let visual_norm: f32 = visual_embedding
+                                        .iter()
+                                        .map(|x| x * x)
+                                        .sum::<f32>()
+                                        .sqrt();
+                                    if visual_norm > 0.0 {
+                                        for v in visual_embedding.iter_mut() {
+                                            *v /= visual_norm;
                                         }
                                     }
-                                    let keep = crate::face_detector::nms(&mut proposals, 0.3);
 
-                                    if !keep.is_empty() {
-                                        emit_log(&app_handle_task, format!("  Faces: {} found", keep.len()));
+                                    let mut similarities = Vec::new();
+                                    for (text_label, text_embedding) in text_embeddings_task.iter() {
+                                        let dot_product: f32 = visual_embedding
+                                            .iter()
+                                            .zip(text_embedding.iter())
+                                            .map(|(a, b)| a * b)
+                                            .sum();
+                                        similarities.push((text_label, dot_product));
                                     }
+                                    similarities.sort_by(|a, b| {
+                                        b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal)
+                                    });
 
-                                    for &idx in &keep {
-                                        let bbox = proposals[idx].0;
-                                        let xmin = (bbox[0] * orig_w).max(0.0) as u32;
-                                        let ymin = (bbox[1] * orig_h).max(0.0) as u32;
-                                        let xmax = (bbox[2] * orig_w).min(orig_w) as u32;
-                                        let ymax = (bbox[3] * orig_h).min(orig_h) as u32;
-                                        if xmax > xmin && ymax > ymin {
-                                            let (w, h) = (xmax - xmin, ymax - ymin);
-                                            if w > 20 && h > 20 {
-                                                let face_crop = image::imageops::crop_imm(&img, xmin, ymin, w, h).to_image();
-                                                let face_id = format!("{actual_id}_face_{xmin}_{ymin}");
-                                                let crop_path = format!("{faces_dir_task}/{face_id}.jpg");
-                                                if face_crop.save(&crop_path).is_ok() {
-                                                    let mut face_embedding = Vec::new();
-                                                    if let Some(ref visual_model) = clip_visual_task {
-                                                        let face_resized = image::imageops::resize(&face_crop, 224, 224, image::imageops::FilterType::Triangle);
-                                                        let mut face_input = Array4::<f32>::zeros((1, 3, 224, 224));
-                                                        for (x, y, pixel) in face_resized.enumerate_pixels() {
-                                                            face_input[[0, 0, y as usize, x as usize]] = (pixel[0] as f32 / 255.0 - 0.48145466) / 0.26862954;
-                                                            face_input[[0, 1, y as usize, x as usize]] = (pixel[1] as f32 / 255.0 - 0.4578275) / 0.2613026;
-                                                            face_input[[0, 2, y as usize, x as usize]] = (pixel[2] as f32 / 255.0 - 0.40821073) / 0.2757771;
-                                                        }
-                                                        if let Ok(emb) = visual_model.run(face_input, "pixel_values") {
-                                                            let mut e = emb;
-                                                            let norm: f32 = e.iter().map(|x| x * x).sum::<f32>().sqrt();
-                                                            if norm > 0.0 { for v in e.iter_mut() { *v /= norm; } }
-                                                            face_embedding = e;
-                                                        }
-                                                    }
+                                    let lock = db_task.lock().unwrap();
+                                    for (class_name, score) in similarities.iter().take(5) {
+                                        let _ = lock.connection.execute(
+                                            "INSERT INTO object (photo_id, class, probability) VALUES(?1, ?2, ?3)",
+                                            (&photo_id_task, class_name, &score.to_string()),
+                                        );
+                                    }
+                                }
+                            }
 
-                                                    let mut assigned_person_id = None;
-                                                    if !face_embedding.is_empty() {
-                                                        if let Ok(mut lock) = known_people_task.lock() {
-                                                            let mut highest_similarity = 0.0f32;
-                                                            let mut best_match_id = None;
-                                                            for (person_id, person_centroid) in lock.iter() {
-                                                                let dot_product: f32 = face_embedding.iter().zip(person_centroid.iter()).map(|(a, b)| a * b).sum();
-                                                                if dot_product > highest_similarity {
-                                                                    highest_similarity = dot_product;
-                                                                    best_match_id = Some(person_id.clone());
+                            // Face Detection
+                            if let Some(ref face_model) = face_detector_task {
+                                let (orig_w, orig_h) = (img.width() as f32, img.height() as f32);
+                                let resized = image::imageops::resize(
+                                    &img,
+                                    320,
+                                    240,
+                                    image::imageops::FilterType::Triangle,
+                                );
+                                let mut input = Array4::<f32>::zeros((1, 3, 240, 320));
+                                for (x, y, pixel) in resized.enumerate_pixels() {
+                                    input[[0, 0, y as usize, x as usize]] =
+                                        (pixel[0] as f32 - 127.0) / 128.0;
+                                    input[[0, 1, y as usize, x as usize]] =
+                                        (pixel[1] as f32 - 127.0) / 128.0;
+                                    input[[0, 2, y as usize, x as usize]] =
+                                        (pixel[2] as f32 - 127.0) / 128.0;
+                                }
+
+                                if let Ok(data) = face_model.run(input, "input") {
+                                    if data.len() >= 4420 * 6 {
+                                        let scores = &data[..4420 * 2];
+                                        let boxes = &data[4420 * 2..];
+                                        let anchors = crate::face_detector::generate_anchors();
+                                        let mut proposals = Vec::new();
+                                        for i in 0..anchors.len() {
+                                            let score = scores[i * 2 + 1];
+                                            if score > 0.6 {
+                                                let loc = [
+                                                    boxes[i * 4],
+                                                    boxes[i * 4 + 1],
+                                                    boxes[i * 4 + 2],
+                                                    boxes[i * 4 + 3],
+                                                ];
+                                                let decoded =
+                                                    crate::face_detector::decode(&loc, &anchors[i]);
+                                                proposals.push((decoded, score));
+                                            }
+                                        }
+                                        let keep = crate::face_detector::nms(&mut proposals, 0.3);
+
+                                        for &idx in &keep {
+                                            let bbox = proposals[idx].0;
+                                            let xmin = (bbox[0] * orig_w).max(0.0) as u32;
+                                            let ymin = (bbox[1] * orig_h).max(0.0) as u32;
+                                            let xmax = (bbox[2] * orig_w).min(orig_w) as u32;
+                                            let ymax = (bbox[3] * orig_h).min(orig_h) as u32;
+                                            if xmax > xmin && ymax > ymin {
+                                                let (w, h) = (xmax - xmin, ymax - ymin);
+                                                if w > 20 && h > 20 {
+                                                    let face_crop = image::imageops::crop_imm(
+                                                        &img, xmin, ymin, w, h,
+                                                    )
+                                                    .to_image();
+                                                    let face_id = format!(
+                                                        "{photo_id_task}_face_{xmin}_{ymin}"
+                                                    );
+                                                    let crop_path =
+                                                        format!("{faces_dir_task}/{face_id}.jpg");
+                                                    if face_crop.save(&crop_path).is_ok() {
+                                                        let mut face_embedding = Vec::new();
+                                                        if let Some(ref visual_model) =
+                                                            clip_visual_task
+                                                        {
+                                                            let face_resized =
+                                                                image::imageops::resize(
+                                                                    &face_crop,
+                                                                    224,
+                                                                    224,
+                                                                    image::imageops::FilterType::Triangle,
+                                                                );
+                                                            let mut face_input =
+                                                                Array4::<f32>::zeros((1, 3, 224, 224));
+                                                            for (x, y, pixel) in
+                                                                face_resized.enumerate_pixels()
+                                                            {
+                                                                face_input
+                                                                    [[0, 0, y as usize, x as usize]] =
+                                                                    (pixel[0] as f32 / 255.0
+                                                                        - 0.48145466)
+                                                                        / 0.26862954;
+                                                                face_input
+                                                                    [[0, 1, y as usize, x as usize]] =
+                                                                    (pixel[1] as f32 / 255.0
+                                                                        - 0.4578275)
+                                                                        / 0.2613026;
+                                                                face_input
+                                                                    [[0, 2, y as usize, x as usize]] =
+                                                                    (pixel[2] as f32 / 255.0
+                                                                        - 0.40821073)
+                                                                        / 0.2757771;
+                                                            }
+                                                            if let Ok(emb) = visual_model
+                                                                .run(face_input, "pixel_values")
+                                                            {
+                                                                let mut e = emb;
+                                                                let norm: f32 = e
+                                                                    .iter()
+                                                                    .map(|x| x * x)
+                                                                    .sum::<f32>()
+                                                                    .sqrt();
+                                                                if norm > 0.0 {
+                                                                    for v in e.iter_mut() {
+                                                                        *v /= norm;
+                                                                    }
+                                                                }
+                                                                face_embedding = e;
+                                                            }
+                                                        }
+
+                                                        let mut assigned_person_id = None;
+                                                        if !face_embedding.is_empty() {
+                                                            if let Ok(mut lock) =
+                                                                known_people_task.lock()
+                                                            {
+                                                                let mut highest_similarity = 0.0f32;
+                                                                let mut best_match_id = None;
+                                                                for (person_id, person_centroid) in
+                                                                    lock.iter()
+                                                                {
+                                                                    let dot_product: f32 =
+                                                                        face_embedding
+                                                                            .iter()
+                                                                            .zip(
+                                                                                person_centroid
+                                                                                    .iter(),
+                                                                            )
+                                                                            .map(|(a, b)| a * b)
+                                                                            .sum();
+                                                                    if dot_product
+                                                                        > highest_similarity
+                                                                    {
+                                                                        highest_similarity =
+                                                                            dot_product;
+                                                                        best_match_id =
+                                                                            Some(person_id.clone());
+                                                                    }
+                                                                }
+                                                                if highest_similarity > 0.75 {
+                                                                    assigned_person_id =
+                                                                        best_match_id;
+                                                                } else {
+                                                                    let lock_db =
+                                                                        db_task.lock().unwrap();
+                                                                    let new_id = lock_db
+                                                                        .create_anonymous_person(
+                                                                            &face_embedding,
+                                                                        );
+                                                                    lock.push((
+                                                                        new_id.clone(),
+                                                                        face_embedding.clone(),
+                                                                    ));
+                                                                    assigned_person_id =
+                                                                        Some(new_id);
                                                                 }
                                                             }
-                                                            if highest_similarity > 0.75 {
-                                                                assigned_person_id = best_match_id;
-                                                                emit_log(&app_handle_task, "    Match: Linked to existing profile".to_string());
-                                                            }
-                                                            else {
-                                                                let lock_db = db_task.lock().unwrap();
-                                                                let new_id = lock_db.create_anonymous_person(&face_embedding);
-                                                                lock.push((new_id.clone(), face_embedding.clone()));
-                                                                assigned_person_id = Some(new_id);
-                                                                emit_log(&app_handle_task, "    Match: Created new identity profile".to_string());
-                                                            }
+                                                        } else {
+                                                            let lock_db = db_task.lock().unwrap();
+                                                            let new_id = lock_db
+                                                                .create_anonymous_person(&[]);
+                                                            assigned_person_id = Some(new_id);
                                                         }
-                                                    } else {
-                                                        // FALLBACK: If CLIP fails, still create profile so face appears in UI
-                                                        let lock_db = db_task.lock().unwrap();
-                                                        let new_id = lock_db.create_anonymous_person(&[]);
-                                                        assigned_person_id = Some(new_id);
-                                                        emit_log(&app_handle_task, "    Match: Created basic profile (No CLIP)".to_string());
-                                                    }
 
-                                                    let mut buffer = std::io::Cursor::new(Vec::new());
-                                                    let _ = face_crop.write_to(&mut buffer, image::ImageOutputFormat::Jpeg(80));
-                                                    let encoded = format!("data:image/jpeg;base64,{}", base64::engine::general_purpose::STANDARD.encode(buffer.get_ref()));
-                                                    let lock = db_task.lock().unwrap();
-                                                    lock.store_face(Face { photo_id: actual_id.clone(), face_id: face_id.clone(), crop_path, encoded, embedding: face_embedding, person_id: assigned_person_id });
+                                                        let mut buffer =
+                                                            std::io::Cursor::new(Vec::new());
+                                                        let _ = face_crop.write_to(
+                                                            &mut buffer,
+                                                            image::ImageOutputFormat::Jpeg(80),
+                                                        );
+                                                        let encoded = format!(
+                                                            "data:image/jpeg;base64,{}",
+                                                            base64::engine::general_purpose::STANDARD
+                                                                .encode(buffer.get_ref())
+                                                        );
+                                                        let lock = db_task.lock().unwrap();
+                                                        lock.store_face(Face {
+                                                            photo_id: photo_id_task.clone(),
+                                                            face_id: face_id.clone(),
+                                                            crop_path,
+                                                            encoded,
+                                                            embedding: face_embedding,
+                                                            person_id: assigned_person_id,
+                                                        });
+                                                    }
                                                 }
                                             }
                                         }
@@ -660,29 +788,35 @@ pub fn start_background_worker(
                                 }
                             }
                         }
-                    }
 
-                    // Proactively notify peer with FULL AI data now that ML is done
-                    {
-                        let lock = db_task.lock().unwrap();
-                        let _ = lock.connection.execute("UPDATE photo SET sync_needed = 1 WHERE id = ?1", [&actual_id]);
-                    }
+                        // Mark as FULLY INDEXED
+                        {
+                            let lock = db_task.lock().unwrap();
+                            lock.update_photo_indexed(&photo_id_task, 2);
+                            let _ = lock.connection.execute(
+                                "UPDATE photo SET sync_needed = 1 WHERE id = ?1",
+                                [&photo_id_task],
+                            );
+                        }
 
-                    if let Some(state) = app_handle_task.try_state::<crate::WebRtcState>() {
-                        let mut tx_lock = state.sync_tx.blocking_lock();
-                        if let Some(tx) = tx_lock.as_mut() {
-                            let db = db_task.lock().unwrap();
-                            if let Ok(info) = db.get_photo_sync_info_by_id(&actual_id) {
-                                let _ = tx.send(crate::transport::SyncMessage::SyncFile {
-                                    photo: info
-                                });
+                        // Proactively notify peer with FULL AI data
+                        if let Some(state) = app_handle_task.try_state::<crate::WebRtcState>() {
+                            let mut tx_lock = state.sync_tx.blocking_lock();
+                            if let Some(tx) = tx_lock.as_mut() {
+                                let db = db_task.lock().unwrap();
+                                if let Ok(info) = db.get_photo_sync_info_by_id(&photo_id_task) {
+                                    let _ = tx.send(crate::transport::SyncMessage::SyncFile {
+                                        photo: info,
+                                    });
+                                }
                             }
                         }
-                    }
+
+                        let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
+                        let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
+                    });
                 }
-                let current = pending_count_task.fetch_sub(1, Ordering::SeqCst);
-                let _ = app_handle_task.emit("indexing-progress", current.saturating_sub(1));
-            });
+            }
         }
     });
     (tx, pending_count, abort)

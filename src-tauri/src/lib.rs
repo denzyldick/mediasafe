@@ -39,15 +39,33 @@ fn scan_files(app: tauri::AppHandle) {
     let folders = database.list_directories();
     println!("Found {} folders to scan in database.", folders.len());
 
+    if !folders.is_empty() {
+        use tauri_plugin_notification::NotificationExt;
+        let _ = app
+            .notification()
+            .builder()
+            .title("Siegu")
+            .body(format!("Started scanning {} folder(s)...", folders.len()))
+            .show();
+    }
+
     let state = app.state::<ml::MlContext>();
     state
         .abort
         .store(false, std::sync::atomic::Ordering::SeqCst);
 
+    // Initial signal to process any leftovers from previous runs
+    let _ = state.tx.lock().unwrap().send("__START__".to_string());
+
     let abort_flag = Arc::clone(&state.abort);
 
     std::thread::spawn(move || {
         let total = folders.len();
+        if total == 0 {
+            println!("No folders to scan. Skipping scan thread.");
+            return;
+        }
+
         for (i, folder) in folders.iter().enumerate() {
             if abort_flag.load(std::sync::atomic::Ordering::SeqCst) {
                 println!("Scan aborted by user.");
@@ -79,6 +97,11 @@ fn scan_files(app: tauri::AppHandle) {
             .title("Siegu")
             .body("Media scan complete")
             .show();
+
+        // Final signal to process everything found in the discovery pass
+        if let Some(state) = app.try_state::<ml::MlContext>() {
+            let _ = state.tx.lock().unwrap().send("__START__".to_string());
+        }
     });
 }
 

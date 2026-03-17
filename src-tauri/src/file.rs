@@ -94,10 +94,10 @@ fn emit_log(app: &tauri::AppHandle, message: String) {
 ///
 /// This is will scan a folder recursively and store all the images in the database.
 pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
-    let database = database::Database::new(path);
+    let db_instance = database::Database::new(path);
 
     // Load thread config
-    let config = database.get_state();
+    let config = db_instance.get_state();
     let num_threads: usize = config
         .get("scan_threads")
         .and_then(|s| s.parse().ok())
@@ -105,13 +105,13 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
             if cfg!(any(target_os = "android", target_os = "ios")) {
                 2
             } else {
-                4
+                num_cpus::get()
             }
         });
 
     emit_log(
         app,
-        format!("Scanning with {num_threads} threads in: {directory}"),
+        format!("Starting Discovery Pass with {num_threads} threads in: {directory}"),
     );
 
     // Collect all valid image and video paths first
@@ -145,7 +145,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
     }
 
     use std::sync::{Arc, Mutex};
-    let database = Arc::new(Mutex::new(database));
+    let database_arc = Arc::new(Mutex::new(db_instance));
     let app_handle = Arc::new(app.clone());
     let abort_flag_task = Arc::clone(&abort_flag);
 
@@ -161,7 +161,7 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
             if abort_flag_task.load(Ordering::SeqCst) {
                 return;
             }
-            let db = database.lock().unwrap();
+            let db = database_arc.lock().unwrap();
             let path_str = path.display().to_string();
             if db.path_exists(&path_str) {
                 return;
@@ -181,108 +181,94 @@ pub fn scan_folder(app: &tauri::AppHandle, directory: String, path: &str) {
                 .to_lowercase();
             let is_video = ["mp4", "mkv", "mov", "avi", "webm"].contains(&ext.as_str());
 
+            let mut latitude = 0.0;
+            let mut longitude = 0.0;
+            let mut created = String::new();
+            let encoded = String::new();
+
             if let Ok(file) = File::open(path.clone()) {
                 let mut buff = BufReader::new(&file);
 
-                let mut latitude = 0.0;
-                let mut longitude = 0.0;
-                let mut created = String::new();
-
-                let properties = match Reader::new().read_from_container(&mut buff) {
-                    Ok(exif) => {
-                        let mut props = HashMap::new();
-                        for f in exif.fields() {
-                            props.insert(f.tag.to_string(), f.display_value().to_string());
-                        }
-
-                        // Extract Created Date
-                        if let Some(date_field) = exif
-                            .get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY)
-                            .or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY))
-                        {
-                            created = format!("{}", date_field.display_value());
-                        }
-
-                        // Extract GPS Coordinates
-                        if let (Some(lat_field), Some(lat_ref)) = (
-                            exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY),
-                            exif.get_field(exif::Tag::GPSLatitudeRef, exif::In::PRIMARY),
-                        ) {
-                            if let exif::Value::Rational(lat_values) = &lat_field.value {
-                                if lat_values.len() == 3 {
-                                    let lat = lat_values[0].to_f64()
-                                        + lat_values[1].to_f64() / 60.0
-                                        + lat_values[2].to_f64() / 3600.0;
-                                    latitude = if format!("{}", lat_ref.display_value()) == "S" {
-                                        -lat
-                                    } else {
-                                        lat
-                                    };
-                                    println!("DEBUG: Extracted latitude: {latitude}");
-                                }
-                            }
-                        }
-
-                        if let (Some(lon_field), Some(lon_ref)) = (
-                            exif.get_field(exif::Tag::GPSLongitude, exif::In::PRIMARY),
-                            exif.get_field(exif::Tag::GPSLongitudeRef, exif::In::PRIMARY),
-                        ) {
-                            if let exif::Value::Rational(lon_values) = &lon_field.value {
-                                if lon_values.len() == 3 {
-                                    let lon = lon_values[0].to_f64()
-                                        + lon_values[1].to_f64() / 60.0
-                                        + lon_values[2].to_f64() / 3600.0;
-                                    longitude = if format!("{}", lon_ref.display_value()) == "W" {
-                                        -lon
-                                    } else {
-                                        lon
-                                    };
-                                    println!("DEBUG: Extracted longitude: {longitude}");
-                                }
-                            }
-                        }
-
-                        props
+                if let Ok(exif) = Reader::new().read_from_container(&mut buff) {
+                    // Extract Created Date
+                    if let Some(date_field) = exif
+                        .get_field(exif::Tag::DateTimeOriginal, exif::In::PRIMARY)
+                        .or_else(|| exif.get_field(exif::Tag::DateTime, exif::In::PRIMARY))
+                    {
+                        created = format!("{}", date_field.display_value());
                     }
-                    Err(_) => HashMap::new(),
-                };
 
-                let encoded = if is_video {
-                    generate_video_thumbnail(path.to_str().unwrap()).unwrap_or_default()
-                } else {
-                    generate_thumbnail_base64(path.to_str().unwrap(), 400).unwrap_or_default()
-                };
+                    // Extract GPS Coordinates
+                    if let (Some(lat_field), Some(lat_ref)) = (
+                        exif.get_field(exif::Tag::GPSLatitude, exif::In::PRIMARY),
+                        exif.get_field(exif::Tag::GPSLatitudeRef, exif::In::PRIMARY),
+                    ) {
+                        if let exif::Value::Rational(lat_values) = &lat_field.value {
+                            if lat_values.len() == 3 {
+                                let lat = lat_values[0].to_f64()
+                                    + lat_values[1].to_f64() / 60.0
+                                    + lat_values[2].to_f64() / 3600.0;
+                                latitude = if format!("{}", lat_ref.display_value()) == "S" {
+                                    -lat
+                                } else {
+                                    lat
+                                };
+                            }
+                        }
+                    }
 
-                let photo = database::Photo {
-                    id: id.clone(),
-                    encoded,
-                    location: path.display().to_string(),
-                    created,
-                    objects: HashMap::new(),
-                    properties,
-                    latitude,
-                    longitude,
-                    favorite: false,
-                };
-
-                {
-                    let db_lock = database.lock().unwrap();
-                    db_lock.store_photo(photo.clone());
+                    if let (Some(lon_field), Some(lon_ref)) = (
+                        exif.get_field(exif::Tag::GPSLongitude, exif::In::PRIMARY),
+                        exif.get_field(exif::Tag::GPSLongitudeRef, exif::In::PRIMARY),
+                    ) {
+                        if let exif::Value::Rational(lon_values) = &lon_field.value {
+                            if lon_values.len() == 3 {
+                                let lon = lon_values[0].to_f64()
+                                    + lon_values[1].to_f64() / 60.0
+                                    + lon_values[2].to_f64() / 3600.0;
+                                longitude = if format!("{}", lon_ref.display_value()) == "W" {
+                                    -lon
+                                } else {
+                                    lon
+                                };
+                            }
+                        }
+                    }
                 }
+            }
 
-                let _ = app_handle.emit("photo-scanned", photo);
+            // If we didn't get an EXIF thumbnail, the background worker will generate one later.
+            // For now, we store with what we have to get it in the UI fast.
+            let db_lock = database_arc.lock().unwrap();
+            db_lock.store_photo_metadata(&id, &path_str, &encoded, &created, latitude, longitude);
 
-                if let Some(state) = app_handle.try_state::<MlContext>() {
-                    state
-                        .pending_count
-                        .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                    let _ = state.tx.lock().unwrap().send(id);
-                }
+            let photo = database::Photo {
+                id: id.clone(),
+                encoded,
+                location: path_str,
+                created,
+                objects: HashMap::new(),
+                properties: HashMap::new(),
+                latitude,
+                longitude,
+                favorite: false,
+                indexed: 1,
+            };
+            drop(db_lock);
+
+            let _ = app_handle.emit("photo-scanned", photo);
+
+            // Signal the background worker that there is work to do
+            if let Some(state) = app_handle.try_state::<MlContext>() {
+                state
+                    .pending_count
+                    .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                let _ = state.tx.lock().unwrap().send(id);
             }
         });
     });
 
-    emit_log(app, "Done scanning all photos".to_string());
+    emit_log(app, "Done with Discovery Pass".to_string());
 }
 
 fn generate_video_thumbnail_base64(
@@ -338,7 +324,7 @@ fn generate_video_thumbnail_base64(
     Ok(format!("data:image/jpeg;base64,{encoded}"))
 }
 
-fn generate_thumbnail_base64(
+pub fn generate_thumbnail_base64(
     input_path: &str,
     max_dimension: u32,
 ) -> Result<String, Box<dyn std::error::Error>> {

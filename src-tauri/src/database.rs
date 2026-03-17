@@ -175,7 +175,10 @@ impl Database {
         let _ = fs::create_dir_all(config_path);
         let conn = Connection::open(&path).expect("Failed to open database connection");
 
-        let _ = conn.execute("CREATE TABLE IF NOT EXISTS photo (id STRING PRIMARY KEY, location STRING, encoded STRING, created DATE_TIME, latitude REAL, longitude REAL);", ());
+        // Enable WAL mode for better concurrency
+        let _ = conn.execute("PRAGMA journal_mode=WAL;", ());
+
+        let _ = conn.execute("CREATE TABLE IF NOT EXISTS photo (id STRING PRIMARY KEY, location STRING, encoded STRING, created DATE_TIME, latitude REAL, longitude REAL, indexed INTEGER DEFAULT 0);", ());
 
         // Simple migration: try to add columns if they don't exist (ignore errors if they do)
         let _ = conn.execute("ALTER TABLE photo ADD COLUMN latitude REAL;", ());
@@ -185,6 +188,10 @@ impl Database {
             "ALTER TABLE photo ADD COLUMN sync_needed INTEGER DEFAULT 0;",
             (),
         );
+        let _ = conn.execute(
+            "ALTER TABLE photo ADD COLUMN indexed INTEGER DEFAULT 0;",
+            (),
+        );
 
         let _ = conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_photo_location ON photo(location);",
@@ -192,6 +199,10 @@ impl Database {
         );
         let _ = conn.execute(
             "CREATE INDEX IF NOT EXISTS idx_photo_created ON photo(created);",
+            (),
+        );
+        let _ = conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_photo_indexed ON photo(indexed);",
             (),
         );
         let _ = conn.execute("CREATE TABLE IF NOT EXISTS directory (name STRING);", ());
@@ -284,7 +295,7 @@ impl Database {
 
     pub fn store_photo(&self, photo: Photo) {
         let _ = self.connection.execute(
-            "INSERT OR REPLACE INTO photo(id, location, encoded, latitude, longitude, created) VALUES(?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT OR REPLACE INTO photo(id, location, encoded, latitude, longitude, created, indexed) VALUES(?1, ?2, ?3, ?4, ?5, ?6, 2)",
             (&photo.id, &photo.location, &photo.encoded, &photo.latitude, &photo.longitude, &photo.created),
         );
         for (object, probability) in photo.objects {
@@ -352,7 +363,7 @@ impl Database {
             ""
         };
 
-        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE 1=1 {fav_filter} {video_filter} {q_filter} ORDER BY p.created DESC LIMIT ?1, ?2");
+        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE 1=1 {fav_filter} {video_filter} {q_filter} ORDER BY p.created DESC LIMIT ?1, ?2");
         if let Ok(mut stmt) = self.connection.prepare(&sql) {
             let q_param = if is_uuid {
                 query.to_string()
@@ -375,6 +386,7 @@ impl Database {
                     latitude: row.get(3).unwrap_or(0.0),
                     longitude: row.get(4).unwrap_or(0.0),
                     favorite: row.get(6).unwrap_or(false),
+                    indexed: row.get(7).unwrap_or(0),
                 })
             }) {
                 for p in iter.flatten() {
@@ -411,11 +423,12 @@ impl Database {
 
     pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p WHERE p.latitude != 0.0 OR p.longitude != 0.0") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE p.latitude != 0.0 OR p.longitude != 0.0") {
             if let Ok(iter) = stmt.query_map([], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
                     objects: HashMap::new(), properties: HashMap::new(), latitude: row.get(3).unwrap_or(0.0), longitude: row.get(4).unwrap_or(0.0), favorite: row.get(6).unwrap_or(false),
+                    indexed: row.get(7).unwrap_or(0),
                 })
             }) {
                 for p in iter.flatten() { photos.push(p); }
@@ -629,11 +642,12 @@ impl Database {
 
     pub fn get_photos_for_person(&self, person_id: &str) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite') FROM photo p JOIN faces f ON p.id = f.photo_id WHERE f.person_id = ?1 GROUP BY p.id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p JOIN faces f ON p.id = f.photo_id WHERE f.person_id = ?1 GROUP BY p.id") {
             if let Ok(iter) = stmt.query_map([person_id], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
                     objects: HashMap::new(), properties: HashMap::new(), latitude: row.get(3).unwrap_or(0.0), longitude: row.get(4).unwrap_or(0.0), favorite: row.get(6).unwrap_or(false),
+                    indexed: 2, // These are linked photos, so they must be indexed
                 })
             }) {
                 for p in iter.flatten() { photos.push(p); }
@@ -818,9 +832,56 @@ impl Database {
         }
         results
     }
+
+    pub fn store_photo_metadata(
+        &self,
+        id: &str,
+        location: &str,
+        encoded: &str,
+        created: &str,
+        latitude: f64,
+        longitude: f64,
+    ) {
+        let _ = self.connection.execute(
+            "INSERT OR REPLACE INTO photo(id, location, encoded, created, latitude, longitude, indexed) VALUES(?1, ?2, ?3, ?4, ?5, ?6, 1)",
+            (id, location, encoded, created, latitude, longitude),
+        );
+    }
+
+    pub fn update_photo_indexed(&self, id: &str, indexed: i32) {
+        let _ = self
+            .connection
+            .execute("UPDATE photo SET indexed = ?1 WHERE id = ?2", (indexed, id));
+    }
+
+    pub fn get_unindexed_photos(&self) -> Vec<Photo> {
+        let mut photos = Vec::new();
+        let sql = "SELECT id, location, encoded, latitude, longitude, created, indexed FROM photo WHERE indexed < 2 LIMIT 50";
+        if let Ok(mut stmt) = self.connection.prepare(sql) {
+            if let Ok(iter) = stmt.query_map([], |row| {
+                Ok(Photo {
+                    id: row.get(0)?,
+                    location: row.get(1)?,
+                    encoded: row.get(2)?,
+                    created: row.get(5).unwrap_or_default(),
+                    objects: HashMap::new(),
+                    properties: HashMap::new(),
+                    latitude: row.get(3).unwrap_or(0.0),
+                    longitude: row.get(4).unwrap_or(0.0),
+                    favorite: false,
+                    indexed: row.get(6).unwrap_or(0),
+                })
+            }) {
+                for p in iter.flatten() {
+                    photos.push(p);
+                }
+            }
+        }
+        photos
+    }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, serde::Deserialize)]
 pub struct Photo {
     pub id: String,
     pub location: String,
@@ -831,6 +892,7 @@ pub struct Photo {
     pub latitude: f64,
     pub longitude: f64,
     pub favorite: bool,
+    pub indexed: i32, // 0: new, 1: metadata only, 2: fully processed
 }
 
 #[derive(Debug, Clone, Serialize)]

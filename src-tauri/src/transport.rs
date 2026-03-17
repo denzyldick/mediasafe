@@ -614,6 +614,7 @@ impl WebRtcClient {
                                                     latitude: lat_thumb,
                                                     longitude: lon_thumb,
                                                     favorite: false,
+                                                    indexed: 2,
                                                 });
                                             });
 
@@ -915,6 +916,7 @@ impl WebRtcClient {
                                                     latitude: lat_thumb,
                                                     longitude: lon_thumb,
                                                     favorite: false,
+                                                    indexed: 2,
                                                 });
                                             });
 
