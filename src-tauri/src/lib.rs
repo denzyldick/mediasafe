@@ -73,7 +73,7 @@ fn scan_files(app: tauri::AppHandle) {
             tokio::select! {
                 _ = interval.tick() => {
                     if !buffer.is_empty() {
-                        let ui_batch: Vec<database::Photo> = buffer.iter().filter(|p| !p.encoded.is_empty()).cloned().collect();
+                        let ui_batch: Vec<database::Photo> = buffer.to_vec();
                         if !ui_batch.is_empty() {
                             let _ = app_handle_for_batch.emit("photos-discovered", &ui_batch);
                         }
@@ -90,7 +90,7 @@ fn scan_files(app: tauri::AppHandle) {
                 Some(photo) = batch_rx.recv() => {
                     buffer.push(photo);
                     if buffer.len() >= 200 { // Larger DB batches
-                        let ui_batch: Vec<database::Photo> = buffer.iter().filter(|p| !p.encoded.is_empty()).cloned().collect();
+                        let ui_batch: Vec<database::Photo> = buffer.to_vec();
                         if !ui_batch.is_empty() {
                             let _ = app_handle_for_batch.emit("photos-discovered", &ui_batch);
                         }
@@ -367,11 +367,6 @@ async fn list_files(
         videosOnly,
     ))
     .unwrap_or("[]".to_string()))
-}
-
-#[tauri::command]
-async fn get_thumbnail(_app: tauri::AppHandle, path: String) -> String {
-    file::get_thumbnail(path)
 }
 
 #[tauri::command]
@@ -728,16 +723,6 @@ async fn list_objects(app: tauri::AppHandle, query: String) -> Result<String, St
 }
 
 #[tauri::command]
-async fn update_video_thumbnail(app: tauri::AppHandle, id: String, b64: String) {
-    let path = get_config_path(&app);
-    if path.is_empty() {
-        return;
-    }
-    let db = database::Database::new(&path);
-    db.update_photo_thumbnail(&id, &b64);
-}
-
-#[tauri::command]
 fn process_video_frames(
     _app: tauri::AppHandle,
     state: tauri::State<'_, ml::MlContext>,
@@ -1021,7 +1006,6 @@ pub fn run() {
             get_logs,
             clear_logs,
             list_files,
-            get_thumbnail,
             get_last_scan_time,
             toggle_favorite,
             add_directory,
@@ -1048,7 +1032,6 @@ pub fn run() {
             start_webrtc_session,
             stop_webrtc_session,
             request_start_sync,
-            update_video_thumbnail,
             process_video_frames,
             merge_people,
             rename_person,

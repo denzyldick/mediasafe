@@ -1,8 +1,6 @@
 use crate::database;
 use base64::{engine::general_purpose, Engine as _};
 use exif::Reader;
-use image::io::Reader as ImageReader;
-use image::ImageOutputFormat;
 use jwalk::WalkDir;
 use notify::event::{CreateKind, ModifyKind};
 use notify::{EventKind, RecursiveMode, Watcher};
@@ -14,7 +12,7 @@ use std::fs;
 use std::fs::File;
 use std::path::Path;
 
-use std::io::{BufReader, Cursor};
+use std::io::BufReader;
 use std::string::String;
 
 use crate::ml::MlContext;
@@ -209,7 +207,7 @@ pub fn scan_folder(
             let mut latitude = 0.0;
             let mut longitude = 0.0;
             let mut created = String::new();
-            let mut encoded = String::new();
+            let encoded = String::new();
 
             if let Ok(file) = File::open(path) {
                 let mut buff = BufReader::new(&file);
@@ -260,34 +258,6 @@ pub fn scan_folder(
                             }
                         }
                     }
-
-                    // Extract EXIF Thumbnail for instant UI feedback
-                    if let Some(thumb_field) =
-                        exif.get_field(exif::Tag::JPEGInterchangeFormat, exif::In::THUMBNAIL)
-                    {
-                        if let Some(offset) = thumb_field.value.get_uint(0) {
-                            if let Some(length_field) = exif.get_field(
-                                exif::Tag::JPEGInterchangeFormatLength,
-                                exif::In::THUMBNAIL,
-                            ) {
-                                if let Some(length) = length_field.value.get_uint(0) {
-                                    // Rewind and read the specific thumbnail bytes
-                                    if let Ok(mut file) = File::open(path) {
-                                        use std::io::{Read, Seek, SeekFrom};
-                                        let _ = file.seek(SeekFrom::Start(offset as u64));
-                                        let mut thumb_data = vec![0u8; length as usize];
-                                        if file.read_exact(&mut thumb_data).is_ok() {
-                                            encoded = format!(
-                                                "data:image/jpeg;base64,{}",
-                                                base64::engine::general_purpose::STANDARD
-                                                    .encode(&thumb_data)
-                                            );
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
 
@@ -321,98 +291,6 @@ pub fn scan_folder(
     emit_log(app, "Done with Discovery Pass".to_string());
 }
 
-fn generate_video_thumbnail_base64(
-    input_path: &str,
-    _max_dimension: u32,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let ffmpeg_binary = ffmpeg_sidecar::paths::ffmpeg_path();
-
-    let output = std::process::Command::new(&ffmpeg_binary)
-        .arg("-ss")
-        .arg("00:00:05.000")
-        .arg("-i")
-        .arg(input_path)
-        .arg("-vframes")
-        .arg("1")
-        .arg("-vf")
-        .arg("scale=400:-1")
-        .arg("-q:v")
-        .arg("2")
-        .arg("-f")
-        .arg("image2")
-        .arg("-") // output to stdout
-        .output()?;
-
-    if !output.status.success() {
-        // Fallback: Try 0 seconds if 1 second fails (e.g. video is too short)
-        let fallback_output = std::process::Command::new(&ffmpeg_binary)
-            .arg("-ss")
-            .arg("00:00:00.000")
-            .arg("-i")
-            .arg(input_path)
-            .arg("-vframes")
-            .arg("1")
-            .arg("-vf")
-            .arg("scale=400:-1")
-            .arg("-q:v")
-            .arg("2")
-            .arg("-f")
-            .arg("image2")
-            .arg("-")
-            .output()?;
-
-        if !fallback_output.status.success() {
-            let err_msg = String::from_utf8_lossy(&fallback_output.stderr);
-            return Err(format!("FFmpeg failed: {err_msg}").into());
-        }
-
-        let encoded = general_purpose::STANDARD.encode(&fallback_output.stdout);
-        return Ok(format!("data:image/jpeg;base64,{encoded}"));
-    }
-
-    let encoded = general_purpose::STANDARD.encode(&output.stdout);
-    Ok(format!("data:image/jpeg;base64,{encoded}"))
-}
-
-pub fn generate_thumbnail_base64(
-    input_path: &str,
-    max_dimension: u32,
-) -> Result<String, Box<dyn std::error::Error>> {
-    println!("Generating thumbnail for: {input_path}");
-
-    let path = Path::new(input_path);
-    let extension = path
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or_default()
-        .to_lowercase();
-    let video_extensions = ["mp4", "mkv", "mov", "avi", "webm"];
-
-    if video_extensions.contains(&extension.as_str()) {
-        return generate_video_thumbnail_base64(input_path, max_dimension);
-    }
-
-    let img = ImageReader::open(input_path)?.decode()?;
-
-    let thumbnail = img.thumbnail(max_dimension, max_dimension);
-
-    let mut buffer = Cursor::new(Vec::new());
-    thumbnail.write_to(&mut buffer, ImageOutputFormat::Jpeg(80))?;
-
-    let encoded = general_purpose::STANDARD.encode(buffer.get_ref());
-    Ok(format!("data:image/jpeg;base64,{encoded}"))
-}
-// This will return the base64 encoded thumbnail for the image
-pub fn get_thumbnail(path: String) -> String {
-    match generate_thumbnail_base64(&path, 400) {
-        Ok(b64) => b64,
-        Err(e) => {
-            eprintln!("Failed to generate thumbnail for {path}: {e}");
-            String::new()
-        }
-    }
-}
-
 pub fn read_file_base64(path: String) -> String {
     match fs::read(&path) {
         Ok(bytes) => {
@@ -439,41 +317,6 @@ pub fn read_file_base64(path: String) -> String {
             String::new()
         }
     }
-}
-
-pub fn generate_video_thumbnail(video_path: &str) -> Option<String> {
-    use std::process::Command;
-    let temp_dir = std::env::temp_dir();
-    let unique_id = uuid::Uuid::new_v4().to_string();
-    let output_path = temp_dir.join(format!("{unique_id}.jpg"));
-
-    let status = Command::new("ffmpeg")
-        .args([
-            "-y",
-            "-ss",
-            "00:00:01",
-            "-i",
-            video_path,
-            "-frames:v",
-            "1",
-            "-q:v",
-            "4",
-            "-vf",
-            "scale=400:-1",
-            output_path.to_str().unwrap(),
-        ])
-        .status();
-
-    if let Ok(s) = status {
-        if s.success() {
-            let b64 = read_file_base64(output_path.to_str().unwrap().to_string());
-            let _ = std::fs::remove_file(&output_path);
-            if !b64.is_empty() {
-                return Some(b64);
-            }
-        }
-    }
-    None
 }
 
 mod tests {

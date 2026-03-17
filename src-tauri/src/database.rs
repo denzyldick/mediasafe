@@ -364,7 +364,7 @@ impl Database {
             ""
         };
 
-        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE p.encoded != '' {fav_filter} {video_filter} {q_filter} ORDER BY p.created DESC LIMIT ?1, ?2");
+        let sql = format!("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE 1=1 {fav_filter} {video_filter} {q_filter} ORDER BY p.created DESC LIMIT ?1, ?2");
         if let Ok(mut stmt) = self.connection.prepare(&sql) {
             let q_param = if is_uuid {
                 query.to_string()
@@ -424,7 +424,7 @@ impl Database {
 
     pub fn get_all_photos_with_location(&self) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE (p.latitude != 0.0 OR p.longitude != 0.0) AND p.encoded != ''") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p WHERE (p.latitude != 0.0 OR p.longitude != 0.0)") {
             if let Ok(iter) = stmt.query_map([], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),
@@ -643,7 +643,7 @@ impl Database {
 
     pub fn get_photos_for_person(&self, person_id: &str) -> Vec<Photo> {
         let mut photos = Vec::new();
-        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p JOIN faces f ON p.id = f.photo_id WHERE f.person_id = ?1 AND p.encoded != '' GROUP BY p.id") {
+        if let Ok(mut stmt) = self.connection.prepare("SELECT p.id, p.location, p.encoded, p.latitude, p.longitude, p.created, EXISTS(SELECT 1 FROM properties WHERE photo_id=p.id AND key='favorite'), p.indexed FROM photo p JOIN faces f ON p.id = f.photo_id WHERE f.person_id = ?1 GROUP BY p.id") {
             if let Ok(iter) = stmt.query_map([person_id], |row| {
                 Ok(Photo {
                     id: row.get(0)?, location: row.get(1)?, encoded: row.get(2)?, created: row.get(5).unwrap_or_default(),

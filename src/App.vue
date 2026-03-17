@@ -48,9 +48,6 @@ export default {
     connectionMode: 'host',
     showConnectUI: false,
     os: '',
-    thumbnailQueue: [],
-    isProcessingThumb: false,
-    thumbRequests: new Set(),
     syncStatus: {
       status: 'idle',
       progress: 0
@@ -62,15 +59,6 @@ export default {
   }),
   async mounted() {
     invoke("get_os").then(os => this.os = os);
-    
-    // Global Thumbnail Worker
-    window.addEventListener('request-thumbnail', (e) => {
-      const { id } = e.detail;
-      if (this.thumbRequests.has(id)) return;
-      this.thumbRequests.add(id);
-      this.thumbnailQueue.push(e.detail);
-      this.processThumbnailQueue();
-    });
 
     listen("download-progress", (event) => {
       const { model, downloaded, total } = event.payload;
@@ -278,53 +266,6 @@ export default {
         invoke("scan_files", { scan: true });
       }, 500);
     },
-    async processThumbnailQueue() {
-      if (this.isProcessingThumb || this.thumbnailQueue.length === 0) return;
-      
-      this.isProcessingThumb = true;
-      const item = this.thumbnailQueue.shift();
-      const video = this.$refs.thumbVideo;
-      const canvas = this.$refs.thumbCanvas;
-
-      if (!video || !canvas) {
-        this.isProcessingThumb = false;
-        return;
-      }
-
-      video.src = item.videoUrl;
-      video.onloadedmetadata = () => {
-        video.currentTime = Math.min(1, video.duration / 2);
-      };
-
-      video.onseeked = async () => {
-        try {
-          const ctx = canvas.getContext('2d');
-          canvas.width = 400;
-          canvas.height = (video.videoHeight / video.videoWidth) * 400;
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const b64 = canvas.toDataURL('image/jpeg', 0.7);
-          
-          // Save to backend DB permanently
-          await invoke("update_video_thumbnail", { id: item.id, b64 });
-          
-          // Notify any listening image components
-          window.dispatchEvent(new CustomEvent(`thumbnail-ready-${item.id}`, { detail: { b64 } }));
-        } catch (e) {
-          console.error("Worker failed to capture thumb", e);
-        }
-        
-        // Clean up and process next
-        video.src = "";
-        this.isProcessingThumb = false;
-        this.processThumbnailQueue();
-      };
-
-      video.onerror = () => {
-        video.src = "";
-        this.isProcessingThumb = false;
-        this.processThumbnailQueue();
-      };
-    },
   },
   watch: {
     query(val) {
@@ -343,12 +284,6 @@ export default {
         <span class="text-caption font-weight-bold">Downloading AI Models...</span>
       </div>
     </v-system-bar>
-
-    <!-- Hidden Thumbnail Worker -->
-    <div style="display: none;">
-      <video ref="thumbVideo" muted preload="metadata"></video>
-      <canvas ref="thumbCanvas"></canvas>
-    </div>
 
     <!-- Guided Onboarding -->
     <template v-if="clean_install">

@@ -47,18 +47,13 @@
           <!-- Bottom Thumbnail Rail -->
           <div class="thumbnail-rail-container">
             <div class="thumbnail-rail" ref="thumbnailRail">
-              <div
+              <RailItem
                 v-for="(photo, i) in photos"
                 :key="photo.id"
-                class="rail-item"
-                :class="{ 'active': i === index }"
+                :photo="photo"
+                :active="i === index"
                 @click="$emit('update:index', i)"
-              >
-                <img :src="getThumbSrc(photo)" alt="thumb" />
-                <div v-if="isVideoPhoto(photo)" class="rail-video-icon">
-                  <v-icon size="12" color="white">mdi-play</v-icon>
-                </div>
-              </div>
+              />
             </div>
           </div>
 
@@ -180,9 +175,11 @@
 
 <script>
 import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import RailItem from './RailItem.vue';
 
 export default {
   name: "PhotoViewer",
+  components: { RailItem },
   props: {
     modelValue: Boolean,
     photos: {
@@ -197,7 +194,6 @@ export default {
   emits: ['update:modelValue', 'update:index'],
   data: () => ({
     showInfo: false,
-    fullPhotoB64: '',
     os: '',
     mediaPort: null,
     detectedFaces: [],
@@ -230,7 +226,7 @@ export default {
     },
     currentPhotoSrc() {
       if (!this.currentPhoto || this.isVideo) return '';
-      return this.fullPhotoB64 || this.currentPhoto.encoded || convertFileSrc(this.currentPhoto.location);
+      return convertFileSrc(this.currentPhoto.location);
     },
     exifData() {
       if (!this.currentPhoto || !this.currentPhoto.properties) return {};
@@ -275,26 +271,10 @@ export default {
     }
   },
   methods: {
-    getThumbSrc(photo) {
-      if (!photo) return '';
-      if (photo.encoded && photo.encoded.length > 100) return photo.encoded;
-      return convertFileSrc(photo.location);
-    },
     isVideoPhoto(photo) {
       if (!photo || !photo.location) return false;
       const ext = photo.location.split('.').pop().toLowerCase();
       return ["mp4", "mkv", "mov", "avi", "webm"].includes(ext);
-    },
-    async fetchFullPhoto() {
-      this.fullPhotoB64 = '';
-      if (!this.currentPhoto || this.isVideo || !this.currentPhoto.location) return;
-
-      try {
-        const b64 = await invoke("get_raw_photo", { path: this.currentPhoto.location });
-        this.fullPhotoB64 = b64;
-      } catch (e) {
-        console.error("Failed to fetch full photo", e);
-      }
     },
     async fetchFaces() {
       if (!this.currentPhoto) return;
@@ -344,18 +324,15 @@ export default {
   },
   watch: {
     index() {
-      this.fetchFullPhoto();
       this.fetchFaces();
       this.scrollToActiveThumb();
       if (this.isVideo) this.showInfo = false;
     },
     visible(val) {
       if (val) {
-        this.fetchFullPhoto();
         this.fetchFaces();
         this.scrollToActiveThumb();
       } else {
-        this.fullPhotoB64 = '';
         this.detectedFaces = [];
       }
     }

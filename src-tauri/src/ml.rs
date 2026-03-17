@@ -528,7 +528,6 @@ pub fn start_background_worker(
 
                 let photo_id_task = photo_entry.id.clone();
                 let photo_loc_actual = photo_entry.location.clone();
-                let current_encoded = photo_entry.encoded.clone();
 
                 let app_handle_task = app_handle.clone();
                 let pending_count_task = Arc::clone(&pending_count_clone);
@@ -544,52 +543,6 @@ pub fn start_background_worker(
                     if abort_task.load(Ordering::SeqCst) {
                         return;
                     }
-
-                    // 1. Check if high-quality thumbnail is needed
-                    if current_encoded.is_empty()
-                        || !current_encoded.starts_with("data:image/jpeg;base64,")
-                    {
-                        let ext = Path::new(&photo_loc_actual)
-                            .extension()
-                            .and_then(|e| e.to_str())
-                            .unwrap_or("")
-                            .to_lowercase();
-                        let is_video =
-                            ["mp4", "mkv", "mov", "avi", "webm"].contains(&ext.as_str());
-
-                        let new_encoded = if is_video {
-                            crate::file::generate_video_thumbnail(&photo_loc_actual)
-                                .unwrap_or_default()
-                        } else {
-                            crate::file::generate_thumbnail_base64(&photo_loc_actual, 400)
-                                .unwrap_or_default()
-                        };
-
-                        if !new_encoded.is_empty() {
-                            let lock = db_task.lock().unwrap();
-                            lock.update_photo_thumbnail(&photo_id_task, &new_encoded);
-                            // CRITICAL: Notify UI that thumbnail is ready to fix "blank photos" issue
-                            if let Ok(photo) = lock.connection.query_row(
-                                "SELECT id, location, encoded, latitude, longitude, created, indexed FROM photo WHERE id = ?1",
-                                [&photo_id_task],
-                                |row| Ok(crate::database::Photo {
-                                    id: row.get(0)?,
-                                    location: row.get(1)?,
-                                    encoded: row.get(2)?,
-                                    created: row.get(5).unwrap_or_default(),
-                                    objects: std::collections::HashMap::new(),
-                                    properties: std::collections::HashMap::new(),
-                                    latitude: row.get(3).unwrap_or(0.0),
-                                    longitude: row.get(4).unwrap_or(0.0),
-                                    favorite: false,
-                                    indexed: row.get(6).unwrap_or(0),
-                                })
-                            ) {
-                                let _ = app_handle_task.emit("photo-updated", photo);
-                            }
-                        }
-                    }
-
 
                     // 2. Load Image for AI
                     let image_res = image::open(&photo_loc_actual);

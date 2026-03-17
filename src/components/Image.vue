@@ -1,43 +1,48 @@
 <template>
   <div
     class="image-item-container"
+    ref="container"
     :class="{ 'is-selected': selected, 'selection-active': selectionMode }"
     @click="handleClick"
   >
     <div class="image-wrapper shadow-sm">
-      <img :src="imageSrc" loading="lazy" alt="Photo" class="photo-img" v-if="imageSrc" />
-      <div v-else class="video-placeholder d-flex align-center justify-center h-100">
-        <v-icon color="#d4d4d8" size="32">mdi-image-outline</v-icon>
-      </div>
-      <div class="scrim-overlay"></div>
+      <template v-if="isVisible">
+        <video v-if="isVideo" :src="videoUrl + '#t=0.5'" class="photo-img" muted preload="metadata"></video>
+        <img v-else :src="imageSrc" loading="lazy" alt="Photo" class="photo-img" />
+        
+        <div class="scrim-overlay"></div>
 
-      <!-- Video Indicator -->
-      <div v-if="isVideo" class="video-indicator">
-        <v-icon color="white" size="20">mdi-play</v-icon>
-      </div>
-
-      <!-- Selection Mode UI -->
-      <div v-if="selectionMode" class="selection-indicator">
-        <div class="check-circle" :class="{ 'checked': selected }">
-          <v-icon v-if="selected" color="white" size="16">mdi-check</v-icon>
+        <!-- Video Indicator -->
+        <div v-if="isVideo" class="video-indicator">
+          <v-icon color="white" size="20">mdi-play</v-icon>
         </div>
-      </div>
 
-      <!-- Favorite Button -->
-      <button
-        v-if="!selectionMode"
-        class="action-btn favorite-action"
-        :class="{ 'is-fav': isFavorite }"
-        @click.stop="toggleFavorite"
-      >
-        <v-icon size="18" :color="isFavorite ? '#ef4444' : 'white'">
-          {{ isFavorite ? 'mdi-heart' : 'mdi-heart-outline' }}
-        </v-icon>
-      </button>
+        <!-- Selection Mode UI -->
+        <div v-if="selectionMode" class="selection-indicator">
+          <div class="check-circle" :class="{ 'checked': selected }">
+            <v-icon v-if="selected" color="white" size="16">mdi-check</v-icon>
+          </div>
+        </div>
 
-      <!-- AI Tags -->
-      <div class="ai-tags-preview" v-if="tags.length > 0 && !selectionMode">
-        <span v-for="tag in tags" :key="tag" class="tag-pill">{{ tag }}</span>
+        <!-- Favorite Button -->
+        <button
+          v-if="!selectionMode"
+          class="action-btn favorite-action"
+          :class="{ 'is-fav': isFavorite }"
+          @click.stop="toggleFavorite"
+        >
+          <v-icon size="18" :color="isFavorite ? '#ef4444' : 'white'">
+            {{ isFavorite ? 'mdi-heart' : 'mdi-heart-outline' }}
+          </v-icon>
+        </button>
+
+        <!-- AI Tags -->
+        <div class="ai-tags-preview" v-if="tags.length > 0 && !selectionMode">
+          <span v-for="tag in tags" :key="tag" class="tag-pill">{{ tag }}</span>
+        </div>
+      </template>
+      <div v-else class="viewport-placeholder h-100 w-100 d-flex align-center justify-center">
+        <!-- Minimal placeholder to keep grid stable -->
       </div>
     </div>
   </div>
@@ -55,24 +60,20 @@ export default {
   },
   emits: ['toggle-favorite', 'click', 'select'],
   data: () => ({
-    localThumb: null,
     mediaPort: null,
+    isVisible: false,
+    observer: null
   }),
   async mounted() {
+    this.setupObserver();
     try {
       this.mediaPort = await invoke("get_media_server_port");
-      
-      // If video and missing thumbnail, request from global worker
-      if (this.isVideo && !this.path.encoded) {
-        window.dispatchEvent(new CustomEvent('request-thumbnail', { 
-          detail: { id: this.path.id, location: this.path.location, videoUrl: this.videoUrl } 
-        }));
-        
-        window.addEventListener(`thumbnail-ready-${this.path.id}`, (e) => {
-          this.localThumb = e.detail.b64;
-        }, { once: true });
-      }
     } catch (e) {}
+  },
+  beforeUnmount() {
+    if (this.observer) {
+      this.observer.disconnect();
+    }
   },
   computed: {
     videoUrl() {
@@ -87,18 +88,15 @@ export default {
       return `http://127.0.0.1:${this.mediaPort}/media/${encoded}`;
     },
     imageSrc() {
-      if (!this.path) return '';
-
-      // 1. ALWAYS prioritize the generated base64 thumbnail (encoded)
-      if (this.path.encoded && this.path.encoded.length > 50) {
-          return this.path.encoded;
+      if (!this.path || !this.path.location) return null;
+      
+      // Load real photo if it's not a video
+      if (!this.isVideo) {
+        return convertFileSrc(this.path.location);
       }
 
-      // 2. Fallback to local generated thumb (from video worker)
-      if (this.localThumb) return this.localThumb;
-
-      // 3. DO NOT load the full high-res file here as it slows down the UI
-      // The high-res file will only be loaded in the PhotoViewer
+      // For videos, we don't have a direct "real photo" to show in <img> 
+      // without a thumbnail, so we'll show the placeholder for now.
       return null;
     },
     isFavorite() {
@@ -118,6 +116,18 @@ export default {
     }
   },
   methods: {
+      setupObserver() {
+        this.observer = new IntersectionObserver((entries) => {
+          this.isVisible = entries[0].isIntersecting;
+        }, {
+          rootMargin: '200px', // Pre-load before it enters and keep it a bit after
+          threshold: 0.01
+        });
+        
+        if (this.$refs.container) {
+          this.observer.observe(this.$refs.container);
+        }
+      },
       toggleFavorite() {
           this.$emit('toggle-favorite', this.path.id);
       },
@@ -149,6 +159,10 @@ export default {
   position: relative;
   background-color: #f4f4f5;
   border: 1px solid rgba(0,0,0,0.05);
+}
+
+.viewport-placeholder {
+  background-color: #f4f4f5;
 }
 
 .photo-img {

@@ -598,7 +598,7 @@ impl WebRtcClient {
                                             let faces_thumb = file_state.faces.clone();
 
                                             tokio::task::spawn_blocking(move || {
-                                                let thumb = crate::file::get_thumbnail(path_thumb.clone());
+                                                let thumb = String::new();
                                                 let db = Database::new(&config_path_thumb);
 
                                                 // Now import with thumbnail included - only now it becomes visible in library
@@ -900,7 +900,7 @@ impl WebRtcClient {
                                             let faces_thumb = file_state.faces.clone();
 
                                             tokio::task::spawn_blocking(move || {
-                                                let thumb = crate::file::get_thumbnail(path_thumb.clone());
+                                                let thumb = String::new();
                                                 let db = Database::new(&config_path_thumb);
 
                                                 // Now import with thumbnail included - only now it becomes visible in library

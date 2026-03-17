@@ -252,7 +252,7 @@ export default {
         });
     },
     handleIncomingPhoto(newPhoto) {
-      if (!newPhoto || !newPhoto.encoded || newPhoto.encoded.length < 50) return;
+      if (!newPhoto || !newPhoto.location) return;
       if (this.imagesMap[newPhoto.id]) return;
 
       if (this.filters.favoritesOnly && !newPhoto.favorite) return;
