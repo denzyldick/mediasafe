@@ -32,10 +32,13 @@ fn scan_files(app: tauri::AppHandle) {
     println!("Starting media scan...");
     let path = get_config_path(&app);
     if path.is_empty() {
+        println!("Error: Config path is empty, cannot scan.");
         return;
     }
     let database = database::Database::new(&path);
     let folders = database.list_directories();
+    println!("Found {} folders to scan in database.", folders.len());
+
     let state = app.state::<ml::MlContext>();
     state
         .abort
@@ -47,12 +50,16 @@ fn scan_files(app: tauri::AppHandle) {
         let total = folders.len();
         for (i, folder) in folders.iter().enumerate() {
             if abort_flag.load(std::sync::atomic::Ordering::SeqCst) {
+                println!("Scan aborted by user.");
                 return;
             }
             let progress = (i as f32 / total as f32 * 100.0) as u32;
             let _ = app.emit("scan-progress", serde_json::json!({ "status": "scanning", "progress": progress, "current": i + 1, "total": total, "current_directory": folder }));
+            println!("Scanning folder {} of {}: {}", i + 1, total, folder);
             file::scan_folder(&app, folder.clone(), &path);
         }
+
+        println!("Finished scanning all folders. Updating last scan time...");
         let database = database::Database::new(&path);
         let timestamp = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
@@ -78,12 +85,15 @@ fn scan_files(app: tauri::AppHandle) {
                 == tauri_plugin_notification::PermissionState::Granted;
 
         if is_granted {
+            println!("Permission granted, showing completion notification.");
             let _ = app
                 .notification()
                 .builder()
                 .title("Siegu")
                 .body("Media scan complete")
                 .show();
+        } else {
+            println!("Warning: Notification permission denied for completion alert.");
         }
     });
 }

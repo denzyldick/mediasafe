@@ -83,12 +83,15 @@ pub async fn start_watcher(app: tauri::AppHandle) {
                                 == tauri_plugin_notification::PermissionState::Granted;
 
                         if is_granted {
+                            println!("Permission granted for watcher, showing notification.");
                             let _ = app_clone
                                 .notification()
                                 .builder()
                                 .title("Siegu")
                                 .body("New media detected, scanning...")
                                 .show();
+                        } else {
+                            println!("Warning: Notification permission denied for watcher alert.");
                         }
 
                         crate::scan_files(app_clone.clone());
