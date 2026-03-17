@@ -53,6 +53,7 @@ pub async fn start_watcher(app: tauri::AppHandle) {
         let mut last_scan = tokio::time::Instant::now();
 
         while let Some(event) = rx.recv().await {
+            println!("Watcher received event: {event:?}");
             match event.kind {
                 EventKind::Create(CreateKind::File)
                 | EventKind::Modify(ModifyKind::Name(_))

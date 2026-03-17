@@ -27,6 +27,9 @@
       }
     }
   },
+  "plugins": {
+    "notification": {}
+  },
   "bundle": {
     "active": true,
     "targets": "all",

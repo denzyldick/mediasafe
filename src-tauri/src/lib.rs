@@ -29,6 +29,7 @@ fn get_config_path(app: &tauri::AppHandle) -> String {
 
 #[tauri::command]
 fn scan_files(app: tauri::AppHandle) {
+    println!("Starting media scan...");
     let path = get_config_path(&app);
     if path.is_empty() {
         return;
@@ -898,6 +899,18 @@ pub fn run() {
                     .build(app)?;
             }
 
+            println!("App is setting up background tasks...");
+            use tauri_plugin_notification::NotificationExt;
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = app_handle
+                    .notification()
+                    .builder()
+                    .title("Siegu")
+                    .body("Siegu is running in the background")
+                    .show();
+            });
+
             let config_path = get_config_path(app.handle());
             let (tx, pending_count, abort) =
                 ml::start_background_worker(app.handle(), config_path.clone());
@@ -922,6 +935,7 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600)); // 1 hour
                 loop {
+                    println!("Interval tick: checking for media updates...");
                     interval.tick().await;
                     scan_files(app_handle_for_interval.clone());
                 }
