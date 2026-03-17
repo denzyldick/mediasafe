@@ -889,6 +889,7 @@ async fn request_start_sync(state: tauri::State<'_, WebRtcState>) -> Result<(), 
     Ok(())
 }
 
+#[cfg(desktop)]
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -991,10 +992,10 @@ pub fn run() {
 
             Ok(())
         })
-        .on_window_event(|window, event| match event {
+        .on_window_event(|_window, event| match event {
             #[cfg(desktop)]
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                window.hide().unwrap();
+                _window.hide().unwrap();
                 api.prevent_close();
             }
             _ => {}
